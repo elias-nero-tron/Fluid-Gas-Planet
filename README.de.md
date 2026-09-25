@@ -22,7 +22,7 @@ Idee und Projektleitung: **elias-nero-tron** · Lizenz: Apache 2.0 · Zitieren: 
 | Version | Inhalt | Geprüft |
 |---|---|---|
 | **v0.1.0** (Branch `release/v0.1.0`) | Prototyp: Stable Fluids und Partikel, 5 Planeten, Regler mit Erklärtexten | ✅ auf echter Hardware (iGPU, ~60 fps nach Augenmaß). Urteil: aus der Ferne überzeugend, aus der Nähe zu grob |
-| **v0.2.0** (Vorabversion, `main`) | Kanten-Fix, freie Stürme, Einschwingen, Gaseous-Giganticus-Rezept, Kaffee-Demo | 🔶 nur im Software-Renderer, Bestätigung auf Hardware offen |
+| **v0.2.1** (Vorabversion, `main`; Standardwerte = v0.1-Look) | Kanten-Fix, freie Stürme, Einschwingen, Gaseous-Giganticus-Rezept, Kaffee-Demo | 🔶 nur im Software-Renderer, Bestätigung auf Hardware offen |
 
 Was funktioniert, was nicht, und die gemessenen Befunde stehen in [docs/STATUS.md](docs/de/STATUS.md).
 

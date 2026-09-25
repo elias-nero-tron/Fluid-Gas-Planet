@@ -35,6 +35,14 @@ Die Ursache ist gefunden und in Version 4 behoben (siehe unten), aber vom Nutzer
 6. Headless-Tests: Canvas-Präsentation verliert in SwiftShader das Gerät. Darum Testmodus
    `#offscreen` (rendert in Textur, `window.gasPlanet.capture()`, `readRow()` für Feldwerte).
 
+7. **Überkorrektur (Lektion).** Beobachtungen des Urhebers wurden als Fehlerberichte behandelt und die
+   Standardwerte so lange justiert, bis die Messungen sauber waren. Der Look wurde schlechter (flache
+   „Holzmaserung“, der Rote Fleck verblasst), obwohl jede Änderung für sich begründet war. Seit v0.2.1
+   sind die **Standardwerte wieder der v0.1-Look**, den der Urheber auf Hardware bestätigt hat
+   (Wirbelverstärkung 6, Band-Rückstellung 0,06, Feinstreifen aus, Stürme festgehalten, 12 s Einschwingen).
+   Die saubereren Einstellungen bleiben als Regler. Regel: Änderungen an Standardwerten vor der
+   Auslieferung auf echter Hardware optisch mit v0.1 vergleichen.
+
 ## Kernbefund: das Modell rechnet im falschen Bereich
 
 Nutzer-Einwand (berechtigt): „Die Mathematik wirkt wie für ein 10×10-cm-Objekt, nicht für
