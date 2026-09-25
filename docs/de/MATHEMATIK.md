@@ -9,7 +9,7 @@ Status: ✅ geprüft (Nutzer-Test auf Hardware oder Messung), 🔶 nur im Softwa
 a, b ∈ [−1, 1]. Richtung auf der Kugel = normalize(Flächenpunkt), z. B. +X: `normalize(1, −b, −a)`.
 Reihenfolge und Orientierung folgen der WebGPU-Cubemap-Konvention (+X, −X, +Y, −Y, +Z, −Z).
 
-- Code: `faceDir()` und `cubeUV()` in [`src/shaders/common.wgsl`](../src/shaders/common.wgsl)
+- Code: `faceDir()` und `cubeUV()` in [`src/shaders/common.wgsl`](../../src/shaders/common.wgsl)
 - Warum: keine Pol-Singularität (anders als eine Längen-/Breitengrad-Karte), fast gleich große Zellen.
 - ✅ Zuordnung gemessen: frisch geschriebenes Richtungsfeld wird fehlerfrei zurückgelesen.
 - ⚠️ Zellen an Kanten sind im Winkel etwa halb so groß wie in der Flächenmitte (1/(1+a²)).
@@ -28,7 +28,7 @@ der Kante über `faceDir(face, st außerhalb [0,1])` auf der Nachbarfläche.
 
 ## 2. Strömung: Stable Fluids auf der Kugel
 
-Datei: [`src/shaders/fluid.wgsl`](../src/shaders/fluid.wgsl). Pro Schritt:
+Datei: [`src/shaders/fluid.wgsl`](../../src/shaders/fluid.wgsl). Pro Schritt:
 `advect → curl → zonalClear/zonalSum → forces → divergence → jacobi × K → project`.
 
 **Gitter-Ableitungen mit echter Metrik.** Für jede Zelle werden die Nachbarn pE, pW, pN, pS

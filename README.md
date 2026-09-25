@@ -1,98 +1,104 @@
 # Fluid Gas Planet
 
-**Echtzeit-Gasplaneten im Browser, berechnet statt gemalt.** Strömungssimulation auf einer
-Kugel in WebGPU, ohne eine einzige Bilddatei für die Planetenoberfläche. Jupiter ist der
-Maßstab, weil er am besten vermessen ist; Saturn, Neptun, Uranus, ein heißer Jupiter und
-Zufallsplaneten laufen mit derselben Technik.
+**Real-time gas giants in the browser — computed, not painted.** A fluid simulation on a sphere,
+running entirely on the GPU with WebGPU. No image textures: every cloud band, jet and storm comes
+from equations and numbers. Jupiter is the benchmark because it is the best-measured gas giant;
+Saturn, Neptune, Uranus, a hot Jupiter and random planets run on the same engine.
 
-*English: Real-time gas giants in the browser, computed rather than painted: fluid simulation on a
-cube-sphere in WebGPU/WGSL, no texture images. Documentation is in German; formulas and code
-references in [docs/MATHEMATIK.md](docs/MATHEMATIK.md) are language-neutral.*
+**▶ Try it now:** [Planet simulator](https://raw.githack.com/elias-nero-tron/Fluid-Gas-Planet/main/demo/index.html) ·
+[Cream in Coffee demo](https://raw.githack.com/elias-nero-tron/Fluid-Gas-Planet/main/demo/coffee.html)
+(needs a WebGPU browser: Chrome/Edge 113+, Safari 26+, Firefox 141+, Android Chrome 121+).
+Or download [`demo/index.html`](demo/index.html) and open it locally, no install needed.
 
-Idee und Projektleitung: **elias-nero-tron** · Lizenz: Apache 2.0 · Zitieren: [CITATION.cff](CITATION.cff)
+Created by **elias-nero-tron** · Apache License 2.0 · [How to cite](CITATION.cff) · [Deutsch](README.de.md)
+
+| Jupiter | Saturn | Neptune |
+|---|---|---|
+| ![Jupiter rendered by the simulator](docs/images/jupiter.png) | ![Saturn with rings](docs/images/saturn.png) | ![Neptune with methane clouds](docs/images/neptune.png) |
+
+![Map view of the whole Jupiter simulation](docs/images/jupiter-map.png)
+*All images are renders of this simulator, not photos. Made in a software renderer shortly after start; on a real GPU the flow keeps developing more swirls and storms.*
 
 ---
 
 ## Status
 
-| Version | Inhalt | Geprüft |
+| Version | What | Verified |
 |---|---|---|
-| **v0.1.0** (Branch `release/v0.1.0`) | Prototyp: Stable Fluids und Partikel, 5 Planeten, Regler mit Erklärtexten | ✅ auf echter Hardware (iGPU, 25–41 fps). Urteil: aus der Ferne überzeugend, aus der Nähe zu grob |
-| **v0.2.0** (Vorabversion, `main`) | Kanten-Fix, freie Stürme, Einschwingen, Gaseous-Giganticus-Rezept, Kaffee-Demo | 🔶 nur im Software-Renderer, Bestätigung auf Hardware offen |
+| **v0.1.0** (branch `release/v0.1.0`) | Prototype: Stable Fluids and particles, 5 planets, controls with explanations | ✅ on real hardware (integrated GPU, ~60 fps). Verdict: convincing from afar, too coarse up close |
+| **v0.2.0** (pre-release, `main`) | Cube-edge fix, free-evolving storms, spin-up, Gaseous Giganticus recipe, coffee demo, English UI | 🔶 software renderer only; hardware confirmation pending |
 
-Was funktioniert, was nicht, und die gemessenen Befunde stehen in [docs/STATUS.md](docs/STATUS.md).
+Details, measured findings and open questions: [docs/STATUS.md](docs/STATUS.md).
 
-## Ausprobieren
+## What it does
+
+- **Two methods, freely combined.** Flow: *Stable Fluids* (pressure, Coriolis, jets, vortices) or
+  *curl noise* following the Gaseous Giganticus recipe. Look: *dye* (the colour texture is carried
+  by the wind) or *particles* (up to 4 million).
+- **Planets are numbers:** measured wind profiles, colour bands, storms, oblateness, axial tilt,
+  rings. Plus “Colours from image”: measure band colours from any photo.
+- **About 40 controls, each explaining what it changes physically.** Debug views for wind,
+  vorticity and pressure, plus a map view of the whole sphere. English and German UI.
+- **Rendering:** oblate ellipsoid, Minnaert limb darkening, cloud relief, haze rim, rings with shadows.
+- **Cream in Coffee** ([demos/coffee.html](demos/coffee.html)): pour and stir. A test bench for three
+  building blocks the planet still lacks: sources, moving obstacles and sharp transport.
+
+## Technology and approach
+
+- **WebGPU + WGSL, TypeScript, no engine.** WGSL also runs natively (wgpu, Dawn), so the
+  simulation is not tied to a browser or framework.
+- **Cube-sphere instead of a lat/long map:** no pole singularity. Wind stored as 3D tangent vectors,
+  derivatives use the real grid metric, seam-exact sampling across cube edges.
+- **Physics before effects:** every behaviour should come from a nameable equation. Where it cheats
+  (relief from brightness, band restoring), the docs say so.
+- **Measure, don't guess:** bugs are proven with test fields and GPU read-back (`#offscreen` mode).
+- **Open and traceable:** every formula with its location in the code in [docs/MATH.md](docs/MATH.md),
+  every source in [CREDITS.md](CREDITS.md). No third-party code copied, only published methods.
+
+## Continue the work
+
+Entry point for people and for new AI sessions, in this order:
+
+1. [docs/STATUS.md](docs/STATUS.md): verified vs. unverified, measured findings
+2. [docs/ROADMAP.md](docs/ROADMAP.md): strengths, weaknesses, work items ranked by impact
+3. [docs/MATH.md](docs/MATH.md): formulas ↔ code
+4. [CONTRIBUTING.md](CONTRIBUTING.md)
+
+Next steps by impact: **advected texture coordinates** (item 1a: fine detail decoupled from the
+simulation, streaks at any resolution), **atmospheric scattering** (1b) and **shallow-water
+equations** (1c: the right physics for compact Jupiter vortices).
+
+## Build
 
 ```bash
 npm install
-npm run dev        # http://localhost:5173 (Planet), /demos/coffee.html (Sahne im Kaffee)
-npm run build      # dist/index.html: eine einzige Datei, überall hostbar
+npm run dev        # http://localhost:5173 (planet), /demos/coffee.html (coffee)
+npm run build      # dist/index.html and demo/ — single self-contained files
 ```
 
-Braucht WebGPU: Chrome/Edge ab 113, Safari ab 26, Firefox ab 141, Android-Chrome ab 121.
-Nach dem Aktivieren von GitHub Pages (Einstellungen → Pages → Quelle: „GitHub Actions“) läuft der
-Simulator öffentlich unter der Pages-Adresse dieses Repos, die Kaffee-Demo unter `/demos/coffee.html`.
+GitHub Pages: enable once under Settings → Pages → Source “GitHub Actions”; the workflow then
+publishes `demo/` on every push to `main`.
 
-## Was drin ist
-
-- **Zwei Verfahren, frei kombinierbar.** Strömung: *Stable Fluids* (Druck, Coriolis, Jets,
-  Wirbel) oder *Curl-Noise* nach dem Rezept von Gaseous Giganticus. Darstellung: *Farbstoff*
-  (Farbtextur wird mitgeführt) oder *Partikel* (bis 4 Mio.).
-- **Planeten sind Zahlen:** gemessene Windprofile, Farbbänder, Stürme, Abplattung, Achsneigung,
-  Ringe. Dazu „Farben aus Bild“: Bandfarben aus einem Foto messen.
-- **Rund 40 Regler**, jeder erklärt, was er physikalisch verändert. Debug-Ansichten für Wind,
-  Wirbelstärke und Druck, Kartenansicht der ganzen Kugel.
-- **Darstellung:** Ellipsoid, Minnaert-Randverdunkelung, Relief, Dunstsaum, Ringe mit Schatten.
-- **Kaffee-Demo** ([demos/coffee.html](demos/coffee.html)): Sahne gießen und umrühren. Prüfstein
-  für drei Bausteine, die dem Planeten noch fehlen (Quellen, Hindernisse, scharfer Transport).
-
-## Technik und Haltung
-
-- **WebGPU + WGSL, TypeScript, keine Engine.** WGSL läuft auch nativ (wgpu, Dawn), die
-  Simulation ist nicht an einen Browser oder ein Framework gebunden.
-- **Würfelkugel statt Weltkarte:** keine Pol-Singularität. Wind als 3D-Tangentialvektor,
-  Ableitungen mit echter Gittermetrik.
-- **Physik vor Effekt:** Jedes Verhalten soll aus einer benennbaren Gleichung kommen. Wo
-  getrickst wird (Relief aus Helligkeit, Rückstellung der Bänder), steht es dabei.
-- **Messen statt raten:** Fehler werden mit Testfeldern und Auslese der GPU-Werte belegt
-  (Testmodus `#offscreen`).
-- **Offen und nachvollziehbar:** Jede Formel mit Fundstelle im Code in
-  [docs/MATHEMATIK.md](docs/MATHEMATIK.md), jede Quelle in [CREDITS.md](CREDITS.md).
-  Kein fremder Code, nur veröffentlichte Verfahren.
-
-## Weiterarbeiten
-
-Einstieg für Menschen und für neue KI-Sitzungen, in dieser Reihenfolge:
-
-1. [docs/STATUS.md](docs/STATUS.md): geprüft vs. unverifiziert, Befunde der Fehlersuche
-2. [docs/ROADMAP.md](docs/ROADMAP.md): Stärken, Schwachpunkte, Baustellen nach Wirkung sortiert
-3. [docs/MATHEMATIK.md](docs/MATHEMATIK.md): Formeln ↔ Code
-4. [CONTRIBUTING.md](CONTRIBUTING.md): Regeln fürs Mitmachen
-
-Nächste Schritte nach Wirkung: **advektierte Texturkoordinaten** (Baustelle 1a: Feinstruktur
-getrennt von der Simulation, Schlieren in beliebiger Auflösung), **Atmosphärenstreuung** (1b) und
-**Flachwasser-Gleichungen** (1c: richtige Physik für kompakte Jupiter-Wirbel).
-
-## Aufbau
+## Layout
 
 ```
 src/
-  main.ts              WebGPU-Start, Felder, Ablauf pro Bild, Kamera, Regler
-  presets.ts           Planeten als Zahlen; Farben aus Bild; Zufallsplanet
-  ui.ts                Reglerpanel mit Erklärtexten
-  math.ts              Matrizen
-  shaders/common.wgsl  Würfelkugel, nahtloses Abtasten, Rauschen, Tabellen, Stürme
-  shaders/fluid.wgsl   Stable Fluids auf der Kugel (Metrik-Ableitungen, Breitenkreis-Mittel)
-  shaders/tracers.wgsl Farbstoff, Curl-Noise-Feld, Wirbel, Partikel
-  shaders/render.wgsl  Ellipsoid, Licht, Relief, Dunstsaum, Ringe, Debug-Ansichten
-demos/coffee.html      Sahne im Kaffee (eigenständig, ohne Build)
-docs/                  Status, Roadmap, Mathematik, Recherche, ursprünglicher Plan
+  main.ts              WebGPU setup, fields, per-frame pipeline, camera, controls
+  presets.ts           planets as numbers; colours from image; random planet
+  i18n.ts              English/German
+  ui.ts                control panel with explanations
+  shaders/common.wgsl  cube-sphere, seam-exact sampling, noise, tables, storms
+  shaders/fluid.wgsl   Stable Fluids on the sphere (metric derivatives, zonal mean)
+  shaders/tracers.wgsl dye, curl noise field, vortices, particles
+  shaders/render.wgsl  ellipsoid, lighting, relief, haze, rings, debug views
+demos/coffee.html      cream in coffee (standalone, no build)
+demo/                  ready-to-run builds for the click-to-try links
+docs/                  status, roadmap, math (English); docs/de/: German originals, research, first plan
 ```
 
-## Lizenz und Nennung
+## License and attribution
 
-[Apache License 2.0](LICENSE). Nutzen, verändern, weitergeben, auch kommerziell, sind erlaubt und
-erwünscht. Wer das Projekt oder ein abgeleitetes Werk weitergibt, liefert die [NOTICE](NOTICE)-Datei
-mit und nennt damit den Urheber. Zitieren nach [CITATION.cff](CITATION.cff). Danksagungen an alle,
-auf deren Arbeit das Projekt aufbaut: [CREDITS.md](CREDITS.md).
+[Apache License 2.0](LICENSE). Use, modify and redistribute, including commercially — building on
+this is explicitly welcome. Anyone redistributing the project or a derivative must include the
+[NOTICE](NOTICE) file, which credits the author. Please cite via [CITATION.cff](CITATION.cff).
+Thanks to everyone whose work this builds on: [CREDITS.md](CREDITS.md).

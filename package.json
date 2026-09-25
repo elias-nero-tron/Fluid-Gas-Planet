@@ -6,7 +6,7 @@
   "license": "Apache-2.0",
   "scripts": {
     "dev": "vite",
-    "build": "tsc --noEmit && vite build && node scripts/artifact.mjs",
+    "build": "tsc --noEmit && vite build && node scripts/artifact.mjs && node scripts/demo.mjs",
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
