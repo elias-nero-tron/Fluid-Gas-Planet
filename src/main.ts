@@ -30,7 +30,7 @@ const S = {
   omega: 0.4,
   turbulence: 0.6,
   turbScale: 4,
-  confinement: 0.5,
+  confinement: 6,          // Look von v0.1 (vom Urheber auf Hardware bestätigt)
   drag: 0.02,
   // Curl-Noise
   curlStrength: 0.5,
@@ -42,20 +42,20 @@ const S = {
   vortexStrength: 1,
   // Partikel
   particles: isPhone ? 262144 : 1048576,
-  lifetime: 60,
-  opacity: 0.2,
-  blur: 0.02,
+  lifetime: 6,
+  opacity: 0.35,
+  blur: 0.12,
   // Farbe und Stürme
   dyeRes: isPhone ? 384 : 768,
-  bandRelax: 0.02,
-  fineStripes: 0.7,
+  bandRelax: 0.06,
+  fineStripes: 0,
   bandWobble: 1,
   contrast: 1,
   convection: 0.8,
   storms: true,
   stormStrength: 1,
   stormTint: 0.6,
-  stormHold: 0,
+  stormHold: 1,
   stormSpawn: 0.3,
   // Licht und Ansicht
   sunAngle: 35,
@@ -135,7 +135,7 @@ const SIM_FLOATS = OFF_WEIGHT + MAX_STORMS;
 const RENDER_FLOATS = 16 + 4 * 11;
 // Fester Zeitschritt: Zeitraffer und Einschwingen machen mehr Schritte, nicht größere.
 const DT = 1 / 60;
-const WARM_STEPS = 480;
+const WARM_STEPS = 720;   // 12 s Simulationszeit, wie in v0.1
 const WARM_MAX_PER_FRAME = 8;
 const KICK_LIFE = 2.5;
 
@@ -736,8 +736,8 @@ class App {
       .range('turbScale', t('Turbulenz-Größe', 'Turbulence scale'), 1, 20, 0.5,
         t('Größe der Anstöße: klein = viele feine Wirbel, groß = wenige große.', 'Size of the kicks: small = many fine eddies, large = a few big ones.'), (v) => v.toFixed(1))
       .range('confinement', t('Wirbelverstärkung', 'Vorticity confinement'), 0, 8, 0.05,
-        t('Vorticity Confinement: gibt Wirbeln die Energie zurück, die das grobe Gitter wegschmiert. Wirkt vor allem auf die kleinsten Wirbel. Über etwa 2 pumpt es Gitterrauschen auf und die Bänder werden kammartig.',
-          'Gives vortices back the energy the coarse grid smears away, mostly for the smallest eddies. Above about 2 it amplifies grid noise and bands turn comb-like.'), f2)
+        t('Vorticity Confinement: gibt Wirbeln die Energie zurück, die das grobe Gitter wegschmiert. Wirkt vor allem auf die kleinsten Wirbel. Standard 6 ist der lebendige Look von v0.1; physikalisch sauberer ist etwa 0,5, das beruhigt das kleinskalige Rauschen.',
+          'Gives vortices back the energy the coarse grid smears away, mostly for the smallest eddies. Default 6 is the v0.1 look with lively curls; physically cleaner is about 0.5, which calms the small-scale noise.'), f2)
       .range('drag', t('Reibung', 'Drag'), 0, 0.5, 0.005, t('Bremst den ganzen Wind gleichmäßig ab.', 'Slows the whole wind field uniformly.'), f3)
       .range('iterations', t('Druck-Iterationen', 'Pressure iterations'), 2, 80, 1,
         t('Jacobi-Schritte für die Druckgleichung. Mehr = sauberer divergenzfrei, aber teurer. Der wichtigste Leistungsregler.',

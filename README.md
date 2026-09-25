@@ -26,7 +26,7 @@ Created by **elias-nero-tron** · Apache License 2.0 · [How to cite](CITATION.c
 | Version | What | Verified |
 |---|---|---|
 | **v0.1.0** (branch `release/v0.1.0`) | Prototype: Stable Fluids and particles, 5 planets, controls with explanations | ✅ on real hardware (integrated GPU, ~60 fps). Verdict: convincing from afar, too coarse up close |
-| **v0.2.0** (pre-release, `main`) | Cube-edge fix, free-evolving storms, spin-up, Gaseous Giganticus recipe, coffee demo, English UI | 🔶 software renderer only; hardware confirmation pending |
+| **v0.2.1** (pre-release, `main`) | v0.1 look as defaults, plus cube-edge fix, spin-up, optional free-evolving storms, Gaseous Giganticus recipe, coffee demo, English UI | 🔶 software renderer only; hardware confirmation pending |
 
 Details, measured findings and open questions: [docs/STATUS.md](docs/STATUS.md).
 

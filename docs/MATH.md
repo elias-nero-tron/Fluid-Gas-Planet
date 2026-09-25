@@ -79,7 +79,7 @@ u ← u − ∇p
 - ⚠️ Jacobi converges slowly; multigrid is the next performance step.
 
 **Vorticity confinement (Fedkiw 2001).** `f = ε·Δx·(N × ζ p̂)`, N = ∇|ζ|/|∇|ζ||.
-- ✅ Finding: default ε = 6 was about 10× too strong and amplified grid noise. Now 0.5.
+- ✅ Finding: ε = 6 produces measurable grid-scale noise (≈ 0.1 rad/s² against 0.06 rad/s jets). It is still the default because it gives the lively v0.1 look the author confirmed; ≈ 0.5 is the physically cleaner setting.
 
 **Storms.** Profile v(d) = x·e^{−x²}·2.33 with x = d/r; spin from cyclone/anticyclone and hemisphere
 (northern cyclones counter-clockwise). Seeded as initial vortices (`initVel`), then free. Optionally
