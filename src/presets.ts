@@ -23,6 +23,7 @@ export interface Preset {
   tilt: number;                  // Achsneigung in Grad
   rotationHours: number;
   atmosphere: string;
+  cloud: string;                 // Farbe aufsteigender Konvektionswolken
   atmosphereStrength: number;
   rings: null | { inner: number; outer: number; color: string; opacity: number };
   // Startwerte für Regler, die je Planet sinnvoll anders sind
@@ -57,10 +58,11 @@ export const presets: Preset[] = [
     oblateness: 0.0649,
     tilt: 3.1,
     rotationHours: 9.93,
+    cloud: '#efe8da',
     atmosphere: '#8fb2e0',
     atmosphereStrength: 0.35,
     rings: null,
-    tune: { turbulence: 0.4, convection: 0.8, bandWobble: 0.6, stormTint: 1.6, relief: 0.15 },
+    tune: { turbulence: 0.4, convection: 0.8, bandWobble: 0.6, stormTint: 1.6, relief: 0.35 },
   },
   {
     name: 'Saturn',
@@ -81,6 +83,7 @@ export const presets: Preset[] = [
     oblateness: 0.0980,
     tilt: 26.7,
     rotationHours: 10.66,
+    cloud: '#f4ecd8',
     atmosphere: '#d9c8a0',
     atmosphereStrength: 0.25,
     rings: { inner: 1.24, outer: 2.27, color: '#d8c7a4', opacity: 0.9 },
@@ -105,10 +108,11 @@ export const presets: Preset[] = [
     oblateness: 0.0171,
     tilt: 28.3,
     rotationHours: 16.11,
+    cloud: '#f2f6ff',
     atmosphere: '#7fb0ff',
     atmosphereStrength: 0.5,
     rings: null,
-    tune: { turbulence: 0.5, convection: 0.3, bandWobble: 0.7, stormTint: 0.8, relief: 0.12 },
+    tune: { turbulence: 0.5, convection: 1.6, bandWobble: 0.7, stormTint: 0.8, relief: 0.6 },
   },
   {
     name: 'Uranus',
@@ -125,10 +129,11 @@ export const presets: Preset[] = [
     oblateness: 0.0229,
     tilt: 97.8,
     rotationHours: 17.24,
+    cloud: '#f0fbfc',
     atmosphere: '#bff0ff',
     atmosphereStrength: 0.45,
     rings: { inner: 1.64, outer: 2.0, color: '#6d7478', opacity: 0.25 },
-    tune: { turbulence: 0.2, convection: 0.1, bandWobble: 0.4, stormTint: 0.4, relief: 0.1 },
+    tune: { turbulence: 0.2, convection: 0.6, bandWobble: 0.4, stormTint: 0.4, relief: 0.4 },
   },
   {
     name: 'Heißer Jupiter',
@@ -145,6 +150,7 @@ export const presets: Preset[] = [
     oblateness: 0.01,
     tilt: 0,
     rotationHours: 72,
+    cloud: '#ffcf8a',
     atmosphere: '#ff9a5a',
     atmosphereStrength: 0.4,
     rings: null,
@@ -206,6 +212,44 @@ export function bandTable(p: Preset, contrast: number): Float32Array {
   return out;
 }
 
+/**
+ * Misst Bandfarben aus einem Bild: für jede Breite die mittlere Farbe der Bildzeile.
+ * Funktioniert mit flachen Karten und mit Fotos der Planetenscheibe (schwarzer Raum und
+ * dunkler Rand werden ignoriert, genutzt wird die Mitte jeder Zeile).
+ */
+export async function bandsFromImage(file: File): Promise<[number, string][]> {
+  const bmp = await createImageBitmap(file);
+  const w = 256, h = Math.max(64, Math.round((256 * bmp.height) / bmp.width));
+  const c = document.createElement('canvas');
+  c.width = w; c.height = h;
+  const g = c.getContext('2d', { willReadFrequently: true })!;
+  g.drawImage(bmp, 0, 0, w, h);
+  const px = g.getImageData(0, 0, w, h).data;
+  const lum = (i: number) => 0.3 * px[i] + 0.59 * px[i + 1] + 0.11 * px[i + 2];
+  // Oberste und unterste Zeile mit Planet finden (Foto der Scheibe hat schwarzen Rand).
+  const rowHasPlanet = (y: number) => { let n = 0; for (let x = 0; x < w; x++) if (lum((y * w + x) * 4) > 18) n++; return n > w * 0.02; };
+  let top = 0, bottom = h - 1;
+  while (top < h - 1 && !rowHasPlanet(top)) top++;
+  while (bottom > top && !rowHasPlanet(bottom)) bottom--;
+  const out: [number, string][] = [];
+  for (let k = 0; k < TABLE; k++) {
+    const lat = 90 - (180 * k) / (TABLE - 1);
+    const y = Math.round(top + ((bottom - top) * k) / (TABLE - 1));
+    let x0 = 0, x1 = w - 1;
+    while (x0 < w - 1 && lum((y * w + x0) * 4) <= 18) x0++;
+    while (x1 > x0 && lum((y * w + x1) * 4) <= 18) x1--;
+    const mid = (x0 + x1) / 2, half = Math.max(1, (x1 - x0) * 0.2);
+    let r = 0, gg = 0, b = 0, n = 0;
+    for (let x = Math.floor(mid - half); x <= Math.ceil(mid + half); x++) {
+      const i = (y * w + Math.min(w - 1, Math.max(0, x))) * 4;
+      r += px[i]; gg += px[i + 1]; b += px[i + 2]; n++;
+    }
+    const to = (v: number) => Math.round(v / n).toString(16).padStart(2, '0');
+    out.push([lat, `#${to(r)}${to(gg)}${to(b)}`]);
+  }
+  return out.reverse();
+}
+
 /** Zufälliger Gasplanet aus einem Seed: Anzahl Jets, Farben und Stürme werden gewürfelt. */
 export function randomPreset(seed: number): Preset {
   let s = seed >>> 0 || 1;
@@ -250,7 +294,7 @@ export function randomPreset(seed: number): Preset {
   return {
     name: 'Zufall', wind, bands, storms,
     oblateness: 0.02 + rnd() * 0.08, tilt: rnd() * 30, rotationHours: 8 + rnd() * 20,
-    atmosphere: hsl(hue, 0.5, 0.7), atmosphereStrength: 0.2 + rnd() * 0.4,
+    cloud: hsl(hue, 0.3, 0.9), atmosphere: hsl(hue, 0.5, 0.7), atmosphereStrength: 0.2 + rnd() * 0.4,
     rings: rnd() < 0.35 ? { inner: 1.3 + rnd() * 0.3, outer: 1.9 + rnd() * 0.6, color: hsl(hue + 30, 0.2, 0.6), opacity: 0.4 + rnd() * 0.5 } : null,
     tune: { turbulence: 0.3 + rnd() * 0.5, convection: rnd(), bandWobble: 0.4 + rnd(), stormTint: 0.6, relief: 0.3 },
   };

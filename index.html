@@ -93,6 +93,11 @@
   .row-toggle label { display: flex; align-items: center; gap: 8px; cursor: pointer; }
   .row-toggle input { accent-color: var(--accent); width: 16px; height: 16px; margin: 0; }
   .row-buttons { display: flex; flex-wrap: wrap; gap: 8px; }
+  .row-file input { grid-column: 1 / -1; width: 100%; font: 12px var(--body); color: var(--muted); }
+  .row-file input::file-selector-button {
+    font: 13px var(--body); color: var(--text); background: #1b1c22; border: 1px solid var(--line);
+    border-radius: 5px; padding: 6px 8px; margin-right: 8px; cursor: pointer;
+  }
   button { cursor: pointer; }
   button:hover { border-color: var(--accent-dim); }
   :focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
@@ -128,7 +133,7 @@
     <div class="hud">
       <h1>Fluid Gas Planet</h1>
       <div class="meta" id="planet-info">Jupiter</div>
-      <div class="meta"><span id="fps">– fps</span> · ziehen zum Drehen, Mausrad oder zwei Finger zum Zoomen</div>
+      <div class="meta"><span id="fps">– fps</span><span id="warm"></span> · ziehen zum Drehen, Mausrad oder zwei Finger zum Zoomen</div>
     </div>
     <div id="status" hidden></div>
   </div>

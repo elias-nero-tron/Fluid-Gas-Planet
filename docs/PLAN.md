@@ -1,5 +1,10 @@
 # Plan: Echtzeit-Gasplaneten auf WebGPU
 
+> **Ursprünglicher Plan vom Projektstart (historisch).** Der aktuelle Stand und die korrigierte
+> Richtung stehen in [STATUS.md](STATUS.md) und [ROADMAP.md](ROADMAP.md). Wichtigste Korrektur:
+> Die hier gewählte barotrope Wirbelgleichung ist der Sonderfall ohne Deformationsradius; der
+> richtige Ausgangspunkt sind Flachwasser-Gleichungen.
+
 **Ziel:** Gasplaneten nur aus Mathematik und Simulation darstellen, ohne Bilddateien,
 in Echtzeit im Browser über WebGPU. Jupiter ist der erste Maßstab, weil er am
 besten vermessen ist. Das System soll aber von Anfang an auch Saturn, Uranus,
@@ -19,7 +24,7 @@ Vorarbeit und Lizenzen: siehe [RECHERCHE.md](RECHERCHE.md).
 | Strömungsmodell | **Barotrope Wirbelstärke-Gleichung auf rotierender Kugel** statt reiner Stable Fluids | divergenzfrei per Konstruktion, Coriolis/β-Effekt erzeugt von selbst Jets, Rossby-Wellen und langlebige Wirbel – genau das, was Jupiter ausmacht |
 | Farben | prozedurale Paletten (Gradienten aus Preset-Parametern) | keine JPG-Dateien |
 | Rendering | Kugel als Impostor (Ray-Sphere im Fragment-Shader), Ellipsoid für Abplattung | pixelgenau, kein Mesh-LOD nötig |
-| Lizenz | **Offen – Entscheidung nötig**, Empfehlung MIT | MIT: wir nehmen Code von MIT/BSD-Projekten und nur Ideen von GPL. GPL-3.0: wir dürfen zusätzlich Code von bloknayrb/gas-giant übernehmen, das Projekt bleibt dann aber GPL. |
+| Lizenz | Apache 2.0 mit NOTICE (entschieden) | erlaubt Weiterentwicklung, verlangt Nennung des Urhebers; GPL-Projekte nur als Ideenquelle |
 
 ## 2. Die Mathematik
 

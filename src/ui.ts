@@ -129,6 +129,21 @@ export class Panel {
     return this;
   }
 
+  file(id: string, label: string, hint: string, onFile: (f: File) => void): this {
+    const { row, lab, out } = this.row(id, label, hint);
+    out.remove();
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/*';
+    input.id = `ctl-${id}`;
+    input.className = 'file';
+    lab.htmlFor = input.id;
+    row.classList.add('row-file');
+    row.append(input);
+    input.addEventListener('change', () => { if (input.files?.[0]) onFile(input.files[0]); input.value = ''; });
+    return this;
+  }
+
   /** Blendet Regler ein/aus, z. B. Partikel-Regler nur im Partikel-Modus. */
   visible(key: string, on: boolean) {
     for (const b of this.bindings) if (b.key === key) b.row.hidden = !on;

@@ -4,21 +4,23 @@
 // dadurch gibt es keine Pol-Singularität und keine Sonderfälle an Würfelkanten.
 
 const PI = 3.14159265359;
-const MAX_STORMS = 8u;
+const MAX_STORMS = 16u;
 
 struct Sim {
   dt: f32, time: f32, frame: f32, velN: f32,
-  dyeN: f32, flowN: f32, h: f32, omega: f32,
+  dyeN: f32, flowN: f32, vortexStrength: f32, omega: f32,
   jetStrength: f32, jetRelax: f32, turbulence: f32, turbScale: f32,
-  confinement: f32, drag: f32, dissipation: f32, bfecc: f32,
+  confinement: f32, drag: f32, fineStripes: f32, bfecc: f32,
   bandRelax: f32, convection: f32, stormStrength: f32, stormCount: f32,
   curlStrength: f32, curlFreq: f32, curlSpeed: f32, curlOctaves: f32,
   particleCount: f32, lifetime: f32, opacity: f32, blur: f32,
-  seed: f32, bandWobble: f32, stormTint: f32, particleSize: f32,
+  seed: f32, bandWobble: f32, stormTint: f32, vortexCount: f32,
+  cloud: vec4f,                 // Farbe aufsteigender Konvektionswolken (linear RGB)
   jets: array<vec4f, 16>,       // 64 Stützstellen, Breite −90°..+90°, Einheit rad/s bei jetStrength 1
   bands: array<vec4f, 64>,      // Bandfarbe (linear RGB) je Breite
-  storms: array<vec4f, 8>,      // xyz Zentrum (Körperkoordinaten), w Radius in rad
-  stormInfo: array<vec4f, 8>,   // x Drehsinn·Stärke, yzw Farbe
+  storms: array<vec4f, 16>,     // xyz Zentrum (Körperkoordinaten), w Radius in rad
+  stormInfo: array<vec4f, 16>,  // x Drehsinn·Stärke, yzw Farbe
+  stormWeight: array<vec4f, 4>, // wie stark jeder Sturm gerade angetrieben wird (0 = frei)
 };
 
 @group(0) @binding(0) var<uniform> S: Sim;
@@ -36,6 +38,58 @@ fn faceDir(face: u32, st: vec2f) -> vec3f {
     case 4u: { return normalize(vec3f(a, -b, 1.0)); }
     default: { return normalize(vec3f(-a, -b, -1.0)); }
   }
+}
+
+// Richtung -> (st in [0,1]², Fläche) ohne Begrenzung.
+fn cubeUV(d: vec3f) -> vec3f {
+  let ad = abs(d);
+  var face = 0.0; var sc = 0.0; var tc = 0.0; var ma = 1.0;
+  if (ad.x >= ad.y && ad.x >= ad.z) {
+    ma = ad.x;
+    if (d.x > 0.0) { face = 0.0; sc = -d.z; } else { face = 1.0; sc = d.z; }
+    tc = -d.y;
+  } else if (ad.y >= ad.z) {
+    ma = ad.y;
+    if (d.y > 0.0) { face = 2.0; tc = d.z; } else { face = 3.0; tc = -d.z; }
+    sc = d.x;
+  } else {
+    ma = ad.z;
+    if (d.z > 0.0) { face = 4.0; sc = d.x; } else { face = 5.0; sc = -d.x; }
+    tc = -d.y;
+  }
+  return vec3f(vec2f(sc, tc) / ma * 0.5 + 0.5, face);
+}
+
+// Nahtloses bilineares Abtasten der Würfelfelder.
+// Gemessen: das Hardware-Abtasten über Würfelkanten weicht bis zu 500-mal stärker ab als im
+// Flächeninneren. Weil die Farbe jeden Schritt neu abgetastet wird, wachsen daraus Narben.
+// Darum: im Inneren tastet die Hardware ab (dort exakt); nahe der Kante werden die vier
+// Nachbar-Texel einzeln geholt, Texel jenseits der Kante über ihre Richtung auf der Nachbarfläche.
+fn loadDir(t: texture_2d_array<f32>, s: sampler, q: vec3f) -> vec4f {
+  let u = cubeUV(q);
+  return textureSampleLevel(t, s, u.xy, i32(u.z), 0.0);
+}
+
+fn sampleCube(t: texture_2d_array<f32>, s: sampler, p: vec3f) -> vec4f {
+  let n = f32(textureDimensions(t).x);
+  let u = cubeUV(p);
+  let x = u.xy * n - 0.5;
+  if (all(x >= vec2f(0.0)) && all(x <= vec2f(n - 1.0))) {
+    return textureSampleLevel(t, s, u.xy, i32(u.z), 0.0);
+  }
+  let i0 = floor(x);
+  let f = x - i0;
+  let face = u32(u.z);
+  var c: array<vec4f, 4>;
+  for (var k = 0u; k < 4u; k++) {
+    let ij = i0 + vec2f(f32(k & 1u), f32(k >> 1u));
+    if (all(ij >= vec2f(0.0)) && all(ij <= vec2f(n - 1.0))) {
+      c[k] = textureLoad(t, vec2i(ij), i32(face), 0);
+    } else {
+      c[k] = loadDir(t, s, faceDir(face, (ij + 0.5) / n));
+    }
+  }
+  return mix(mix(c[0], c[1], f.x), mix(c[2], c[3], f.x), f.y);
 }
 
 // Richtung -> (Fläche, Texel) für Schreibzugriffe aus Partikeln.
@@ -179,7 +233,9 @@ fn curlOnSphere(p: vec3f, freq: f32, t: f32, octaves: i32) -> vec3f {
   return cross(p, g);
 }
 
-// Drehfeld eines Sturms: Rotation um das Zentrum, Gauß-Profil.
+fn stormW(i: u32) -> f32 { return S.stormWeight[i / 4u][i % 4u]; }
+
+// Drehfeld der angetriebenen Stürme: Rotation um das Zentrum, Gauß-Profil.
 fn stormFlow(p: vec3f) -> vec3f {
   var v = vec3f(0.0);
   let n = u32(S.stormCount);
@@ -190,7 +246,7 @@ fn stormFlow(p: vec3f) -> vec3f {
     let x = d / r;
     // Geschwindigkeit ~ x·exp(−x²): null im Kern, Maximum am Rand, dann Abfall.
     let prof = x * exp(-x * x) * 2.33;
-    v += cross(c, p) / max(sin(d), 1e-4) * prof * S.stormInfo[i].x;
+    v += cross(c, p) / max(sin(d), 1e-4) * prof * S.stormInfo[i].x * stormW(i);
   }
   return v * S.stormStrength;
 }
@@ -204,7 +260,7 @@ fn stormMask(p: vec3f, scale: f32) -> vec4f {
     let c = S.storms[i].xyz;
     let r = S.storms[i].w;
     let d = acos(clamp(dot(c, p), -1.0, 1.0));
-    let m = exp(-pow(d / (r * scale), 2.0));
+    let m = exp(-pow(d / (r * scale), 2.0)) * stormW(i);
     tint += S.stormInfo[i].yzw * m;
     w += m;
   }
