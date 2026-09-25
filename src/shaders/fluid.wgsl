@@ -108,7 +108,6 @@ fn advect(@builtin(global_invocation_id) id: vec3u) {
   // Paralleltransport: in die Tangentialebene bei p projizieren, Betrag erhalten.
   var vt = tangent(p, v);
   vt *= length(v) / max(length(vt), 1e-6);
-  vt /= 1.0 + S.dissipation * dt;
   put(id, vec4f(safe(vt), 0.0));
 }
 

@@ -36,14 +36,18 @@ const S = {
   curlFreq: 4,
   curlSpeed: 0.04,
   curlOctaves: 4,
+  curlRes: isPhone ? 256 : 384,
+  vortexCount: 32,
+  vortexStrength: 1,
   // Partikel
   particles: isPhone ? 262144 : 1048576,
-  lifetime: 6,
-  opacity: 0.35,
-  blur: 0.12,
+  lifetime: 60,
+  opacity: 0.2,
+  blur: 0.02,
   // Farbe und Stürme
   dyeRes: isPhone ? 384 : 768,
-  bandRelax: 0.06,
+  bandRelax: 0.02,
+  fineStripes: 0.7,
   bandWobble: 1,
   contrast: 1,
   convection: 0.8,
@@ -65,10 +69,10 @@ const S = {
 type Key = keyof typeof S;
 const DEFAULTS = { ...S };
 
-const QUALITY: Record<string, { velRes: number; dyeRes: number; particles: number; dpr: number }> = {
-  phone: { velRes: 96, dyeRes: 384, particles: 262144, dpr: 1.25 },
-  standard: { velRes: 128, dyeRes: 768, particles: 1048576, dpr: 1.75 },
-  high: { velRes: 192, dyeRes: 1024, particles: 4194304, dpr: 2 },
+const QUALITY: Record<string, { velRes: number; dyeRes: number; curlRes: number; particles: number; dpr: number }> = {
+  phone: { velRes: 96, dyeRes: 384, curlRes: 256, particles: 262144, dpr: 1.25 },
+  standard: { velRes: 128, dyeRes: 768, curlRes: 384, particles: 1048576, dpr: 1.75 },
+  high: { velRes: 192, dyeRes: 1024, curlRes: 768, particles: 4194304, dpr: 2 },
 };
 
 // ---------------------------------------------------------------------------
@@ -247,7 +251,7 @@ class App {
 
   private applyQuality(fromUI: boolean) {
     const q = QUALITY[S.quality];
-    if (fromUI && q) { S.velRes = q.velRes; S.dyeRes = q.dyeRes; S.particles = q.particles; }
+    if (fromUI && q) { S.velRes = q.velRes; S.dyeRes = q.dyeRes; S.curlRes = q.curlRes; S.particles = q.particles; }
     this.dpr = q ? q.dpr : 1.5;
     this.allocVel();
     this.allocDye();
@@ -262,7 +266,7 @@ class App {
     this.prs = [this.cubeField(n), this.cubeField(n)];
     this.aux = this.cubeField(n);
     this.div = this.cubeField(n);
-    this.flow = this.cubeField(Math.min(n, 128));
+    this.flow = this.cubeField(S.curlRes);
     this.needsInit = true;
   }
 
@@ -327,13 +331,13 @@ class App {
     const list = this.activeStorms();
     d.set([
       dt, this.time, this.frame, S.velRes,
-      S.dyeRes, this.flow.n, 1.5 / S.velRes, S.omega,
+      S.dyeRes, this.flow.n, S.vortexStrength, S.omega,
       js, S.jetRelax, S.turbulence * js * 0.05, S.turbScale,
-      S.confinement, S.drag, 0, S.bfecc ? 1 : 0,
+      S.confinement, S.drag, S.fineStripes, S.bfecc ? 1 : 0,
       S.bandRelax, S.convection, js * S.stormStrength, list.length,
       S.curlStrength * js, S.curlFreq, S.curlSpeed, S.curlOctaves,
       S.particles, S.lifetime, S.opacity, S.blur,
-      S.seed, S.bandWobble, S.stormTint, 0,
+      S.seed, S.bandWobble, S.stormTint, S.vortexCount,
     ], 0);
     list.forEach((s, i) => {
       const la = (s.lat * Math.PI) / 180, lo = (s.lon * Math.PI) / 180;
@@ -698,13 +702,17 @@ class App {
       .range('curlFreq', 'Frequenz', 1, 16, 0.1, 'Größe der Wirbel im Rauschfeld: hoch = viele kleine.', (v) => v.toFixed(1))
       .range('curlSpeed', 'Veränderung', 0, 0.5, 0.005, 'Wie schnell sich das Rauschfeld mit der Zeit umbaut.', f3)
       .range('curlOctaves', 'Oktaven', 1, 6, 1, 'Anzahl überlagerter Rausch-Ebenen. Mehr = feinere Details.')
+      .range('vortexCount', 'Wirbel', 0, 128, 1, 'Anzahl eingestreuter Wirbel (Rezept aus Gaseous Giganticus). Sie werden nur dort gesetzt, wo die Jets schwach sind, und drehen mit der lokalen Scherung, damit sie nicht zerrissen werden.')
+      .range('vortexStrength', 'Wirbel-Stärke', 0, 4, 0.05, 'Drehgeschwindigkeit der eingestreuten Wirbel relativ zur Jet-Stärke.', f2)
+      .range('curlRes', 'Feinheit Strömungsfeld', 64, 1024, 64, 'Auflösung des Curl-Noise-Strömungsfelds je Würfelfläche. Gaseous Giganticus nutzt 2048. Feiner = feinere Filamente, kostet Rechenzeit.', (v) => `${v}²`)
       .section('Partikel', 'Wirkt bei Darstellung „Partikel“.', false)
       .range('particles', 'Anzahl', 16384, 4194304, 16384, 'Anzahl der Partikel. jasper-r nutzte 4 Mio. bei 80 fps auf einem PC. Handys schaffen etwa 0,25 bis 1 Mio.', n)
-      .range('lifetime', 'Lebensdauer', 0.5, 30, 0.5, 'Sekunden, bis ein Partikel neu geboren wird. Lang = lange Schlieren.', (v) => `${v.toFixed(1)} s`)
+      .range('lifetime', 'Lebensdauer', 0.5, 60, 0.5, 'Sekunden, bis ein Partikel neu geboren wird. Lang = lange Schlieren. Ganz rechts (60) leben Partikel ewig wie bei Gaseous Giganticus und ziehen immer feinere Fäden.', (v) => (v >= 60 ? 'ewig' : `${v.toFixed(1)} s`))
       .range('opacity', 'Deckkraft', 0.01, 1, 0.01, 'Wie stark ein Partikel seine Farbe in die Textur schreibt.', pct)
       .range('blur', 'Weichzeichnen', 0, 1, 0.01, 'Verwischt die Textur jedes Bild ein wenig, damit aus Punkten Wolken werden.', pct)
       .section('Wolken und Stürme')
       .range('bandRelax', 'Band-Rückstellung', 0, 0.5, 0.005, 'Wie schnell die Farbe zum Band ihrer Breite zurückkehrt. 0 = alles vermischt sich irgendwann zu Brei, hoch = starre Streifen.', f3)
+      .range('fineStripes', 'Feinstreifen', 0, 2, 0.05, 'Feine Farbstreifen innerhalb der Bänder. Erst sie machen sichtbar, wie die Strömung Farbe zu Filamenten zieht, wie auf den Juno-Nahaufnahmen.', f2)
       .range('bandWobble', 'Band-Mäander', 0, 3, 0.05, 'Verbiegt die Bandgrenzen mit Rauschen, damit sie nicht wie mit dem Lineal gezogen sind.', f2)
       .range('contrast', 'Band-Kontrast', 0, 2.5, 0.05, 'Verstärkt oder dämpft den Farbunterschied zwischen hellen Zonen und dunklen Gürteln.', f2)
       .range('convection', 'Konvektion', 0, 4, 0.05, 'Helle Wolkentürme, die aus der Tiefe aufsteigen (Ammoniak-Eis).', f2)
@@ -730,12 +738,12 @@ class App {
   private updateVisibility() {
     const fluid = S.flow === 'fluid', parts = S.look === 'particles';
     for (const k of ['jetRelax', 'omega', 'turbulence', 'turbScale', 'confinement', 'drag', 'iterations', 'velRes', 'stormSpawn']) this.panel.visible(k, fluid);
-    for (const k of ['curlStrength', 'curlFreq', 'curlSpeed', 'curlOctaves']) this.panel.visible(k, !fluid);
+    for (const k of ['curlStrength', 'curlFreq', 'curlSpeed', 'curlOctaves', 'vortexCount', 'vortexStrength', 'curlRes']) this.panel.visible(k, !fluid);
     for (const k of ['particles', 'lifetime', 'opacity', 'blur']) this.panel.visible(k, parts);
   }
 
   private resetSettings() {
-    const keep = { preset: S.preset, quality: S.quality, velRes: S.velRes, dyeRes: S.dyeRes, particles: S.particles, seed: S.seed };
+    const keep = { preset: S.preset, quality: S.quality, velRes: S.velRes, dyeRes: S.dyeRes, curlRes: S.curlRes, particles: S.particles, seed: S.seed };
     Object.assign(S, DEFAULTS, keep);
     this.applyPreset();
     canvas.classList.toggle('map', S.map);
@@ -750,7 +758,8 @@ class App {
       case 'preset': this.applyPreset(); break;
       case 'quality': this.applyQuality(true); this.panel.refresh(); break;
       case 'contrast': this.writeTables(); break;
-      case 'velRes': this.allocVel(); break;
+      case 'fineStripes': this.needsDye = true; break;
+      case 'velRes': case 'curlRes': this.allocVel(); break;
       case 'dyeRes': this.allocDye(); break;
       case 'particles': this.allocParticles(); break;
       case 'flow': case 'look': this.updateVisibility(); break;
