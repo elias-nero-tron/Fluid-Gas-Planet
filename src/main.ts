@@ -21,6 +21,7 @@ const S = {
   look: 'dye',            // 'dye' = Farbstoff, 'particles' = Partikel
   timeScale: 1,           // Simulationsschritte pro Bild (fester Zeitschritt)
   paused: false,
+  autoQuality: true,       // hält ≥ 60 fps: misst beim Laden, passt Auflösung an
   // Fluid
   velRes: 128,
   iterations: 24,
@@ -71,9 +72,9 @@ type Key = keyof typeof S;
 const DEFAULTS = { ...S };
 
 const QUALITY: Record<string, { velRes: number; dyeRes: number; curlRes: number; particles: number; dpr: number }> = {
-  phone: { velRes: 96, dyeRes: 384, curlRes: 256, particles: 262144, dpr: 1.25 },
-  standard: { velRes: 128, dyeRes: 768, curlRes: 384, particles: 1048576, dpr: 1.75 },
-  high: { velRes: 192, dyeRes: 1024, curlRes: 768, particles: 4194304, dpr: 2 },
+  phone: { velRes: 96, dyeRes: 384, curlRes: 256, particles: 262144, dpr: 1 },
+  standard: { velRes: 128, dyeRes: 768, curlRes: 384, particles: 1048576, dpr: 1.25 },
+  high: { velRes: 192, dyeRes: 1024, curlRes: 768, particles: 4194304, dpr: 1.75 },
 };
 
 // ---------------------------------------------------------------------------
@@ -83,7 +84,10 @@ const QUALITY: Record<string, { velRes: number; dyeRes: number; curlRes: number;
 const canvas = document.getElementById('view') as HTMLCanvasElement;
 const statusEl = document.getElementById('status') as HTMLElement;
 const fpsEl = document.getElementById('fps') as HTMLElement;
-const warmEl = document.getElementById('warm') as HTMLElement;
+const loadEl = document.getElementById('loading') as HTMLElement;
+const loadBar = document.getElementById('load-bar') as HTMLElement;
+const loadNote = document.getElementById('load-note') as HTMLElement;
+function showLoading(on: boolean) { loadEl.classList.toggle('done', !on); if (on) loadBar.style.width = '0%'; }
 
 function fail(msg: string) {
   statusEl.hidden = false;
@@ -135,8 +139,14 @@ const SIM_FLOATS = OFF_WEIGHT + MAX_STORMS;
 const RENDER_FLOATS = 16 + 4 * 11;
 // Fester Zeitschritt: Zeitraffer und Einschwingen machen mehr Schritte, nicht größere.
 const DT = 1 / 60;
-const WARM_STEPS = 720;   // 12 s Simulationszeit, wie in v0.1
-const WARM_MAX_PER_FRAME = 8;
+// Vorrechnen beim Start (unsichtbar, hinter dem Ladebild): 20 s Simulationszeit, damit der
+// Planet "mitten im Geschehen" erscheint statt sichtbar bei null anzufangen.
+const WARM_STEPS = 1200;
+// Stufen für die automatische Qualität: [Windgitter, Farbauflösung]
+const AUTO_TIERS: [number, number][] = [[192, 1024], [128, 768], [128, 512], [96, 384], [64, 256]];
+// Budget für einen Simulationsschritt, damit neben dem Rendern 60 fps bleiben (16,7 ms pro Bild)
+const STEP_BUDGET_MS = 8;
+const MAX_LOAD_MS = 5000;
 const KICK_LIFE = 2.5;
 
 interface Storm {
@@ -182,8 +192,15 @@ class App {
   private spin = 0;
   private needsInit = true;
   private warm = 0;
-  // Zusatzschritte pro Bild beim Einschwingen, passt sich der Bildrate an (Ziel: über ~30 fps).
-  private warmRate = 2;
+  // Vorrechnen: Schritte pro Auftrag, so bemessen, dass ein Auftrag ~40 ms GPU-Zeit braucht.
+  private warmRate = 4;
+  private warmTotal = WARM_STEPS;
+  private stepMs = 0;          // gemessene GPU-Zeit pro Simulationsschritt
+  private warmStart = 0;
+  private calibrated = false;
+  private downgrades = 0;
+  private renderScale = 1;     // dynamische Render-Auflösung für ≥ 60 fps
+  private scaleAcc = 0; private scaleFrames = 0; private goodSeconds = 0;
   private cam = { yaw: -0.35, pitch: 0.12, dist: 4.3 };
   private dpr = 1.75;
   private panel!: Panel;
@@ -200,8 +217,8 @@ class App {
       entries: [
         { binding: 0, visibility: C, buffer: { type: 'uniform' } },
         { binding: 1, visibility: C, sampler: { type: 'filtering' } },
-        { binding: 2, visibility: C, texture: { sampleType: 'float', viewDimension: '2d-array' } },
-        { binding: 3, visibility: C, texture: { sampleType: 'float', viewDimension: '2d-array' } },
+        { binding: 2, visibility: C, texture: { sampleType: 'float', viewDimension: 'cube' } },
+        { binding: 3, visibility: C, texture: { sampleType: 'float', viewDimension: 'cube' } },
         { binding: 4, visibility: C, storageTexture: { access: 'write-only', format: 'rgba16float', viewDimension: '2d-array' } },
         { binding: 5, visibility: C, buffer: { type: 'storage' } },
       ],
@@ -425,8 +442,8 @@ class App {
       entries: [
         { binding: 0, resource: { buffer: this.simBuf } },
         { binding: 1, resource: this.sampler },
-        { binding: 2, resource: (a ?? this.dummy).store },
-        { binding: 3, resource: (b ?? this.dummy).store },
+        { binding: 2, resource: (a ?? this.dummy).cube },
+        { binding: 3, resource: (b ?? this.dummy).cube },
         { binding: 4, resource: dst.store },
         { binding: 5, resource: { buffer: buf } },
       ],
@@ -502,21 +519,91 @@ class App {
   private fpsAcc = 0; private fpsFrames = 0;
 
   run() {
-    const loop = (now: number) => {
+    const loop = async (now: number) => {
       const real = Math.min((now - this.last) / 1000, 0.1);
       this.last = now;
-      this.fpsAcc += real; this.fpsFrames++;
-      if (this.fpsAcc > 0.5) {
-        fpsEl.textContent = `${Math.round(this.fpsFrames / this.fpsAcc)} fps`;
-        this.fpsAcc = 0; this.fpsFrames = 0;
-      }
       this.resize();
-      this.frameOnce(real);
-      // Im Testmodus bremst kein Canvas die Bildrate, also auf die GPU warten.
-      if (this.offscreen) this.device.queue.onSubmittedWorkDone().then(() => requestAnimationFrame(loop));
-      else requestAnimationFrame(loop);
+      this.initIfNeeded();
+      if (this.warm > 0 && !S.paused) {
+        await this.warmBatch();
+      } else {
+        this.fpsAcc += real; this.fpsFrames++;
+        if (this.fpsAcc > 0.5) {
+          fpsEl.textContent = `${Math.round(this.fpsFrames / this.fpsAcc)} fps`;
+          this.fpsAcc = 0; this.fpsFrames = 0;
+        }
+        this.frameOnce(real);
+        this.adaptScale(real);
+        // Im Testmodus bremst kein Canvas die Bildrate, also auf die GPU warten.
+        if (this.offscreen) await this.device.queue.onSubmittedWorkDone();
+      }
+      requestAnimationFrame(loop);
     };
     requestAnimationFrame(loop);
+  }
+
+  private initIfNeeded() {
+    if (!this.needsInit && !this.needsDye) return;
+    const init = this.device.createCommandEncoder();
+    if (this.needsInit) { this.time = 0; this.stepAcc = 0; }
+    this.writeSim(0, true);
+    this.initFields(init, this.needsInit);
+    this.device.queue.submit([init.finish()]);
+    // Neue Farbe braucht etwas Zeit, bis die Strömung sie verwirbelt hat.
+    this.warm = this.needsInit ? WARM_STEPS : Math.max(this.warm, 300);
+    this.warmTotal = this.warm;
+    this.warmStart = performance.now();
+    if (this.needsInit) this.calibrated = false;
+    this.needsInit = false;
+    this.needsDye = false;
+    showLoading(true);
+  }
+
+  /** Vorrechnen: viele Schritte ohne Rendern, GPU-Zeit messen, Qualität kalibrieren. */
+  private async warmBatch() {
+    const n = this.warmRate;
+    const t0 = performance.now();
+    for (let k = 0; k < n && this.warm > 0; k++, this.warm--) this.submitStep();
+    await this.device.queue.onSubmittedWorkDone();
+    const ms = (performance.now() - t0) / Math.max(n, 1);
+    this.stepMs = this.stepMs > 0 ? this.stepMs * 0.7 + ms * 0.3 : ms;
+    this.warmRate = Math.min(128, Math.max(1, Math.round(40 / this.stepMs)));
+    const done = this.warmTotal - this.warm;
+    if (S.autoQuality && !this.calibrated && done >= 90) this.calibrate();
+    // Ladezeit begrenzen: nicht länger als ~5 s vorrechnen, auch auf langsamen GPUs.
+    if (done >= 90 && !this.offscreen) {
+      const left = Math.max(0, Math.floor((MAX_LOAD_MS - (performance.now() - this.warmStart)) / this.stepMs));
+      if (this.warm > left) { this.warm = left; this.warmTotal = done + left; }
+    }
+    loadBar.style.width = `${Math.round((100 * (this.warmTotal - this.warm)) / Math.max(this.warmTotal, 1))}%`;
+    fpsEl.textContent = '– fps';
+    if (this.warm === 0) showLoading(false);
+  }
+
+  /** Einmal pro Start: passt ein Simulationsschritt nicht ins Budget, eine Stufe herunter. */
+  private calibrate() {
+    this.calibrated = true;
+    if (this.stepMs <= STEP_BUDGET_MS || this.downgrades >= 3) return;
+    const idx = AUTO_TIERS.findIndex(([, dye]) => dye < S.dyeRes);
+    if (idx < 0) return;
+    [S.velRes, S.dyeRes] = AUTO_TIERS[idx];
+    this.downgrades++;
+    this.allocVel();
+    this.allocDye();
+    this.panel.refresh();
+    this.warmStart = performance.now();
+    loadNote.textContent = t(`Qualität für 60 fps angepasst (${S.velRes}² / ${S.dyeRes}²)`, `Quality adjusted for 60 fps (${S.velRes}² / ${S.dyeRes}²)`);
+  }
+
+  /** Dynamische Render-Auflösung: unter 56 fps kleiner, bei stabilen 60 fps langsam wieder größer. */
+  private adaptScale(real: number) {
+    if (!S.autoQuality) { this.renderScale = 1; return; }
+    this.scaleAcc += real; this.scaleFrames++;
+    if (this.scaleAcc < 1) return;
+    const fps = this.scaleFrames / this.scaleAcc;
+    this.scaleAcc = 0; this.scaleFrames = 0;
+    if (fps < 56) { this.renderScale = Math.max(0.5, this.renderScale - 0.1); this.goodSeconds = 0; }
+    else if (++this.goodSeconds >= 3 && this.renderScale < 1) { this.renderScale = Math.min(1, this.renderScale + 0.05); this.goodSeconds = 0; }
   }
 
   private simStep(enc: GPUCommandEncoder): CubeField {
@@ -537,32 +624,15 @@ class App {
 
   /** Ein Bild: Simulationsschritt(e) und Darstellung. */
   frameOnce(real: number) {
-    if (this.needsInit || this.needsDye) {
-      const init = this.device.createCommandEncoder();
-      if (this.needsInit) { this.time = 0; this.stepAcc = 0; }
-      this.writeSim(0, true);
-      this.initFields(init, this.needsInit);
-      this.device.queue.submit([init.finish()]);
-      if (this.needsInit) this.warm = WARM_STEPS;
-      this.needsInit = false;
-      this.needsDye = false;
-    }
+    this.initIfNeeded();
     let flowSrc = S.flow === 'fluid' ? this.vel[this.vc] : this.flow;
     if (!S.paused) {
-      // Einschwingen: viele gleich große Schritte im Schnelldurchlauf bis zum eingeschwungenen Zustand.
-      if (this.warm > 0 && this.offscreen) this.warmRate = WARM_MAX_PER_FRAME;
-      else if (this.warm > 0) {
-        if (real > 1 / 28) this.warmRate = Math.max(1, this.warmRate - 1);
-        else if (real < 1 / 45) this.warmRate = Math.min(WARM_MAX_PER_FRAME, this.warmRate + 1);
-      }
-      for (let k = 0; k < this.warmRate && this.warm > 0; k++, this.warm--) flowSrc = this.submitStep();
       // Zeitraffer: mehr Schritte pro Bild, jeder Schritt bleibt gleich groß (gleiche Physik).
       this.stepAcc += S.timeScale;
       const n = Math.min(Math.floor(this.stepAcc), 8);
       this.stepAcc -= n;
       for (let k = 0; k < n; k++) flowSrc = this.submitStep();
     }
-    warmEl.textContent = this.warm > 0 ? ` · ${t('Einschwingen', 'spinning up')} ${Math.round(100 * (1 - this.warm / WARM_STEPS))} %` : '';
     this.spin += S.paused ? 0 : real * 0.08 * S.spinSpeed * (9.93 / this.preset.rotationHours);
     const enc = this.device.createCommandEncoder();
     this.writeRender();
@@ -638,7 +708,7 @@ class App {
   }
 
   private resize() {
-    const dpr = Math.min(devicePixelRatio || 1, this.dpr);
+    const dpr = Math.min(devicePixelRatio || 1, this.dpr) * (S.autoQuality ? this.renderScale : 1);
     const w = Math.max(1, Math.round(canvas.clientWidth * dpr));
     const h = Math.max(1, Math.round(canvas.clientHeight * dpr));
     if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; }
@@ -692,6 +762,9 @@ class App {
       .select('quality', t('Qualität', 'Quality'), [['phone', t('Handy', 'Phone')], ['standard', 'Standard'], ['high', t('Hoch (4 Mio. Partikel)', 'High (4 M particles)')]],
         t('Setzt Gitterauflösung, Farbauflösung, Partikelzahl und Pixeldichte auf einmal. „Handy“ ist für Smartphones gedacht.',
           'Sets grid resolution, colour resolution, particle count and pixel density at once. “Phone” is meant for smartphones.'))
+      .toggle('autoQuality', t('60 fps halten', 'Hold 60 fps'),
+        t('Misst beim Laden, wie schnell deine Grafikkarte einen Simulationsschritt rechnet, und senkt bei Bedarf die Auflösung. Danach passt sich die Render-Auflösung laufend an, damit die Bildrate über 58 fps bleibt.',
+          'Measures during loading how fast your GPU computes a simulation step and lowers the resolution if needed. Afterwards the render resolution adapts continuously to keep the frame rate above 58 fps.'))
       .file('image', t('Farben aus Bild', 'Colours from image'),
         t('Lade ein Planetenfoto oder eine flache Karte. Für jeden Breitengrad wird die mittlere Farbe gemessen und als Bandfarbe übernommen. Das Bild wird nicht als Textur benutzt, die Wolken entstehen weiter aus der Simulation.',
           'Load a planet photo or a flat map. The average colour of each latitude becomes that band’s colour. The image is not used as a texture; the clouds still come from the simulation.'),
@@ -704,7 +777,7 @@ class App {
         }).catch(() => fail(t('<b>Das Bild ließ sich nicht lesen.</b> Nimm ein JPG, PNG oder WebP.', '<b>Could not read the image.</b> Use a JPG, PNG or WebP.'))))
       .buttons([
         ['btn-reset', t('Neu starten', 'Restart'), () => { this.needsInit = true; }],
-        ['btn-warm', t('Einschwingen', 'Spin up'), () => { this.warm = WARM_STEPS; }],
+        ['btn-warm', t('Einschwingen', 'Spin up'), () => { this.warm = WARM_STEPS; this.warmTotal = WARM_STEPS; showLoading(true); }],
         ['btn-defaults', t('Regler zurücksetzen', 'Reset controls'), () => this.resetSettings()],
         ['btn-seed', t('Neuer Zufall', 'New seed'), () => { S.seed = (S.seed % 9973) + 1; if (S.preset === 'Zufall') this.applyPreset(); this.needsInit = true; }],
         ['btn-pause', S.paused ? t('Weiter', 'Resume') : 'Pause', () => { S.paused = !S.paused; (document.getElementById('btn-pause') as HTMLButtonElement).textContent = S.paused ? t('Weiter', 'Resume') : 'Pause'; }],
@@ -815,6 +888,7 @@ class App {
   private applyStaticText() {
     const set = (id: string, text: string) => { const el = document.getElementById(id); if (el) el.textContent = text; };
     set('hint', t('ziehen zum Drehen, Mausrad oder zwei Finger zum Zoomen', 'drag to rotate, scroll or pinch to zoom'));
+    set('load-title', t('Atmosphäre wird eingeschwungen', 'Spinning up the atmosphere'));
     set('panel-title', t('Regler', 'Controls'));
     set('lang', lang === 'de' ? 'EN' : 'DE');
     const lb = document.getElementById('lang');
@@ -860,7 +934,7 @@ class App {
   private onChange(key: Key) {
     switch (key) {
       case 'preset': this.applyPreset(); break;
-      case 'quality': this.applyQuality(true); this.panel.refresh(); break;
+      case 'quality': this.downgrades = 0; this.applyQuality(true); this.panel.refresh(); break;
       case 'contrast': this.writeTables(); break;
       case 'fineStripes': this.needsDye = true; break;
       case 'velRes': case 'curlRes': this.allocVel(); break;
@@ -868,6 +942,7 @@ class App {
       case 'particles': this.allocParticles(); break;
       case 'flow': case 'look': this.updateVisibility(); break;
       case 'map': canvas.classList.toggle('map', S.map); break;
+      case 'autoQuality': this.renderScale = 1; break;
     }
   }
 }
