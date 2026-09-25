@@ -53,7 +53,8 @@ Deformationsradius und (Hyper-)Dissipation. Referenzmodell der Planetenforschung
 (NASA-Planetary-Science/EPIC_Atmospheric_Model, GPL, isentrope Schichten). Der Plan hat die
 barotrope Wirbelgleichung gewählt. Das ist der Sonderfall L_d = ∞, also der falsche Ausgangspunkt.
 
-**Nächster Schritt (empfohlen, neue Sitzung):**
+**Nächster Schritt (empfohlen, neue Sitzung):** zuerst ROADMAP 1a (advektierte Texturkoordinaten,
+sichtbarster Gewinn), dann Flachwasser:
 1. Strömungskern durch Flachwasser-Gleichungen auf der Kugel ersetzen (Felder: u, h),
    Parameter auf Jupiter-Werte: Ro ≈ 0,1, L_d/R ≈ 0,02.
 2. Hyperviskosität (∇⁴ oder ∇⁸) statt numerischer Zähigkeit; Transport mit Begrenzer.
