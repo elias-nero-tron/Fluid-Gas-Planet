@@ -35,6 +35,32 @@ Die Ursache ist gefunden und in Version 4 behoben (siehe unten), aber vom Nutzer
 6. Headless-Tests: Canvas-Präsentation verliert in SwiftShader das Gerät. Darum Testmodus
    `#offscreen` (rendert in Textur, `window.gasPlanet.capture()`, `readRow()` für Feldwerte).
 
+## Kernbefund: das Modell rechnet im falschen Bereich
+
+Nutzer-Einwand (berechtigt): „Die Mathematik wirkt wie für ein 10×10-cm-Objekt, nicht für
+1000×1000 km." Ob etwas wie Kaffee oder wie Jupiter aussieht, bestimmen dimensionslose Zahlen:
+
+| Kennzahl | Kaffeetasse | Jupiter (GRS) | aktuelles Modell |
+|---|---|---|---|
+| Rossby-Zahl Ro = U/(f·L) | ≫ 1 (Rotation egal) | ≈ 0,1 | ≈ 0,7 bei Standardreglern |
+| Reynolds-Zahl (effektiv) | ~10⁴ | riesig | ~10²–10³ durch numerische Zähigkeit |
+| Deformationsradius L_d/R | – | ≈ 0,02 (1000–2000 km) | ∞ (starrer Deckel) |
+| Tiefe : Breite der Wirbel | ~1 : 1 (Trichter) | ~1 : 40 (Pfannkuchen, GRS einige 100 km tief) | 2D |
+
+Übersehen in der Recherche: Cho & Polvani 1996 (Physics of Fluids 8, 1531): Flachwasser-Turbulenz
+auf der rotierenden Kugel bildet von selbst Bänder und Wirbel, gesteuert von Rotation,
+Deformationsradius und (Hyper-)Dissipation. Referenzmodell der Planetenforschung: EPIC
+(NASA-Planetary-Science/EPIC_Atmospheric_Model, GPL, isentrope Schichten). Der Plan hat die
+barotrope Wirbelgleichung gewählt. Das ist der Sonderfall L_d = ∞, also der falsche Ausgangspunkt.
+
+**Nächster Schritt (empfohlen, neue Sitzung):**
+1. Strömungskern durch Flachwasser-Gleichungen auf der Kugel ersetzen (Felder: u, h),
+   Parameter auf Jupiter-Werte: Ro ≈ 0,1, L_d/R ≈ 0,02.
+2. Hyperviskosität (∇⁴ oder ∇⁸) statt numerischer Zähigkeit; Transport mit Begrenzer.
+3. h als Wolkenhöhe fürs Relief (echte Schatten statt Helligkeits-Schätzung).
+4. Danach 2–3 Schichten (NH₄SH-Wolken, NH₃-Wolken, Dunst) für echte Tiefe; Konvektion als
+   Quellen (∇·u ≠ 0 an der Wolkenobergrenze), wie in der Kaffee-Demo.
+
 ## Was dem Modell physikalisch noch fehlt
 
 - **Atmosphärendicke / Rossby-Deformationsradius.** Das Modell ist 2D-inkompressibel
