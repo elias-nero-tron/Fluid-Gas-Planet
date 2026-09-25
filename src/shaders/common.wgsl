@@ -4,7 +4,7 @@
 // dadurch gibt es keine Pol-Singularität und keine Sonderfälle an Würfelkanten.
 
 const PI = 3.14159265359;
-const MAX_STORMS = 8u;
+const MAX_STORMS = 16u;
 
 struct Sim {
   dt: f32, time: f32, frame: f32, velN: f32,
@@ -14,11 +14,13 @@ struct Sim {
   bandRelax: f32, convection: f32, stormStrength: f32, stormCount: f32,
   curlStrength: f32, curlFreq: f32, curlSpeed: f32, curlOctaves: f32,
   particleCount: f32, lifetime: f32, opacity: f32, blur: f32,
-  seed: f32, bandWobble: f32, stormTint: f32, particleSize: f32,
+  seed: f32, bandWobble: f32, stormTint: f32, pad0: f32,
+  cloud: vec4f,                 // Farbe aufsteigender Konvektionswolken (linear RGB)
   jets: array<vec4f, 16>,       // 64 Stützstellen, Breite −90°..+90°, Einheit rad/s bei jetStrength 1
   bands: array<vec4f, 64>,      // Bandfarbe (linear RGB) je Breite
-  storms: array<vec4f, 8>,      // xyz Zentrum (Körperkoordinaten), w Radius in rad
-  stormInfo: array<vec4f, 8>,   // x Drehsinn·Stärke, yzw Farbe
+  storms: array<vec4f, 16>,     // xyz Zentrum (Körperkoordinaten), w Radius in rad
+  stormInfo: array<vec4f, 16>,  // x Drehsinn·Stärke, yzw Farbe
+  stormWeight: array<vec4f, 4>, // wie stark jeder Sturm gerade angetrieben wird (0 = frei)
 };
 
 @group(0) @binding(0) var<uniform> S: Sim;
@@ -179,7 +181,9 @@ fn curlOnSphere(p: vec3f, freq: f32, t: f32, octaves: i32) -> vec3f {
   return cross(p, g);
 }
 
-// Drehfeld eines Sturms: Rotation um das Zentrum, Gauß-Profil.
+fn stormW(i: u32) -> f32 { return S.stormWeight[i / 4u][i % 4u]; }
+
+// Drehfeld der angetriebenen Stürme: Rotation um das Zentrum, Gauß-Profil.
 fn stormFlow(p: vec3f) -> vec3f {
   var v = vec3f(0.0);
   let n = u32(S.stormCount);
@@ -190,7 +194,7 @@ fn stormFlow(p: vec3f) -> vec3f {
     let x = d / r;
     // Geschwindigkeit ~ x·exp(−x²): null im Kern, Maximum am Rand, dann Abfall.
     let prof = x * exp(-x * x) * 2.33;
-    v += cross(c, p) / max(sin(d), 1e-4) * prof * S.stormInfo[i].x;
+    v += cross(c, p) / max(sin(d), 1e-4) * prof * S.stormInfo[i].x * stormW(i);
   }
   return v * S.stormStrength;
 }
@@ -204,7 +208,7 @@ fn stormMask(p: vec3f, scale: f32) -> vec4f {
     let c = S.storms[i].xyz;
     let r = S.storms[i].w;
     let d = acos(clamp(dot(c, p), -1.0, 1.0));
-    let m = exp(-pow(d / (r * scale), 2.0));
+    let m = exp(-pow(d / (r * scale), 2.0)) * stormW(i);
     tint += S.stormInfo[i].yzw * m;
     w += m;
   }
