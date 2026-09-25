@@ -23,8 +23,9 @@ No coordinate special cases at poles or edges.
 inside a face; near an edge the 4 neighbouring texels are fetched individually, texels beyond the edge
 via `faceDir(face, st outside [0,1])` on the neighbouring face.
 - ✅ Measured: hardware cube-map sampling had up to 0.139 error near edges vs 0.0003 inside, which
-  accumulated per step into visible lines. Gone in tests after the fix. 🔶 Not yet confirmed on real
-  hardware; fps cost unknown.
+  accumulated per step into visible lines. ⚠️ Too slow in practice (main suspect for the drop from ~60 to
+  ~25 fps), so compute passes use hardware cube sampling again (v0.2.2). A fast seam-exact variant would use
+  halo texels (1-texel border per face) instead of per-sample branching.
 
 ## 2. Flow: Stable Fluids on the sphere
 
