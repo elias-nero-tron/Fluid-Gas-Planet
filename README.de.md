@@ -5,6 +5,12 @@ Kugel in WebGPU, ohne eine einzige Bilddatei für die Planetenoberfläche. Jupit
 Maßstab, weil er am besten vermessen ist; Saturn, Neptun, Uranus, ein heißer Jupiter und
 Zufallsplaneten laufen mit derselben Technik.
 
+<p align="center">
+  <img src="docs/media/jupiter-demo.gif" width="440" alt="Aufnahme des Simulators: Jupiter dreht sich, Stürme treiben, Wolkenbänder verwirbeln">
+  <br><sub>Echtzeit-Aufnahme auf einer Desktop-GPU (~240 fps), von elias-nero-tron ·
+  <a href="docs/media/jupiter-session.mp4">ganze 30-Sekunden-Sitzung mit Reglern</a></sub>
+</p>
+
 **▶ Sofort ausprobieren:** [Planeten-Simulator](https://raw.githack.com/elias-nero-tron/Fluid-Gas-Planet/main/demo/index.html) ·
 [Sahne im Kaffee](https://raw.githack.com/elias-nero-tron/Fluid-Gas-Planet/main/demo/coffee.html)
 (Browser mit WebGPU nötig) · oder [`demo/index.html`](demo/index.html) herunterladen und lokal öffnen.
