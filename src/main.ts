@@ -111,7 +111,7 @@ async function start() {
     fail(`<b>GPU-Fehler:</b> ${(e as GPUUncapturedErrorEvent).error.message}`);
   });
   const app = new App(device);
-  window.gasPlanet = { settings: S, capture: () => app.capture() };
+  window.gasPlanet = { settings: S, capture: () => app.capture(), readRow: (w, f, y) => app.readRow(w, f, y) };
   app.run();
 }
 
@@ -186,7 +186,8 @@ class App {
 
   constructor(private device: GPUDevice) {
     if (!this.offscreen) this.ctx.configure({ device, format: this.format, alphaMode: 'opaque' });
-    this.sampler = device.createSampler({ magFilter: 'linear', minFilter: 'linear' });
+    // clamp-to-edge: im Flächeninneren wird nie über den Rand hinaus gefiltert (das übernimmt sampleCube).
+    this.sampler = device.createSampler({ magFilter: 'linear', minFilter: 'linear', addressModeU: 'clamp-to-edge', addressModeV: 'clamp-to-edge' });
     this.simBuf = device.createBuffer({ size: SIM_FLOATS * 4, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
     this.renderBuf = device.createBuffer({ size: RENDER_FLOATS * 4, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
 
@@ -195,8 +196,8 @@ class App {
       entries: [
         { binding: 0, visibility: C, buffer: { type: 'uniform' } },
         { binding: 1, visibility: C, sampler: { type: 'filtering' } },
-        { binding: 2, visibility: C, texture: { sampleType: 'float', viewDimension: 'cube' } },
-        { binding: 3, visibility: C, texture: { sampleType: 'float', viewDimension: 'cube' } },
+        { binding: 2, visibility: C, texture: { sampleType: 'float', viewDimension: '2d-array' } },
+        { binding: 3, visibility: C, texture: { sampleType: 'float', viewDimension: '2d-array' } },
         { binding: 4, visibility: C, storageTexture: { access: 'write-only', format: 'rgba16float', viewDimension: '2d-array' } },
         { binding: 5, visibility: C, buffer: { type: 'storage' } },
       ],
@@ -424,8 +425,8 @@ class App {
       entries: [
         { binding: 0, resource: { buffer: this.simBuf } },
         { binding: 1, resource: this.sampler },
-        { binding: 2, resource: (a ?? this.dummy).cube },
-        { binding: 3, resource: (b ?? this.dummy).cube },
+        { binding: 2, resource: (a ?? this.dummy).store },
+        { binding: 3, resource: (b ?? this.dummy).store },
         { binding: 4, resource: dst.store },
         { binding: 5, resource: { buffer: buf } },
       ],
@@ -592,6 +593,23 @@ class App {
       });
     }
     return this.target.createView();
+  }
+
+  /** Nur für Tests: eine Texelzeile eines Felds auslesen (rgba als Zahlen). */
+  async readRow(which: 'dye' | 'flow' | 'vel', face: number, y: number): Promise<number[][]> {
+    const f = which === 'dye' ? this.dye[this.dc] : which === 'flow' ? this.flow : this.vel[this.vc];
+    const bpr = Math.ceil((f.n * 8) / 256) * 256;
+    const buf = this.device.createBuffer({ size: bpr, usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ });
+    const enc = this.device.createCommandEncoder();
+    enc.copyTextureToBuffer({ texture: f.tex, origin: [0, y, face] }, { buffer: buf, bytesPerRow: bpr }, [f.n, 1, 1]);
+    this.device.queue.submit([enc.finish()]);
+    await buf.mapAsync(GPUMapMode.READ);
+    const h = new Uint16Array(buf.getMappedRange().slice(0));
+    buf.destroy();
+    const f16 = (b: number) => { const s = b >> 15 ? -1 : 1, e = (b >> 10) & 31, m = b & 1023; return e === 0 ? s * m * 2 ** -24 : e === 31 ? NaN : s * (1 + m / 1024) * 2 ** (e - 15); };
+    const out: number[][] = [];
+    for (let x = 0; x < f.n; x++) out.push([0, 1, 2, 3].map((k) => f16(h[x * 4 + k])));
+    return out;
   }
 
   /** Nur im Testmodus: letztes Bild als PNG-Data-URL. */
@@ -769,6 +787,6 @@ class App {
 }
 
 // Für automatische Tests und die Konsole
-declare global { interface Window { gasPlanet?: { settings: typeof S; capture: () => Promise<string> } } }
+declare global { interface Window { gasPlanet?: { settings: typeof S; capture: () => Promise<string>; readRow: (w: 'dye' | 'flow' | 'vel', face: number, y: number) => Promise<number[][]> } } }
 
 start().catch((e) => fail(`<b>Start fehlgeschlagen:</b> ${e instanceof Error ? e.message : String(e)}`));
