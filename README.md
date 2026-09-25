@@ -5,6 +5,12 @@ running entirely on the GPU with WebGPU. No image textures: every cloud band, je
 from equations and numbers. Jupiter is the benchmark because it is the best-measured gas giant;
 Saturn, Neptune, Uranus, a hot Jupiter and random planets run on the same engine.
 
+<p align="center">
+  <img src="docs/media/jupiter-demo.gif" width="440" alt="Recording of the simulator: Jupiter rotating with drifting storms and swirling cloud bands">
+  <br><sub>Real-time recording on a desktop GPU (~240 fps), by elias-nero-tron ·
+  <a href="docs/media/jupiter-session.mp4">full 30-second session with the controls</a></sub>
+</p>
+
 **▶ Try it now:** [Planet simulator](https://raw.githack.com/elias-nero-tron/Fluid-Gas-Planet/main/demo/index.html) ·
 [Cream in Coffee demo](https://raw.githack.com/elias-nero-tron/Fluid-Gas-Planet/main/demo/coffee.html)
 (needs a WebGPU browser: Chrome/Edge 113+, Safari 26+, Firefox 141+, Android Chrome 121+).
