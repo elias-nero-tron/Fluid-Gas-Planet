@@ -34,8 +34,7 @@ fn relaxColor(p: vec3f, c0: vec3f) -> vec3f {
   var c = mix(c0, bandTarget(p), 1.0 - exp(-S.bandRelax * dt));
   let sm = stormMask(p, 0.55);
   c = mix(c, sm.rgb, (1.0 - exp(-S.stormTint * dt)) * sm.w);
-  let bright = vec3f(0.93, 0.9, 0.84);
-  c = mix(c, bright, (1.0 - exp(-S.convection * dt)) * convectionSpot(p));
+  c = mix(c, S.cloud.rgb, (1.0 - exp(-S.convection * dt)) * convectionSpot(p));
   return c;
 }
 
@@ -43,7 +42,8 @@ fn relaxColor(p: vec3f, c0: vec3f) -> vec3f {
 fn initDye(@builtin(global_invocation_id) id: vec3u) {
   if (f32(id.x) >= S.dyeN || f32(id.y) >= S.dyeN) { return; }
   let p = texDir(id, S.dyeN);
-  textureStore(dst, id.xy, id.z, vec4f(bandTarget(p), 1.0));
+  let sm = stormMask(p, 0.55);
+  textureStore(dst, id.xy, id.z, vec4f(mix(bandTarget(p), sm.rgb, sm.w), 1.0));
 }
 
 // Farbstoff mit dem Wind (B) mitführen, A = Farbstoff.
@@ -86,7 +86,7 @@ fn spawn(i: u32, stagger: bool) -> Particle {
   var col = bandTarget(p) * (0.9 + 0.2 * r.w);
   let sm = stormMask(p, 0.55);
   col = mix(col, sm.rgb, sm.w * clamp(S.stormTint * 0.5, 0.0, 1.0));
-  if (fract(r.w * 97.0) < S.convection * 0.02) { col = vec3f(0.93, 0.9, 0.84); }
+  if (fract(r.w * 97.0) < S.convection * 0.02) { col = S.cloud.rgb; }
   let life = S.lifetime * (0.5 + r.z);
   var age = 0.0;
   if (stagger) { age = fract(r.z * 31.7) * life; }

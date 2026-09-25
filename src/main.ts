@@ -2,7 +2,7 @@ import commonWGSL from './shaders/common.wgsl?raw';
 import fluidWGSL from './shaders/fluid.wgsl?raw';
 import tracersWGSL from './shaders/tracers.wgsl?raw';
 import renderWGSL from './shaders/render.wgsl?raw';
-import { presets, randomPreset, windTable, bandTable, hexToLinear, TABLE, type Preset } from './presets';
+import { presets, randomPreset, bandsFromImage, windTable, bandTable, hexToLinear, TABLE, type Preset } from './presets';
 import { perspective, lookAt, multiply, invert, planetRotation, normalize, type Vec3 } from './math';
 import { Panel } from './ui';
 
@@ -18,7 +18,7 @@ const S = {
   quality: isPhone ? 'phone' : 'standard',
   flow: 'fluid',          // 'fluid' = Stable Fluids, 'curl' = Curl-Noise
   look: 'dye',            // 'dye' = Farbstoff, 'particles' = Partikel
-  timeScale: 1,
+  timeScale: 1,           // Simulationsschritte pro Bild (fester Zeitschritt)
   paused: false,
   // Fluid
   velRes: 128,
@@ -29,7 +29,7 @@ const S = {
   omega: 0.4,
   turbulence: 0.6,
   turbScale: 4,
-  confinement: 6,
+  confinement: 0.5,
   drag: 0.02,
   // Curl-Noise
   curlStrength: 0.5,
@@ -50,17 +50,20 @@ const S = {
   storms: true,
   stormStrength: 1,
   stormTint: 0.6,
+  stormHold: 0,
+  stormSpawn: 0.3,
   // Licht und Ansicht
   sunAngle: 35,
   relief: 0.35,
   limb: 1.15,
   atmosphere: 1,
   exposure: 0.95,
-  spin: true,
+  spinSpeed: 1,
   view: 0,
   map: false,
 };
 type Key = keyof typeof S;
+const DEFAULTS = { ...S };
 
 const QUALITY: Record<string, { velRes: number; dyeRes: number; particles: number; dpr: number }> = {
   phone: { velRes: 96, dyeRes: 384, particles: 262144, dpr: 1.25 },
@@ -75,6 +78,7 @@ const QUALITY: Record<string, { velRes: number; dyeRes: number; particles: numbe
 const canvas = document.getElementById('view') as HTMLCanvasElement;
 const statusEl = document.getElementById('status') as HTMLElement;
 const fpsEl = document.getElementById('fps') as HTMLElement;
+const warmEl = document.getElementById('warm') as HTMLElement;
 
 function fail(msg: string) {
   statusEl.hidden = false;
@@ -113,9 +117,27 @@ async function start() {
 
 interface CubeField { tex: GPUTexture; cube: GPUTextureView; store: GPUTextureView; n: number }
 
-const SIM_FLOATS = 32 + TABLE + TABLE * 4 + 8 * 4 + 8 * 4;
+// Aufbau des Sim-Uniforms (in floats), muss zu struct Sim in common.wgsl passen.
+const MAX_STORMS = 16;
+const OFF_CLOUD = 32;
+const OFF_JETS = OFF_CLOUD + 4;
+const OFF_BANDS = OFF_JETS + TABLE;
+const OFF_STORMS = OFF_BANDS + TABLE * 4;
+const OFF_INFO = OFF_STORMS + MAX_STORMS * 4;
+const OFF_WEIGHT = OFF_INFO + MAX_STORMS * 4;
+const SIM_FLOATS = OFF_WEIGHT + MAX_STORMS;
 const RENDER_FLOATS = 16 + 4 * 11;
-const WARM_STEPS = 240;
+// Fester Zeitschritt: Zeitraffer und Einschwingen machen mehr Schritte, nicht größere.
+const DT = 1 / 60;
+const WARM_STEPS = 600;
+const WARM_PER_FRAME = 8;
+const KICK_LIFE = 2.5;
+
+interface Storm {
+  lat: number; lon: number; radius: number; sign: number; strength: number;
+  color: [number, number, number];
+  kick: number;   // 0 = Sturm aus der Vorlage, >0 = Restlebensdauer eines neu entstehenden Sturms
+}
 
 class App {
   // Testmodus #offscreen: rendert in eine Textur statt auf den Canvas (für Headless-Browser).
@@ -146,7 +168,9 @@ class App {
   private vc = 0; private pc = 0; private dc = 0;
 
   private preset: Preset = presets[0];
-  private stormPos: { lat: number; lon: number }[] = [];
+  private storms: Storm[] = [];
+  private stepAcc = 0;
+  private needsDye = false;
   private time = 0;
   private frame = 0;
   private spin = 0;
@@ -245,7 +269,8 @@ class App {
   private allocDye() {
     for (const f of this.dye) f.tex.destroy();
     this.dye = [this.cubeField(S.dyeRes), this.cubeField(S.dyeRes)];
-    this.needsInit = true;
+    // Nur die Wolkenfarbe neu aufsetzen, der Wind läuft weiter.
+    this.needsDye = true;
   }
 
   private allocParticles() {
@@ -262,7 +287,11 @@ class App {
     const t = this.preset.tune;
     S.turbulence = t.turbulence; S.convection = t.convection; S.bandWobble = t.bandWobble;
     S.stormTint = t.stormTint; S.relief = t.relief;
-    this.stormPos = this.preset.storms.map((s) => ({ lat: s.lat, lon: s.lon }));
+    this.storms = this.preset.storms.map((s) => ({
+      lat: s.lat, lon: s.lon, radius: s.radius, strength: s.strength, kick: 0,
+      sign: (s.kind === 'cyclone' ? 1 : -1) * (s.lat >= 0 ? 1 : -1),
+      color: hexToLinear(s.color),
+    }));
     this.jets = windTable(this.preset);
     this.writeTables();
     this.needsInit = true;
@@ -278,8 +307,9 @@ class App {
 
   private writeTables() {
     const d = this.simData;
-    d.set(this.jets, 32);
-    d.set(bandTable(this.preset, S.contrast), 32 + TABLE);
+    d.set(this.jets, OFF_JETS);
+    d.set(bandTable(this.preset, S.contrast), OFF_BANDS);
+    d.set([...hexToLinear(this.preset.cloud), 1], OFF_CLOUD);
   }
 
   private jetAt(latRad: number): number {
@@ -290,30 +320,63 @@ class App {
 
   // ---------- Uniforms ----------
 
-  private writeSim(dt: number) {
+  /** init: alle Stürme mit voller Stärke, damit sie beim Start als Wirbel eingesetzt werden. */
+  private writeSim(dt: number, init = false) {
     const d = this.simData;
     const js = S.jetStrength;
-    const vals = [
+    const list = this.activeStorms();
+    d.set([
       dt, this.time, this.frame, S.velRes,
       S.dyeRes, this.flow.n, 1.5 / S.velRes, S.omega,
       js, S.jetRelax, S.turbulence * js * 0.05, S.turbScale,
       S.confinement, S.drag, 0, S.bfecc ? 1 : 0,
-      S.bandRelax, S.convection, S.storms ? js * S.stormStrength : 0, S.storms ? Math.min(this.preset.storms.length, 8) : 0,
+      S.bandRelax, S.convection, js * S.stormStrength, list.length,
       S.curlStrength * js, S.curlFreq, S.curlSpeed, S.curlOctaves,
       S.particles, S.lifetime, S.opacity, S.blur,
-      S.seed, S.bandWobble, S.stormTint, 1,
-    ];
-    d.set(vals, 0);
-    const base = 32 + TABLE + TABLE * 4;
-    this.preset.storms.slice(0, 8).forEach((s, i) => {
-      const pos = this.stormPos[i];
-      const la = (pos.lat * Math.PI) / 180, lo = (pos.lon * Math.PI) / 180;
-      d.set([Math.cos(la) * Math.cos(lo), Math.sin(la), Math.cos(la) * Math.sin(lo), (s.radius * Math.PI) / 180], base + i * 4);
-      const sign = (s.kind === 'cyclone' ? 1 : -1) * (s.lat >= 0 ? 1 : -1);
-      const c = hexToLinear(s.color);
-      d.set([sign * s.strength, c[0], c[1], c[2]], base + 32 + i * 4);
+      S.seed, S.bandWobble, S.stormTint, 0,
+    ], 0);
+    list.forEach((s, i) => {
+      const la = (s.lat * Math.PI) / 180, lo = (s.lon * Math.PI) / 180;
+      d.set([Math.cos(la) * Math.cos(lo), Math.sin(la), Math.cos(la) * Math.sin(lo), (s.radius * Math.PI) / 180], OFF_STORMS + i * 4);
+      d.set([s.sign * s.strength, ...s.color], OFF_INFO + i * 4);
+      // Antrieb: Vorlagen-Stürme nur so stark wie "Stürme festhalten" (Curl-Noise hat keine
+      // eigene Dynamik, dort immer voll). Neue Stürme: kurzer Stoß, der an- und abschwillt.
+      let w = s.kick > 0 ? Math.sin(Math.PI * (1 - s.kick / KICK_LIFE)) : S.flow === 'curl' ? 1 : S.stormHold;
+      if (init && s.kick === 0) w = 1;
+      d[OFF_WEIGHT + i] = w;
     });
     this.device.queue.writeBuffer(this.simBuf, 0, d);
+  }
+
+  private activeStorms(): Storm[] {
+    return this.storms.filter((s) => s.kick > 0 || S.storms).slice(0, MAX_STORMS);
+  }
+
+  /** Stürme bewegen, neue entstehen lassen, abgelaufene entfernen. */
+  private updateStorms(dt: number) {
+    for (const s of this.storms) {
+      if (s.kick > 0) { s.kick = Math.max(0, s.kick - dt); continue; }
+      // Festgehaltene Stürme treiben mit dem Jet ihrer Breite (Länge wächst nach Westen).
+      const la = (s.lat * Math.PI) / 180;
+      s.lon -= ((this.jetAt(la) * dt) / Math.max(Math.cos(la), 0.2)) * (180 / Math.PI);
+    }
+    // Vorlagen-Stürme stehen vorne in der Liste; abgelaufene neue Stürme fallen heraus.
+    this.storms = this.storms.filter((s, i) => i < this.preset.storms.length || s.kick > 0);
+    // Konvektion stößt neue Wirbel an: meist Antizyklone (weiße Ovale), manchmal Zyklone (dunkle Barken).
+    if (S.flow === 'fluid' && Math.random() < S.stormSpawn * dt && this.activeStorms().length < MAX_STORMS) {
+      const lat = (Math.random() * 2 - 1) * 65;
+      const anti = Math.random() < 0.75;
+      const band = bandTable(this.preset, S.contrast);
+      const row = Math.round(((lat + 90) / 180) * (TABLE - 1)) * 4;
+      const color: [number, number, number] = anti
+        ? hexToLinear(this.preset.cloud)
+        : [band[row] * 0.55, band[row + 1] * 0.5, band[row + 2] * 0.45];
+      this.storms.push({
+        lat, lon: Math.random() * 360, radius: 1.2 + Math.random() * 2.8,
+        sign: (anti ? -1 : 1) * (lat >= 0 ? 1 : -1), strength: 0.5 + Math.random() * 0.6,
+        color, kick: KICK_LIFE,
+      });
+    }
   }
 
   private writeRender() {
@@ -343,7 +406,7 @@ class App {
       S.map ? 1 : 0, ring ? ring.inner : 0, ring ? ring.outer : 0, ring ? ring.opacity : 0,
       w / h, this.time, S.exposure, S.dyeRes,
       rc[0], rc[1], rc[2], 0.6,
-      1 / Math.max(S.jetStrength, 1e-4), 0, 0, 0,
+      1 / Math.max(S.jetStrength, 1e-4), (2 * Math.tan((16 * Math.PI) / 180)) / h, 0, 0,
     ], 16);
     this.device.queue.writeBuffer(this.renderBuf, 0, d);
   }
@@ -372,15 +435,19 @@ class App {
     pass.dispatchWorkgroups(g, g, 6);
   }
 
-  private initFields(enc: GPUCommandEncoder) {
+  /** all = Wind, Druck, Partikel und Farbe; sonst nur die Farbe. */
+  private initFields(enc: GPUCommandEncoder, all: boolean) {
     const pass = enc.beginComputePass();
-    this.run2D(pass, 'initVel', null, null, this.vel[0]);
-    this.run2D(pass, 'clear', null, null, this.prs[0]);
-    this.run2D(pass, 'clear', null, null, this.aux);
+    if (all) {
+      this.run2D(pass, 'initVel', null, null, this.vel[0]);
+      this.run2D(pass, 'clear', null, null, this.prs[0]);
+      this.run2D(pass, 'clear', null, null, this.aux);
+      this.vc = 0; this.pc = 0;
+    }
     this.run2D(pass, 'initDye', null, null, this.dye[0]);
+    this.dc = 0;
     pass.end();
-    enc.clearBuffer(this.parts);
-    this.vc = 0; this.pc = 0; this.dc = 0;
+    if (all) enc.clearBuffer(this.parts);
   }
 
   private step(enc: GPUCommandEncoder) {
@@ -447,40 +514,47 @@ class App {
     requestAnimationFrame(loop);
   }
 
-  private simStep(enc: GPUCommandEncoder, dt: number): CubeField {
-    this.time += dt;
+  private simStep(enc: GPUCommandEncoder): CubeField {
+    this.time += DT;
     this.frame++;
-    // Stürme treiben mit dem Jet ihrer Breite (Länge wächst nach Westen).
-    this.stormPos.forEach((p) => {
-      const la = (p.lat * Math.PI) / 180;
-      p.lon -= ((this.jetAt(la) * dt) / Math.max(Math.cos(la), 0.2)) * (180 / Math.PI);
-    });
-    this.writeSim(dt);
+    this.updateStorms(DT);
+    this.writeSim(DT);
     return this.step(enc);
+  }
+
+  /** Ein einzelner Schritt als eigener Auftrag, damit jeder Schritt seine eigenen Uniforms sieht. */
+  private submitStep(): CubeField {
+    const e = this.device.createCommandEncoder();
+    const f = this.simStep(e);
+    this.device.queue.submit([e.finish()]);
+    return f;
   }
 
   /** Ein Bild: Simulationsschritt(e) und Darstellung. */
   frameOnce(real: number) {
-    if (this.needsInit) {
+    if (this.needsInit || this.needsDye) {
       const init = this.device.createCommandEncoder();
-      this.time = 0;
-      this.writeSim(0);
-      this.initFields(init);
+      if (this.needsInit) { this.time = 0; this.stepAcc = 0; }
+      this.writeSim(0, true);
+      this.initFields(init, this.needsInit);
       this.device.queue.submit([init.finish()]);
+      if (this.needsInit) this.warm = WARM_STEPS;
       this.needsInit = false;
-      this.warm = WARM_STEPS;
+      this.needsDye = false;
     }
-    // Einschwingen: nach dem Start ein paar hundert Schritte im Schnelldurchlauf,
-    // damit Wirbel und Mäander schon da sind, statt mit glatten Streifen zu beginnen.
-    for (let k = 0; k < 4 && this.warm > 0 && !S.paused; k++, this.warm--) {
-      const w = this.device.createCommandEncoder();
-      this.simStep(w, 3 / 60);
-      this.device.queue.submit([w.finish()]);
+    let flowSrc = S.flow === 'fluid' ? this.vel[this.vc] : this.flow;
+    if (!S.paused) {
+      // Einschwingen: viele gleich große Schritte im Schnelldurchlauf bis zum eingeschwungenen Zustand.
+      for (let k = 0; k < WARM_PER_FRAME && this.warm > 0; k++, this.warm--) flowSrc = this.submitStep();
+      // Zeitraffer: mehr Schritte pro Bild, jeder Schritt bleibt gleich groß (gleiche Physik).
+      this.stepAcc += S.timeScale;
+      const n = Math.min(Math.floor(this.stepAcc), 8);
+      this.stepAcc -= n;
+      for (let k = 0; k < n; k++) flowSrc = this.submitStep();
     }
+    warmEl.textContent = this.warm > 0 ? ` · Einschwingen ${Math.round(100 * (1 - this.warm / WARM_STEPS))} %` : '';
+    this.spin += S.paused ? 0 : real * 0.08 * S.spinSpeed * (9.93 / this.preset.rotationHours);
     const enc = this.device.createCommandEncoder();
-    const dt = S.paused ? 0 : (1 / 60) * S.timeScale;
-    const flowSrc = dt > 0 ? this.simStep(enc, dt) : S.flow === 'fluid' ? this.vel[this.vc] : this.flow;
-    if (S.spin && !S.paused) this.spin += real * 0.08 * (9.93 / this.preset.rotationHours);
     this.writeRender();
 
     const rbg = this.device.createBindGroup({
@@ -587,8 +661,18 @@ class App {
         'Lädt Windprofil, Farbbänder, Stürme, Abplattung und Ringe eines Planeten. Alles sind Zahlen, keine Bilder.')
       .select('quality', 'Qualität', [['phone', 'Handy'], ['standard', 'Standard'], ['high', 'Hoch (4 Mio. Partikel)']],
         'Setzt Gitterauflösung, Farbauflösung, Partikelzahl und Pixeldichte auf einmal. „Handy“ ist für Smartphones gedacht.')
+      .file('image', 'Farben aus Bild', 'Lade ein Planetenfoto oder eine flache Karte. Für jeden Breitengrad wird die mittlere Farbe gemessen und als Bandfarbe übernommen. Das Bild wird nicht als Textur benutzt, die Wolken entstehen weiter aus der Simulation.',
+        (f) => bandsFromImage(f).then((bands) => {
+          this.preset = { ...this.preset, name: `${this.preset.name} (Farben aus Bild)`, bands };
+          this.writeTables();
+          this.needsDye = true;
+          const info = document.getElementById('planet-info');
+          if (info) info.textContent = `${this.preset.name} · Farben aus ${f.name}`;
+        }).catch(() => fail('<b>Das Bild ließ sich nicht lesen.</b> Nimm ein JPG, PNG oder WebP.')))
       .buttons([
         ['btn-reset', 'Neu starten', () => { this.needsInit = true; }],
+        ['btn-warm', 'Einschwingen', () => { this.warm = WARM_STEPS; }],
+        ['btn-defaults', 'Regler zurücksetzen', () => this.resetSettings()],
         ['btn-seed', 'Neuer Zufall', () => { S.seed = (S.seed % 9973) + 1; if (S.preset === 'Zufall') this.applyPreset(); this.needsInit = true; }],
         ['btn-pause', 'Pause', () => { S.paused = !S.paused; (document.getElementById('btn-pause') as HTMLButtonElement).textContent = S.paused ? 'Weiter' : 'Pause'; }],
       ])
@@ -597,14 +681,14 @@ class App {
         'Stable Fluids löst die Strömungsgleichung mit Druck, Coriolis und Wirbeln (physikalisch). Curl-Noise ist ein verwirbeltes Rauschfeld plus Jets (schnell, aber ohne Physik).')
       .select('look', 'Darstellung', [['dye', 'Farbstoff'], ['particles', 'Partikel']],
         'Farbstoff: jede Zelle der Farbtextur wird mit dem Wind verschoben. Partikel: Millionen Punkte fliegen mit dem Wind und färben die Textur, die langsam verblasst.')
-      .range('timeScale', 'Zeitraffer', 0, 6, 0.1, 'Wie viel Simulationszeit pro Bild vergeht. Höher = schneller, aber ungenauer.', (v) => `${v.toFixed(1)}×`)
+      .range('timeScale', 'Zeitraffer', 0.25, 8, 0.25, 'Simulationsschritte pro Bild. Jeder Schritt ist gleich groß, die Physik bleibt also dieselbe, sie läuft nur schneller ab. Kostet entsprechend mehr Rechenleistung. Zum schnellen Erreichen des stabilen Zustands gibt es den Knopf „Einschwingen“.', (v) => `${v.toFixed(2)}×`)
       .section('Wind und Physik', 'Wirkt bei Strömung „Stable Fluids“. Jet-Stärke wirkt überall.')
       .range('jetStrength', 'Jet-Stärke', 0, 0.2, 0.002, 'Spitzengeschwindigkeit der Ost-West-Winde in Radiant pro Sekunde. Bei Jupiter wären das echte 150 m/s. Skaliert auch Stürme und Turbulenz.', f3)
       .range('jetRelax', 'Jet-Rückstellung', 0, 2, 0.01, 'Wie stark die Ost-West-Winde zum gemessenen Windprofil zurückgezogen werden. 0 = die Strömung ist frei und die Bänder zerfallen mit der Zeit.', f2)
-      .range('omega', 'Coriolis (Rotation)', 0, 3, 0.01, 'Planetenrotation. Lenkt Winde ab (Nordhalbkugel nach rechts) und erzeugt über den β-Effekt Rossby-Wellen und langlebige Wirbel. 0 = nicht rotierender Planet.', f2)
+      .range('omega', 'Coriolis (Rotation)', 0, 3, 0.01, 'Physikalische Planetenrotation in der Strömungsgleichung. Lenkt Winde ab (Nordhalbkugel nach rechts) und erzeugt über den β-Effekt Rossby-Wellen und langlebige Wirbel. 0 = nicht rotierender Planet. Die sichtbare Drehung stellst du unter „Drehgeschwindigkeit“ ein.', f2)
       .range('turbulence', 'Turbulenz', 0, 3, 0.01, 'Kleine zufällige Anstöße im Wind. Sie lösen die Scherinstabilitäten an den Jet-Rändern aus (Kelvin-Helmholtz-Wellen).', f2)
       .range('turbScale', 'Turbulenz-Größe', 1, 20, 0.5, 'Größe der Anstöße: klein = viele feine Wirbel, groß = wenige große.', (v) => v.toFixed(1))
-      .range('confinement', 'Wirbelverstärkung', 0, 60, 0.5, 'Vorticity Confinement: gibt Wirbeln die Energie zurück, die das grobe Gitter wegschmiert. Zu hoch wird es unruhig.', (v) => v.toFixed(1))
+      .range('confinement', 'Wirbelverstärkung', 0, 8, 0.05, 'Vorticity Confinement: gibt Wirbeln die Energie zurück, die das grobe Gitter wegschmiert. Wirkt vor allem auf die kleinsten Wirbel. Über etwa 2 pumpt es Gitterrauschen auf und die Bänder werden kammartig.', f2)
       .range('drag', 'Reibung', 0, 0.5, 0.005, 'Bremst den ganzen Wind gleichmäßig ab.', f3)
       .range('iterations', 'Druck-Iterationen', 2, 80, 1, 'Jacobi-Schritte für die Druckgleichung. Mehr = sauberer divergenzfrei, aber teurer. Der wichtigste Leistungsregler.')
       .range('velRes', 'Gitter je Würfelfläche', 32, 256, 16, 'Auflösung des Windgitters. 128 heißt 6 × 128 × 128 Zellen auf der Kugel.', (v) => `${v}²`)
@@ -624,9 +708,11 @@ class App {
       .range('bandWobble', 'Band-Mäander', 0, 3, 0.05, 'Verbiegt die Bandgrenzen mit Rauschen, damit sie nicht wie mit dem Lineal gezogen sind.', f2)
       .range('contrast', 'Band-Kontrast', 0, 2.5, 0.05, 'Verstärkt oder dämpft den Farbunterschied zwischen hellen Zonen und dunklen Gürteln.', f2)
       .range('convection', 'Konvektion', 0, 4, 0.05, 'Helle Wolkentürme, die aus der Tiefe aufsteigen (Ammoniak-Eis).', f2)
-      .toggle('storms', 'Stürme', 'Schaltet die Stürme der Vorlage an/aus (z. B. Großer Roter Fleck). Sie treiben mit dem Jet ihrer Breite.')
+      .toggle('storms', 'Vorlagen-Stürme', 'Setzt beim Start die bekannten Stürme der Vorlage als Wirbel ein (z. B. Großer Roter Fleck). Danach leben sie von der Physik allein: Sie treiben, verformen sich, verschmelzen oder zerfallen.')
+      .range('stormHold', 'Stürme festhalten', 0, 1, 0.01, 'Treibt die Vorlagen-Stürme dauerhaft an und färbt sie nach. 0 = reine Physik (Stürme dürfen vergehen), 1 = der Sturm wird ständig nachgeführt wie ein Beobachtungsdatum. Bei Curl-Noise immer voll, weil das Rauschfeld keine eigene Dynamik hat.', pct)
+      .range('stormSpawn', 'Neue Stürme', 0, 2, 0.01, 'Wie oft aufsteigende Konvektion einen neuen Wirbel anstößt (pro Sekunde Simulationszeit). Meist Antizyklone (weiße Ovale), manchmal Zyklone (dunkle Barken). Nur bei Stable Fluids.', f2)
       .range('stormStrength', 'Sturm-Stärke', 0, 4, 0.05, 'Drehgeschwindigkeit der Stürme relativ zur Jet-Stärke.', f2)
-      .range('stormTint', 'Sturm-Farbe', 0, 4, 0.05, 'Wie stark ein Sturm seine eigene Farbe in die Wolken gibt.', f2)
+      .range('stormTint', 'Sturm-Farbe', 0, 4, 0.05, 'Wie stark ein angetriebener Sturm seine eigene Farbe in die Wolken gibt.', f2)
       .range('dyeRes', 'Farbauflösung', 128, 1536, 64, 'Auflösung der Wolkentextur je Würfelfläche. Bestimmt die Schärfe beim Heranzoomen.', (v) => `${v}²`)
       .section('Licht und Ansicht')
       .range('sunAngle', 'Sonnenstand', -180, 180, 1, 'Richtung der Sonne. 0° = Sonne hinter der Kamera (voller Planet), 90° = Halbphase.', (v) => `${v}°`)
@@ -634,7 +720,7 @@ class App {
       .range('limb', 'Randverdunkelung', 0.8, 2, 0.01, 'Minnaert-Exponent. 1 = matte Kugel; höher = dunkler Rand wie bei echten Gasplaneten.', f2)
       .range('atmosphere', 'Dunstsaum', 0, 3, 0.05, 'Helligkeit des Atmosphärensaums am Planetenrand.', f2)
       .range('exposure', 'Belichtung', 0.3, 3, 0.05, 'Gesamthelligkeit.', f2)
-      .toggle('spin', 'Planet dreht sich', 'Eigenrotation, Tempo relativ zur echten Tageslänge der Vorlage.')
+      .range('spinSpeed', 'Drehgeschwindigkeit', 0, 5, 0.05, 'Sichtbare Eigendrehung. Von Norden gesehen gegen den Uhrzeigersinn, mit Norden oben laufen die Wolken also von links nach rechts. 1 = Tempo passend zur Tageslänge der Vorlage, 0 = steht still. Ändert nur die Ansicht, nicht die Physik.', (v) => `${v.toFixed(2)}×`)
       .toggle('map', 'Kartenansicht', 'Zeigt die ganze Kugel als flache Weltkarte (Längen- und Breitengrade). Gut, um Jets und Stürme zu vergleichen.')
       .select('view', 'Feld anzeigen', [['0', 'Wolken'], ['1', 'Wind (Richtung)'], ['2', 'Wirbelstärke'], ['3', 'Druck']],
         'Debug-Ansichten. Wind: Rot = Ost, Grün = Nord. Wirbelstärke: Rot = gegen den Uhrzeigersinn, Blau = im Uhrzeigersinn. Druck gibt es nur bei Stable Fluids.');
@@ -643,9 +729,20 @@ class App {
 
   private updateVisibility() {
     const fluid = S.flow === 'fluid', parts = S.look === 'particles';
-    for (const k of ['jetRelax', 'omega', 'turbulence', 'turbScale', 'confinement', 'drag', 'iterations', 'velRes']) this.panel.visible(k, fluid);
+    for (const k of ['jetRelax', 'omega', 'turbulence', 'turbScale', 'confinement', 'drag', 'iterations', 'velRes', 'stormSpawn']) this.panel.visible(k, fluid);
     for (const k of ['curlStrength', 'curlFreq', 'curlSpeed', 'curlOctaves']) this.panel.visible(k, !fluid);
     for (const k of ['particles', 'lifetime', 'opacity', 'blur']) this.panel.visible(k, parts);
+  }
+
+  private resetSettings() {
+    const keep = { preset: S.preset, quality: S.quality, velRes: S.velRes, dyeRes: S.dyeRes, particles: S.particles, seed: S.seed };
+    Object.assign(S, DEFAULTS, keep);
+    this.applyPreset();
+    canvas.classList.toggle('map', S.map);
+    this.updateVisibility();
+    this.panel.refresh();
+    const pause = document.getElementById('btn-pause');
+    if (pause) pause.textContent = 'Pause';
   }
 
   private onChange(key: Key) {
