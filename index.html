@@ -108,6 +108,15 @@
   .row-toggle label { display: flex; align-items: center; gap: 8px; cursor: pointer; }
   .row-toggle input { accent-color: var(--accent); width: 16px; height: 16px; margin: 0; }
   .row-buttons { display: flex; flex-wrap: wrap; gap: 8px; }
+  .row-save { display: flex; gap: 8px; align-items: center; }
+  .row-save input, .row-save select { flex: 1; min-width: 0; }
+  input[type=text] {
+    font: 13px var(--body); color: var(--text); background: #1b1c22; border: 1px solid var(--line);
+    border-radius: 5px; padding: 6px 8px;
+  }
+  button:disabled { opacity: 0.45; cursor: default; }
+  .reset-hint { color: var(--muted); }
+  .row label { cursor: default; user-select: none; }
   .row-file input { grid-column: 1 / -1; width: 100%; font: 12px var(--body); color: var(--muted); }
   .row-file input::file-selector-button {
     font: 13px var(--body); color: var(--text); background: #1b1c22; border: 1px solid var(--line);
