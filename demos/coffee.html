@@ -1,0 +1,538 @@
+<title>Sahne im Kaffee</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500&display=swap">
+<style>
+  /* Einzelnes, bewusst dunkles Design: Tasse auf einem dunklen Holztisch. */
+  :root {
+    color-scheme: dark;
+    --table: #17110d;
+    --panel: rgba(24, 18, 14, 0.9);
+    --line: #33291f;
+    --text: #f0e6d6;
+    --muted: #a8998a;
+    --accent: #d9a86c;
+    --focus: #f3cf9c;
+    --display: 'Barlow Condensed', 'Arial Narrow', sans-serif;
+    --body: 'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+    --mono: 'IBM Plex Mono', ui-monospace, Menlo, monospace;
+  }
+  html, body { height: 100%; }
+  body { margin: 0; background: var(--table); color: var(--text); font: 14px/1.45 var(--body); overflow: hidden; }
+  #app { height: 100%; display: grid; grid-template-columns: 1fr 320px; }
+  #stage { position: relative; min-width: 0; min-height: 0; }
+  #view { display: block; width: 100%; height: 100%; touch-action: none; cursor: grab; }
+  .hud { position: absolute; left: 16px; right: 16px; top: calc(12px + env(safe-area-inset-top, 0px)); pointer-events: none; }
+  .hud h1 { margin: 0; font: 600 26px/1.05 var(--display); letter-spacing: 0.04em; text-transform: uppercase; }
+  .hud p { margin: 2px 0 0; font: 12px var(--mono); color: var(--muted); }
+  #fps { color: var(--accent); }
+  #status { position: absolute; left: 16px; right: 16px; bottom: 16px; max-width: 520px; padding: 12px 14px; background: #2a1512; border: 1px solid #7a3326; border-radius: 6px; }
+  aside {
+    background: var(--panel); border-left: 1px solid var(--line); overflow-y: auto;
+    padding-inline: 16px; padding-block: calc(12px + env(safe-area-inset-top, 0px)) calc(20px + env(safe-area-inset-bottom, 0px));
+  }
+  .help { margin: 0 0 12px; padding: 10px 12px; min-height: 5.6em; border: 1px solid var(--line); border-radius: 6px; background: rgba(0,0,0,0.3); color: var(--muted); font-size: 12.5px; }
+  .help b { color: var(--text); font-weight: 500; }
+  h2 { margin: 14px 0 4px; padding-top: 10px; border-top: 1px solid var(--line); font: 600 15px var(--display); letter-spacing: 0.08em; text-transform: uppercase; }
+  .row { display: grid; grid-template-columns: 1fr auto; gap: 2px 8px; align-items: center; padding-block: 5px; }
+  .row label { font-size: 13px; }
+  .row output { font: 12px var(--mono); color: var(--accent); font-variant-numeric: tabular-nums; }
+  .row input[type=range] { grid-column: 1 / -1; width: 100%; margin: 0; accent-color: var(--accent); height: 22px; }
+  .buttons { display: flex; flex-wrap: wrap; gap: 8px; padding-block: 6px; }
+  button, select { font: 13px var(--body); color: var(--text); background: #2a2019; border: 1px solid var(--line); border-radius: 5px; padding: 7px 10px; cursor: pointer; }
+  button[aria-pressed="true"] { background: #5a3f25; border-color: var(--accent); }
+  select { width: 100%; }
+  :focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+  @media (max-width: 760px) {
+    #app { grid-template-columns: 1fr; grid-template-rows: 58% 42%; }
+    aside { border-left: 0; border-top: 1px solid var(--line); }
+  }
+</style>
+
+<div id="app">
+  <div id="stage">
+    <canvas id="view" aria-label="Echtzeit-Simulation: Sahne in einer Tasse Kaffee"></canvas>
+    <div class="hud">
+      <h1>Sahne im Kaffee</h1>
+      <p><span id="fps">– fps</span> · in der Tasse ziehen = mit dem Löffel rühren</p>
+    </div>
+    <div id="status" hidden></div>
+  </div>
+  <aside>
+    <p class="help" id="help">Drück „Sahne gießen“, dann zieh mit Maus oder Finger durch die Tasse. Jeder Regler erklärt hier, was er physikalisch macht.</p>
+    <div class="buttons">
+      <button id="pour" type="button" aria-pressed="true">Sahne gießen</button>
+      <button id="stir" type="button" aria-pressed="false">Automatisch rühren</button>
+      <button id="reset" type="button">Neue Tasse</button>
+    </div>
+    <div class="row"><label for="drink">Getränk</label>
+      <select id="drink"><option value="coffee">Kaffee</option><option value="tea">Schwarztee</option></select></div>
+    <h2>Gießen</h2>
+    <div id="sliders-pour"></div>
+    <h2>Rühren</h2>
+    <div id="sliders-stir"></div>
+    <h2>Flüssigkeit</h2>
+    <div id="sliders-fluid"></div>
+  </aside>
+</div>
+
+<script type="module">
+// ---------------------------------------------------------------------------
+// Sahne im Kaffee: Stable Fluids (Stam) in 2D, Draufsicht auf eine Tasse.
+// Vier Zutaten, die ein reiner "Farbe mitschieben"-Ansatz nicht hat:
+//  1. Quellen: Sahne sinkt ab und quillt wieder auf. Von oben gesehen strömt sie
+//     dort aus einem Punkt nach außen, die Oberfläche ist also NICHT divergenzfrei.
+//     Der Drucklöser erzwingt darum ∇·u = Quelle statt ∇·u = 0.
+//  2. Hindernis: der Löffel zwingt dem Wasser seine Geschwindigkeit auf -> Wirbelschleppe.
+//  3. Keine Rückstellung: Sahne bleibt, Muster entstehen nur durch Dehnung.
+//  4. Begrenzer beim Transport (BFECC + Min/Max-Klammer), damit Kanten scharf bleiben.
+// ---------------------------------------------------------------------------
+
+const S = {
+  pourRate: 1.0, pourSize: 0.035, upwell: 1.0, upSize: 0.05,
+  spoonSize: 0.045, stirSpeed: 1.0,
+  confinement: 1.2, drag: 0.35, diffusion: 0.0, iterations: 40,
+  pour: true, stir: false, drink: 'coffee',
+};
+const DEFAULTS = { ...S };
+
+const hints = {
+  pourRate: 'Wie viel Sahne pro Sekunde in die Tasse läuft. Der Strahl drückt die Oberfläche von einem Punkt aus auseinander (eine Quelle im Drucklöser).',
+  pourSize: 'Breite des Sahnestrahls auf der Oberfläche.',
+  upwell: 'Wie stark abgesunkene Sahne wieder aufquillt. Kalte Sahne ist schwerer als heißer Kaffee, sinkt ab und steigt als Pilzwolke wieder hoch (Rayleigh-Taylor). Das sind die wolkigen Flecken auf dem Foto.',
+  upSize: 'Größe der aufquellenden Sahnewolken.',
+  spoonSize: 'Größe des Löffels. Er ist ein bewegtes Hindernis: Hinter ihm lösen sich Wirbel ab (Kármánsche Wirbelstraße).',
+  stirSpeed: 'Tempo beim automatischen Rühren.',
+  confinement: 'Wirbelverstärkung: gibt kleinen Wirbeln die Energie zurück, die das Gitter wegschmiert.',
+  drag: 'Wie schnell die Bewegung ausläuft (Reibung an Tassenboden und Wand).',
+  diffusion: 'Molekulare Vermischung. 0 = Sahne bleibt in feinen Fäden, höher = alles wird schneller hellbraun.',
+  iterations: 'Jacobi-Schritte für den Druck. Mehr = genauer, kostet Leistung.',
+};
+
+const status = document.getElementById('status');
+const fail = (m) => { status.hidden = false; status.innerHTML = m; };
+
+// ---------- Regler ----------
+const help = document.getElementById('help');
+function slider(parent, key, label, min, max, step, fmt = (v) => v.toFixed(2)) {
+  const row = document.createElement('div');
+  row.className = 'row';
+  row.innerHTML = `<label for="c-${key}">${label}</label><output for="c-${key}"></output><input id="c-${key}" type="range" min="${min}" max="${max}" step="${step}">`;
+  const input = row.querySelector('input'), out = row.querySelector('output');
+  const sync = () => { input.value = S[key]; out.textContent = fmt(S[key]); };
+  input.addEventListener('input', () => { S[key] = Number(input.value); out.textContent = fmt(S[key]); });
+  const show = () => { help.innerHTML = `<b>${label}.</b> ${hints[key]}`; };
+  row.addEventListener('pointerenter', show); row.addEventListener('focusin', show); row.addEventListener('pointerdown', show);
+  document.getElementById(parent).append(row);
+  sync();
+  return sync;
+}
+const syncs = [
+  slider('sliders-pour', 'pourRate', 'Gießmenge', 0, 3, 0.05),
+  slider('sliders-pour', 'pourSize', 'Strahlbreite', 0.01, 0.08, 0.005, (v) => v.toFixed(3)),
+  slider('sliders-pour', 'upwell', 'Aufquellen', 0, 3, 0.05),
+  slider('sliders-pour', 'upSize', 'Größe der Sahnewolken', 0.02, 0.12, 0.005, (v) => v.toFixed(3)),
+  slider('sliders-stir', 'spoonSize', 'Löffelgröße', 0.02, 0.1, 0.005, (v) => v.toFixed(3)),
+  slider('sliders-stir', 'stirSpeed', 'Rührtempo', 0.2, 3, 0.05),
+  slider('sliders-fluid', 'confinement', 'Wirbelverstärkung', 0, 6, 0.05),
+  slider('sliders-fluid', 'drag', 'Reibung', 0, 2, 0.01),
+  slider('sliders-fluid', 'diffusion', 'Vermischung', 0, 0.3, 0.005, (v) => v.toFixed(3)),
+  slider('sliders-fluid', 'iterations', 'Druck-Iterationen', 5, 80, 1, (v) => String(v)),
+];
+const toggle = (id, key) => {
+  const b = document.getElementById(id);
+  b.addEventListener('click', () => { S[key] = !S[key]; b.setAttribute('aria-pressed', String(S[key])); });
+};
+toggle('pour', 'pour');
+toggle('stir', 'stir');
+document.getElementById('drink').addEventListener('change', (e) => { S.drink = e.target.value; });
+
+// ---------- WGSL ----------
+const N = 256;          // Geschwindigkeitsgitter
+const DN = 768;         // Sahne-Auflösung
+const MAX_UP = 16;
+
+const common = /* wgsl */`
+struct P {
+  dt: f32, time: f32, n: f32, dn: f32,
+  spoon: vec2f, spoonVel: vec2f,
+  spoonR: f32, spoonOn: f32, cupR: f32, drag: f32,
+  pour: vec2f, pourR: f32, pourRate: f32,
+  confinement: f32, diffusion: f32, upCount: f32, pad: f32,
+  ups: array<vec4f, ${MAX_UP}>,   // xy Ort, z Radius, w Stärke
+};
+@group(0) @binding(0) var<uniform> U: P;
+@group(0) @binding(1) var smp: sampler;
+@group(0) @binding(2) var tA: texture_2d<f32>;
+@group(0) @binding(3) var tB: texture_2d<f32>;
+@group(0) @binding(4) var dst: texture_storage_2d<rgba16float, write>;
+
+fn A(uv: vec2f) -> vec4f { return textureSampleLevel(tA, smp, uv, 0.0); }
+fn B(uv: vec2f) -> vec4f { return textureSampleLevel(tB, smp, uv, 0.0); }
+fn inCup(uv: vec2f) -> bool { return length(uv - 0.5) < U.cupR; }
+
+// Quellstärke: Gießstrahl und aufquellende Sahne drücken die Oberfläche auseinander.
+fn source(uv: vec2f) -> f32 {
+  var s = U.pourRate * exp(-pow(length(uv - U.pour) / U.pourR, 2.0)) * 6.0;
+  for (var i = 0u; i < u32(U.upCount); i++) {
+    let u = U.ups[i];
+    s += u.w * exp(-pow(length(uv - u.xy) / u.z, 2.0));
+  }
+  return s;
+}
+fn creamIn(uv: vec2f) -> f32 {
+  var s = U.pourRate * exp(-pow(length(uv - U.pour) / (U.pourR * 0.8), 2.0)) * 3.0;
+  for (var i = 0u; i < u32(U.upCount); i++) {
+    let u = U.ups[i];
+    s += u.w * 0.5 * exp(-pow(length(uv - u.xy) / (u.z * 0.6), 2.0));
+  }
+  return s;
+}
+`;
+
+const simCode = common + /* wgsl */`
+fn cellUV(id: vec2u, n: f32) -> vec2f { return (vec2f(id) + 0.5) / n; }
+
+@compute @workgroup_size(8, 8) fn advectVel(@builtin(global_invocation_id) id: vec3u) {
+  if (f32(id.x) >= U.n || f32(id.y) >= U.n) { return; }
+  let uv = cellUV(id.xy, U.n);
+  let v = A(uv).xy;
+  var nv = A(uv - v * U.dt).xy;
+  // Löffel: im Löffel hat das Wasser die Löffelgeschwindigkeit (bewegtes Hindernis).
+  let ds = length(uv - U.spoon);
+  let w = smoothstep(U.spoonR, U.spoonR * 0.6, ds) * U.spoonOn;
+  nv = mix(nv, U.spoonVel, w);
+  nv /= 1.0 + U.drag * U.dt;
+  if (!inCup(uv)) { nv = vec2f(0.0); }
+  textureStore(dst, id.xy, vec4f(nv, 0.0, 1.0));
+}
+
+@compute @workgroup_size(8, 8) fn curl(@builtin(global_invocation_id) id: vec3u) {
+  if (f32(id.x) >= U.n || f32(id.y) >= U.n) { return; }
+  let uv = cellUV(id.xy, U.n); let h = 1.0 / U.n;
+  let c = (A(uv + vec2f(h, 0.0)).y - A(uv - vec2f(h, 0.0)).y - A(uv + vec2f(0.0, h)).x + A(uv - vec2f(0.0, h)).x) / (2.0 * h);
+  textureStore(dst, id.xy, vec4f(c, 0.0, 0.0, 1.0));
+}
+
+// Vorticity Confinement (Fedkiw 2001). A = Geschwindigkeit, B = Wirbelstärke.
+@compute @workgroup_size(8, 8) fn confine(@builtin(global_invocation_id) id: vec3u) {
+  if (f32(id.x) >= U.n || f32(id.y) >= U.n) { return; }
+  let uv = cellUV(id.xy, U.n); let h = 1.0 / U.n;
+  var v = A(uv).xy;
+  let g = vec2f(abs(B(uv + vec2f(h, 0.0)).x) - abs(B(uv - vec2f(h, 0.0)).x),
+                abs(B(uv + vec2f(0.0, h)).x) - abs(B(uv - vec2f(0.0, h)).x));
+  let l = length(g);
+  if (l > 1e-6) {
+    let nn = g / l;
+    v += vec2f(nn.y, -nn.x) * B(uv).x * U.confinement * h * U.dt;
+  }
+  if (!inCup(uv)) { v = vec2f(0.0); }
+  textureStore(dst, id.xy, vec4f(v, 0.0, 1.0));
+}
+
+// Divergenz minus Quelle: der Drucklöser erzwingt dann ∇·u = Quelle.
+@compute @workgroup_size(8, 8) fn divergence(@builtin(global_invocation_id) id: vec3u) {
+  if (f32(id.x) >= U.n || f32(id.y) >= U.n) { return; }
+  let uv = cellUV(id.xy, U.n); let h = 1.0 / U.n;
+  let d = (A(uv + vec2f(h, 0.0)).x - A(uv - vec2f(h, 0.0)).x + A(uv + vec2f(0.0, h)).y - A(uv - vec2f(0.0, h)).y) / (2.0 * h);
+  let s = select(0.0, source(uv), inCup(uv));
+  textureStore(dst, id.xy, vec4f(d - s, 0.0, 0.0, 1.0));
+}
+
+// Jacobi mit Wand: Nachbarn außerhalb der Tasse spiegeln den eigenen Druck (keine Strömung durch die Wand).
+@compute @workgroup_size(8, 8) fn jacobi(@builtin(global_invocation_id) id: vec3u) {
+  if (f32(id.x) >= U.n || f32(id.y) >= U.n) { return; }
+  let uv = cellUV(id.xy, U.n); let h = 1.0 / U.n;
+  let pc = A(uv).x;
+  var s = 0.0;
+  for (var k = 0; k < 4; k++) {
+    let o = select(select(vec2f(0.0, -h), vec2f(0.0, h), k == 2), select(vec2f(-h, 0.0), vec2f(h, 0.0), k == 0), k < 2);
+    let q = uv + o;
+    s += select(pc, A(q).x, inCup(q));
+  }
+  let p = (s - h * h * B(uv).x) * 0.25;
+  textureStore(dst, id.xy, vec4f(select(0.0, p, inCup(uv)), 0.0, 0.0, 1.0));
+}
+
+@compute @workgroup_size(8, 8) fn project(@builtin(global_invocation_id) id: vec3u) {
+  if (f32(id.x) >= U.n || f32(id.y) >= U.n) { return; }
+  let uv = cellUV(id.xy, U.n); let h = 1.0 / U.n;
+  let pc = B(uv).x;
+  let pr = select(pc, B(uv + vec2f(h, 0.0)).x, inCup(uv + vec2f(h, 0.0)));
+  let pl = select(pc, B(uv - vec2f(h, 0.0)).x, inCup(uv - vec2f(h, 0.0)));
+  let pt = select(pc, B(uv + vec2f(0.0, h)).x, inCup(uv + vec2f(0.0, h)));
+  let pb = select(pc, B(uv - vec2f(0.0, h)).x, inCup(uv - vec2f(0.0, h)));
+  var v = A(uv).xy - vec2f(pr - pl, pt - pb) / (2.0 * h);
+  // An der Wand keine Strömung nach außen.
+  let r = uv - 0.5; let d = length(r);
+  if (d > U.cupR - 2.0 * h) { let nrm = r / max(d, 1e-6); v -= nrm * max(dot(v, nrm), 0.0); }
+  if (!inCup(uv)) { v = vec2f(0.0); }
+  textureStore(dst, id.xy, vec4f(v, 0.0, 1.0));
+}
+
+// Sahne mitführen: BFECC wie im mofu-Artikel, dann auf Min/Max der Nachbarn am
+// Rückverfolgungspunkt begrenzen (Selle et al. 2008), damit keine Überschwinger entstehen.
+// A = Sahne, B = Geschwindigkeit.
+@compute @workgroup_size(8, 8) fn advectCream(@builtin(global_invocation_id) id: vec3u) {
+  if (f32(id.x) >= U.dn || f32(id.y) >= U.dn) { return; }
+  let uv = cellUV(id.xy, U.dn);
+  let dt = U.dt;
+  let v0 = B(uv).xy;
+  let back = uv - v0 * dt;
+  let v1 = B(back).xy;
+  let fwd = back + v1 * dt;
+  let uv3 = uv - (fwd - uv) * 0.5;
+  let v2 = B(uv3).xy;
+  var c = A(uv3 - v2 * dt).x;
+  // Begrenzer: vier Texel um den einfachen Rückverfolgungspunkt
+  let x = back * U.dn - 0.5;
+  let i0 = vec2i(floor(x));
+  let mx = vec2i(i32(U.dn) - 1);
+  let a = textureLoad(tA, clamp(i0, vec2i(0), mx), 0).x;
+  let b = textureLoad(tA, clamp(i0 + vec2i(1, 0), vec2i(0), mx), 0).x;
+  let cc = textureLoad(tA, clamp(i0 + vec2i(0, 1), vec2i(0), mx), 0).x;
+  let d = textureLoad(tA, clamp(i0 + vec2i(1, 1), vec2i(0), mx), 0).x;
+  c = clamp(c, min(min(a, b), min(cc, d)), max(max(a, b), max(cc, d)));
+  // Molekulare Vermischung
+  if (U.diffusion > 0.0) {
+    let h = 1.0 / U.dn;
+    let avg = (A(uv + vec2f(h, 0.0)).x + A(uv - vec2f(h, 0.0)).x + A(uv + vec2f(0.0, h)).x + A(uv - vec2f(0.0, h)).x) * 0.25;
+    c = mix(c, avg, U.diffusion);
+  }
+  // Neue Sahne: Gießstrahl und aufquellende Wolken
+  c = mix(c, 1.0, clamp(creamIn(uv) * dt, 0.0, 1.0));
+  if (!inCup(uv)) { c = 0.0; }
+  textureStore(dst, id.xy, vec4f(clamp(c, 0.0, 1.0), 0.0, 0.0, 1.0));
+}
+
+@compute @workgroup_size(8, 8) fn clear(@builtin(global_invocation_id) id: vec3u) {
+  textureStore(dst, id.xy, vec4f(0.0, 0.0, 0.0, 1.0));
+}
+`;
+
+const renderCode = common + /* wgsl */`
+struct R { aspect: f32, tea: f32, pouring: f32, t: f32 };
+@group(0) @binding(5) var<uniform> V: R;
+
+struct VO { @builtin(position) pos: vec4f, @location(0) uv: vec2f };
+@vertex fn vs(@builtin(vertex_index) i: u32) -> VO {
+  let xy = vec2f(f32((i << 1u) & 2u), f32(i & 2u)) * 2.0 - 1.0;
+  var o: VO; o.pos = vec4f(xy, 0.0, 1.0); o.uv = xy; return o;
+}
+
+fn hash(p: vec2f) -> f32 { var q = fract(p * vec2f(123.34, 456.21)); q += dot(q, q + 45.32); return fract(q.x * q.y); }
+
+@fragment fn fs(vin: VO) -> @location(0) vec4f {
+  // Quadratischer Bildausschnitt, Tasse in der Mitte
+  var p = vin.uv;
+  if (V.aspect > 1.0) { p.x *= V.aspect; } else { p.y /= V.aspect; }
+  let uv = vec2f(p.x, -p.y) * 0.5 * 1.08 + 0.5;
+  let r = length(uv - 0.5);
+  let rimW = 0.045;
+  // Tisch mit weichem Tassenschatten
+  var col = mix(vec3f(0.09, 0.065, 0.05), vec3f(0.05, 0.035, 0.028), smoothstep(0.2, 0.9, length(uv - vec2f(0.35, 0.3))));
+  col *= 1.0 - 0.55 * smoothstep(U.cupR + rimW + 0.08, U.cupR + rimW - 0.01, length(uv - vec2f(0.515, 0.525)));
+  if (r < U.cupR + rimW) {
+    // Porzellanrand mit Wölbung
+    let t = clamp((r - U.cupR) / rimW, 0.0, 1.0);
+    let bevel = sin(t * 3.14159);
+    let dir = normalize(uv - 0.5 + 1e-6);
+    let lit = 0.78 + 0.22 * dot(dir, normalize(vec2f(-0.6, -0.8))) * bevel;
+    col = vec3f(0.93, 0.91, 0.88) * lit;
+  }
+  if (r < U.cupR) {
+    let c = A(uv).x;
+    let h = 1.5 / U.dn;
+    let gx = A(uv + vec2f(h, 0.0)).x - A(uv - vec2f(h, 0.0)).x;
+    let gy = A(uv + vec2f(0.0, h)).x - A(uv - vec2f(0.0, h)).x;
+    let drink = select(vec3f(0.035, 0.018, 0.009), vec3f(0.19, 0.06, 0.015), V.tea > 0.5);
+    let cream = vec3f(0.92, 0.82, 0.66);
+    let milky = vec3f(0.55, 0.36, 0.22);
+    // Sahne in Kaffee: dünne Schichten wirken karamellbraun, dicke cremeweiß.
+    var liquid = mix(drink, milky, smoothstep(0.0, 0.45, c));
+    liquid = mix(liquid, cream, smoothstep(0.35, 1.0, c));
+    // Sahne liegt leicht höher: Relief aus dem Gradienten, Licht von links oben
+    let n = normalize(vec3f(-gx * 6.0, gy * 6.0, 1.0));
+    let L = normalize(vec3f(-0.5, 0.6, 0.65));
+    liquid *= 0.75 + 0.35 * max(dot(n, L), 0.0);
+    // Spiegelung des Fensters und dunkler Innenrand
+    let H = normalize(L + vec3f(0.0, 0.0, 1.0));
+    liquid += vec3f(1.0, 0.97, 0.9) * pow(max(dot(n, H), 0.0), 60.0) * 0.25;
+    liquid *= 1.0 - 0.6 * smoothstep(U.cupR - 0.05, U.cupR, r);
+    col = liquid;
+    // Löffel (Draufsicht: Laffe + Stiel zum Rand)
+    if (U.spoonOn > 0.5) {
+      let d = uv - U.spoon;
+      let bowl = length(d * vec2f(1.0, 1.35)) / U.spoonR;
+      if (bowl < 1.0) {
+        let m = 0.55 + 0.45 * (1.0 - bowl) + 0.2 * sin(bowl * 6.0 - 1.0);
+        col = vec3f(0.78, 0.8, 0.83) * m;
+      }
+    }
+    // Sahnestrahl
+    if (V.pouring > 0.5) {
+      let dp = length(uv - U.pour) / (U.pourR * 0.55);
+      if (dp < 1.0) {
+        col = mix(col, vec3f(0.97, 0.94, 0.88) * (0.85 + 0.15 * (1.0 - dp)), smoothstep(1.0, 0.8, dp));
+      }
+    }
+  }
+  // Löffelstiel über den Rand hinaus
+  if (U.spoonOn > 0.5) {
+    let a = U.spoon; let b = a + normalize(U.spoon - 0.5 + vec2f(0.001, 0.0)) * 0.5;
+    let pa = uv - a; let ba = b - a;
+    let t = clamp(dot(pa, ba) / dot(ba, ba), 0.0, 1.0);
+    if (length(pa - ba * t) < 0.009 && t > 0.05) { col = vec3f(0.72, 0.74, 0.77) * (0.8 + 0.2 * (1.0 - t)); }
+  }
+  return vec4f(pow(col, vec3f(1.0 / 2.2)), 1.0);
+}
+`;
+
+// ---------- WebGPU ----------
+async function main() {
+  if (!navigator.gpu) return fail('<b>WebGPU fehlt.</b> Nimm Chrome oder Edge ab 113, Safari ab 26 oder Firefox ab 141.');
+  const adapter = await navigator.gpu.requestAdapter({ powerPreference: 'high-performance' });
+  if (!adapter) return fail('<b>Keine WebGPU-Grafikkarte gefunden.</b>');
+  const device = await adapter.requestDevice();
+  device.addEventListener('uncapturederror', (e) => fail(`<b>GPU-Fehler:</b> ${e.error.message}`));
+  const canvas = document.getElementById('view');
+  const ctx = canvas.getContext('webgpu');
+  const format = navigator.gpu.getPreferredCanvasFormat();
+  ctx.configure({ device, format, alphaMode: 'opaque' });
+
+  const tex = (n) => device.createTexture({ size: [n, n], format: 'rgba16float', usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.STORAGE_BINDING });
+  const pair = (n) => [tex(n), tex(n)];
+  let vel = pair(N), prs = pair(N), cream = pair(DN);
+  const curlT = tex(N), divT = tex(N), dummy = tex(8);
+  const samp = device.createSampler({ magFilter: 'linear', minFilter: 'linear' });
+
+  const UF = 4 + 4 + 4 + 4 + 4 + MAX_UP * 4;
+  const ubuf = device.createBuffer({ size: UF * 4, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
+  const rbuf = device.createBuffer({ size: 16, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
+  const udata = new Float32Array(UF);
+
+  const layout = device.createBindGroupLayout({ entries: [
+    { binding: 0, visibility: GPUShaderStage.COMPUTE, buffer: {} },
+    { binding: 1, visibility: GPUShaderStage.COMPUTE, sampler: {} },
+    { binding: 2, visibility: GPUShaderStage.COMPUTE, texture: {} },
+    { binding: 3, visibility: GPUShaderStage.COMPUTE, texture: {} },
+    { binding: 4, visibility: GPUShaderStage.COMPUTE, storageTexture: { access: 'write-only', format: 'rgba16float' } },
+  ] });
+  const mod = device.createShaderModule({ code: simCode });
+  mod.getCompilationInfo().then((i) => { const e = i.messages.filter((m) => m.type === 'error'); if (e.length) fail('<b>Shader:</b> ' + e.map((m) => `Zeile ${m.lineNum}: ${m.message}`).join('<br>')); });
+  const pl = device.createPipelineLayout({ bindGroupLayouts: [layout] });
+  const pipes = {};
+  for (const e of ['advectVel', 'curl', 'confine', 'divergence', 'jacobi', 'project', 'advectCream', 'clear'])
+    pipes[e] = device.createComputePipeline({ layout: pl, compute: { module: mod, entryPoint: e } });
+
+  const rmod = device.createShaderModule({ code: renderCode });
+  rmod.getCompilationInfo().then((i) => { const e = i.messages.filter((m) => m.type === 'error'); if (e.length) fail('<b>Render-Shader:</b> ' + e.map((m) => `Zeile ${m.lineNum}: ${m.message}`).join('<br>')); });
+  const rpipe = device.createRenderPipeline({ layout: 'auto', vertex: { module: rmod, entryPoint: 'vs' }, fragment: { module: rmod, entryPoint: 'fs', targets: [{ format }] } });
+
+  const run = (pass, name, a, b, out) => {
+    pass.setPipeline(pipes[name]);
+    pass.setBindGroup(0, device.createBindGroup({ layout, entries: [
+      { binding: 0, resource: { buffer: ubuf } }, { binding: 1, resource: samp },
+      { binding: 2, resource: (a ?? dummy).createView() }, { binding: 3, resource: (b ?? dummy).createView() },
+      { binding: 4, resource: out.createView() }] }));
+    const g = Math.ceil(out.width / 8);
+    pass.dispatchWorkgroups(g, g);
+  };
+
+  // ---------- Zustand ----------
+  const spoon = { x: 0.62, y: 0.5, vx: 0, vy: 0, on: false, angle: 0 };
+  let dragging = false, lastPt = null;
+  const ups = [];              // aufquellende Sahnewolken
+  let reservoir = 0;           // abgesunkene Sahne, die noch aufquellen kann
+  let time = 0, needsClear = true;
+  document.getElementById('reset').addEventListener('click', () => { needsClear = true; ups.length = 0; reservoir = 0; });
+
+  const toUV = (e) => {
+    const r = canvas.getBoundingClientRect();
+    let x = ((e.clientX - r.left) / r.width) * 2 - 1, y = ((e.clientY - r.top) / r.height) * 2 - 1;
+    const aspect = r.width / r.height;
+    if (aspect > 1) x *= aspect; else y /= aspect;
+    return { x: x * 0.5 * 1.08 + 0.5, y: y * 0.5 * 1.08 + 0.5 };
+  };
+  canvas.addEventListener('pointerdown', (e) => { canvas.setPointerCapture(e.pointerId); dragging = true; lastPt = { ...toUV(e), t: performance.now() }; Object.assign(spoon, lastPt, { vx: 0, vy: 0 }); });
+  canvas.addEventListener('pointermove', (e) => {
+    if (!dragging) return;
+    const p = toUV(e), t = performance.now(), dt = Math.max((t - lastPt.t) / 1000, 1 / 240);
+    spoon.vx = spoon.vx * 0.5 + ((p.x - lastPt.x) / dt) * 0.5;
+    spoon.vy = spoon.vy * 0.5 + ((p.y - lastPt.y) / dt) * 0.5;
+    spoon.x = p.x; spoon.y = p.y; lastPt = { ...p, t };
+  });
+  const up = () => { dragging = false; spoon.vx = spoon.vy = 0; };
+  canvas.addEventListener('pointerup', up); canvas.addEventListener('pointercancel', up);
+
+  let last = performance.now(), fa = 0, ff = 0;
+  const cupR = 0.44;
+  function frame(now) {
+    const real = Math.min((now - last) / 1000, 0.05); last = now;
+    fa += real; ff++; if (fa > 0.5) { document.getElementById('fps').textContent = `${Math.round(ff / fa)} fps`; fa = 0; ff = 0; }
+    const dpr = Math.min(devicePixelRatio || 1, 2);
+    const w = Math.round(canvas.clientWidth * dpr), h = Math.round(canvas.clientHeight * dpr);
+    if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; }
+
+    const dt = 1 / 60;
+    time += dt;
+    // Automatisches Rühren: Löffel fährt Kreise
+    if (S.stir && !dragging) {
+      spoon.angle += dt * S.stirSpeed * 2.2;
+      const nx = 0.5 + Math.cos(spoon.angle) * 0.2, ny = 0.5 + Math.sin(spoon.angle * 1.0) * 0.2;
+      spoon.vx = (nx - spoon.x) / dt; spoon.vy = (ny - spoon.y) / dt; spoon.x = nx; spoon.y = ny;
+    }
+    spoon.on = dragging || S.stir;
+    // Gießstrahl wandert leicht (die Hand zittert)
+    const pour = { x: 0.36 + Math.sin(time * 0.7) * 0.015, y: 0.42 + Math.cos(time * 0.9) * 0.012 };
+    if (S.pour) reservoir += S.pourRate * dt;
+    // Abgesunkene Sahne quillt an zufälligen Stellen wieder auf
+    for (const u of ups) u.life -= dt;
+    for (let i = ups.length - 1; i >= 0; i--) if (ups[i].life <= 0) ups.splice(i, 1);
+    if (reservoir > 0.05 && ups.length < MAX_UP && Math.random() < S.upwell * dt * 2.5) {
+      const a = Math.random() * Math.PI * 2, rr = Math.sqrt(Math.random()) * cupR * 0.8;
+      ups.push({ x: 0.5 + Math.cos(a) * rr, y: 0.5 + Math.sin(a) * rr, r: S.upSize * (0.6 + Math.random() * 0.8), life: 1.5 + Math.random() * 2.5, max: 0 });
+      ups[ups.length - 1].max = ups[ups.length - 1].life;
+      reservoir -= 0.05;
+    }
+
+    udata.set([dt, time, N, DN, spoon.x, spoon.y, spoon.vx, spoon.vy,
+      S.spoonSize, spoon.on ? 1 : 0, cupR, S.drag,
+      pour.x, pour.y, S.pourSize, S.pour ? S.pourRate : 0,
+      S.confinement, S.diffusion, ups.length, 0], 0);
+    ups.forEach((u, i) => {
+      const k = u.life / u.max;               // an- und abschwellen
+      udata.set([u.x, u.y, u.r, S.upwell * 3.0 * Math.sin(Math.PI * k)], 20 + i * 4);
+    });
+    device.queue.writeBuffer(ubuf, 0, udata);
+    device.queue.writeBuffer(rbuf, 0, new Float32Array([w / h, S.drink === 'tea' ? 1 : 0, S.pour ? 1 : 0, time]));
+
+    const enc = device.createCommandEncoder();
+    const pass = enc.beginComputePass();
+    if (needsClear) {
+      for (const t of [...vel, ...prs, ...cream]) run(pass, 'clear', null, null, t);
+      needsClear = false;
+    }
+    run(pass, 'advectVel', vel[0], null, vel[1]);
+    run(pass, 'curl', vel[1], null, curlT);
+    run(pass, 'confine', vel[1], curlT, vel[0]);
+    run(pass, 'divergence', vel[0], null, divT);
+    for (let i = 0; i < S.iterations; i++) { run(pass, 'jacobi', prs[0], divT, prs[1]); prs.reverse(); }
+    run(pass, 'project', vel[0], prs[0], vel[1]); vel.reverse();
+    run(pass, 'advectCream', cream[0], vel[0], cream[1]); cream.reverse();
+    pass.end();
+
+    const rp = enc.beginRenderPass({ colorAttachments: [{ view: ctx.getCurrentTexture().createView(), loadOp: 'clear', storeOp: 'store', clearValue: [0, 0, 0, 1] }] });
+    rp.setPipeline(rpipe);
+    rp.setBindGroup(0, device.createBindGroup({ layout: rpipe.getBindGroupLayout(0), entries: [
+      { binding: 0, resource: { buffer: ubuf } }, { binding: 1, resource: samp },
+      { binding: 2, resource: cream[0].createView() }, { binding: 5, resource: { buffer: rbuf } }] }));
+    rp.draw(3);
+    rp.end();
+    device.queue.submit([enc.finish()]);
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+}
+main().catch((e) => fail(`<b>Start fehlgeschlagen:</b> ${e.message}`));
+</script>
