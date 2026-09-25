@@ -7,8 +7,8 @@ Sie ist für spätere Sitzungen gedacht, damit niemand von vorne suchen muss.
 
 | Stand | Commit | Status |
 |---|---|---|
-| v0.1.0: Erster Prototyp (beide Verfahren, Presets, Regler) | Tag `v0.1.0` (`e8dd276`) | **vom Nutzer getestet** auf echter Hardware (integrierte GPU, 25–41 fps). Urteil: aus der Ferne ca. 8/10, Details zu schnell/zu grob. |
-| v0.2.0 (Vorabversion): alles danach | Tag `v0.2.0`, `main` | **unverifiziert**: nur im Headless-Browser mit Software-Rendering (SwiftShader) geprüft, nicht vom Nutzer. |
+| v0.1.0: Erster Prototyp (beide Verfahren, Presets, Regler) | Branch `release/v0.1.0` (`e8dd276`) | **vom Nutzer getestet** auf echter Hardware (integrierte GPU, 25–41 fps). Urteil: aus der Ferne ca. 8/10, Details zu schnell/zu grob. |
+| v0.2.0 (Vorabversion): alles danach | `main` (Merge `59ce542`) | **unverifiziert**: nur im Headless-Browser mit Software-Rendering (SwiftShader) geprüft, nicht vom Nutzer. |
 | `demos/coffee.html` (Sahne im Kaffee) | letzter Commit | **ungetestet**: Shader kompilieren, das Bild wurde nie gesehen (Headless-Chromium verliert beim Anzeigen auf dem Canvas das Gerät). |
 
 Nutzer-Rückmeldung zu den unverifizierten Versionen 2–3: „Narben“-Linien sichtbar, wirkte schlechter.
