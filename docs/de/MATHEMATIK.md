@@ -81,8 +81,8 @@ u ← u − ∇p
 - ⚠️ Jacobi konvergiert langsam. Multigrid wäre der nächste Leistungsschritt.
 
 **Vorticity Confinement (Fedkiw 2001).** `f = ε·Δx·(N × ζ p̂)`, N = ∇|ζ|/|∇|ζ||.
-- ✅ Befund: Standard ε = 6 war etwa 10-mal zu stark (≈ 0,1 rad/s² bei Jets von 0,06 rad/s)
-  und hat Gitterrauschen aufgepumpt. Jetzt 0,5.
+- ✅ Befund: ε = 6 erzeugt messbar Gitterrauschen (≈ 0,1 rad/s² bei Jets von 0,06 rad/s)
+  Bleibt trotzdem Standard, weil es den vom Urheber bestätigten lebendigen v0.1-Look ergibt; ≈ 0,5 ist physikalisch sauberer.
 
 **Stürme.** Drehprofil v(d) = x·e^{−x²}·2,33 mit x = d/r, Drehsinn aus Zyklon/Antizyklon und
 Hemisphäre (Nordhalbkugel: Zyklon gegen den Uhrzeigersinn). Beim Start als Anfangswirbel
