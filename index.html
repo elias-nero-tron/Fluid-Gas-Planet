@@ -49,6 +49,19 @@
   .hud .meta { font: 12px/1.4 var(--mono); color: var(--muted); font-variant-numeric: tabular-nums; }
   #fps { color: var(--accent); }
 
+  /* Ladebild: dahinter rechnet die Simulation im Schnelldurchlauf vor. */
+  #loading {
+    position: absolute; inset: 0; display: grid; place-items: center;
+    background: radial-gradient(circle at 50% 55%, #14120f 0%, var(--space) 70%);
+    transition: opacity 0.8s ease; z-index: 2;
+  }
+  #loading.done { opacity: 0; pointer-events: none; }
+  .load-box { width: min(320px, 80%); display: grid; gap: 10px; text-align: center; }
+  #load-title { margin: 0; font: 600 18px var(--display); letter-spacing: 0.08em; text-transform: uppercase; color: var(--text); }
+  .load-track { height: 3px; background: var(--line); border-radius: 2px; overflow: hidden; }
+  #load-bar { display: block; height: 100%; width: 0%; background: var(--accent); transition: width 0.2s linear; }
+  #load-note { margin: 0; min-height: 1.4em; font: 12px var(--mono); color: var(--muted); }
+  @media (prefers-reduced-motion: reduce) { #loading { transition: none; } }
   #status {
     position: absolute; inset: auto 16px 16px 16px; max-width: 520px; padding: 12px 14px;
     background: #2a1512; border: 1px solid #7a3326; border-radius: 6px; color: #f6d9cf;
@@ -136,7 +149,14 @@
     <div class="hud">
       <h1>Fluid Gas Planet</h1>
       <div class="meta" id="planet-info">Jupiter</div>
-      <div class="meta"><span id="fps">– fps</span><span id="warm"></span> · <span id="hint">drag to rotate, scroll or pinch to zoom</span></div>
+      <div class="meta"><span id="fps">– fps</span> · <span id="hint">drag to rotate, scroll or pinch to zoom</span></div>
+    </div>
+    <div id="loading" role="status" aria-live="polite">
+      <div class="load-box">
+        <p id="load-title">Spinning up the atmosphere</p>
+        <div class="load-track"><span id="load-bar"></span></div>
+        <p id="load-note"></p>
+      </div>
     </div>
     <div id="status" hidden></div>
   </div>

@@ -1,8 +1,8 @@
 // Sichtbare Wolkenfelder: Farbstoff-Advektion, Curl-Noise-Flussfeld und Partikel.
 
 @group(0) @binding(1) var samp: sampler;
-@group(0) @binding(2) var srcA: texture_2d_array<f32>;
-@group(0) @binding(3) var srcB: texture_2d_array<f32>;
+@group(0) @binding(2) var srcA: texture_cube<f32>;
+@group(0) @binding(3) var srcB: texture_cube<f32>;
 @group(0) @binding(4) var dst: texture_storage_2d_array<rgba16float, write>;
 
 struct Particle {
@@ -11,8 +11,10 @@ struct Particle {
 };
 @group(0) @binding(5) var<storage, read_write> parts: array<Particle>;
 
-fn A(d: vec3f) -> vec4f { return sampleCube(srcA, samp, d); }
-fn B(d: vec3f) -> vec4f { return sampleCube(srcB, samp, d); }
+// Hardware-Cubemap-Abtastung (schnell). sampleCube() in common.wgsl ist die nahtlos exakte,
+// aber deutlich langsamere Variante (gemessen: Hauptursache des fps-Einbruchs in v0.2.0).
+fn A(d: vec3f) -> vec4f { return textureSampleLevel(srcA, samp, d, 0.0); }
+fn B(d: vec3f) -> vec4f { return textureSampleLevel(srcB, samp, d, 0.0); }
 
 fn texDir(id: vec3u, n: f32) -> vec3f { return faceDir(id.z, (vec2f(id.xy) + 0.5) / n); }
 
@@ -23,6 +25,7 @@ fn bandTarget(p: vec3f) -> vec3f {
   let lat = latitude(p) + w * S.bandWobble * 0.04;
   // Feine Streifen innerhalb der Bänder: ohne feine Farbunterschiede kann die Strömung
   // keine sichtbaren Filamente ziehen (ein gedehnter glatter Verlauf bleibt glatt).
+  if (S.fineStripes <= 0.0) { return bandAt(lat); }   // spart 2 Rauschberechnungen pro Texel
   let fine = noised(vec3f(lat * 45.0, S.seed * 7.0, 0.5)).x + 0.6 * noised(vec3f(lat * 110.0, S.seed * 3.0, 2.5)).x;
   return bandAt(lat) * (1.0 + fine * S.fineStripes * 0.6);
 }

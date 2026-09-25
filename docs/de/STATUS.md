@@ -43,6 +43,16 @@ Die Ursache ist gefunden und in Version 4 behoben (siehe unten), aber vom Nutzer
    Die saubereren Einstellungen bleiben als Regler. Regel: Änderungen an Standardwerten vor der
    Auslieferung auf echter Hardware optisch mit v0.1 vergleichen.
 
+8. **Bildrate (v0.2.2).** Vorgabe des Urhebers: mindestens 60 fps; v0.2.1 lief auf integrierter GPU mit
+   ~25 fps (v0.1: ~60). `sampleCube()` (nahtloses Abtasten) trägt seinen Kanten-Code in jede der dutzenden
+   Abtastungen pro Zelle und war der Hauptverdacht; die Compute-Pässe nutzen wieder Hardware-Cubemap-Abtastung
+   (wie v0.1; mit Band-Rückstellung 0,06 bleiben Narben unsichtbar). Außerdem: Feinstreifen-Rauschen entfällt
+   bei Regler 0, Breitenkreis-Summe erst je Arbeitsgruppe (~64× weniger globale Atomics), Pixeldichte 1,25
+   statt 1,75. Neu: **automatische Qualität** misst beim Laden die GPU-Zeit pro Schritt und senkt bei über
+   8 ms eine Auflösungsstufe; danach hält die dynamische Render-Auflösung die Bildrate über 58 fps. Neu:
+   **Ladebild**: Die Simulation rechnet unsichtbar vor (≤ 5 s, bis 20 s Simulationszeit), der Planet
+   erscheint mitten im Geschehen statt bei glatten Streifen. 🔶 60 fps auf Hardware noch nicht bestätigt.
+
 ## Kernbefund: das Modell rechnet im falschen Bereich
 
 Nutzer-Einwand (berechtigt): „Die Mathematik wirkt wie für ein 10×10-cm-Objekt, nicht für
