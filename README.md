@@ -26,7 +26,7 @@ Created by **elias-nero-tron** · Apache License 2.0 · [How to cite](CITATION.c
 | Version | What | Verified |
 |---|---|---|
 | **v0.1.0** (branch `release/v0.1.0`) | Prototype: Stable Fluids and particles, 5 planets, controls with explanations | ✅ on real hardware (integrated GPU, ~60 fps). Verdict: convincing from afar, too coarse up close |
-| **v0.2.2** (pre-release, `main`) | v0.1 look as defaults, loading screen (starts mid-flow), auto quality for 60 fps, optional free-evolving storms, Gaseous Giganticus recipe, coffee demo, English UI | 🔶 software renderer only; hardware confirmation pending |
+| **v0.2.3** (pre-release, `main`) | v0.1 look as defaults, loading screen (starts mid-flow), auto quality for 60 fps, random planets, save/undo, optional free-evolving storms, Gaseous Giganticus recipe, coffee demo, English UI | 🔶 software renderer only; hardware confirmation pending |
 
 Details, measured findings and open questions: [docs/STATUS.md](docs/STATUS.md).
 
@@ -37,6 +37,9 @@ Details, measured findings and open questions: [docs/STATUS.md](docs/STATUS.md).
   by the wind) or *particles* (up to 4 million).
 - **Planets are numbers:** measured wind profiles, colour bands, storms, oblateness, axial tilt,
   rings. Plus “Colours from image”: measure band colours from any photo.
+- **Random planets and saving:** 🎲 rolls a truly random planet from five families (Jovian, Saturnian,
+  ice giant, hot Jupiter, exotic). Undo/redo (Ctrl+Z/Y), double-click a control name to reset it, named
+  save slots and a planet code to share exactly the same planet.
 - **About 40 controls, each explaining what it changes physically.** Debug views for wind,
   vorticity and pressure, plus a map view of the whole sphere. English and German UI.
 - **Rendering:** oblate ellipsoid, Minnaert limb darkening, cloud relief, haze rim, rings with shadows.

@@ -2,7 +2,7 @@ import commonWGSL from './shaders/common.wgsl?raw';
 import fluidWGSL from './shaders/fluid.wgsl?raw';
 import tracersWGSL from './shaders/tracers.wgsl?raw';
 import renderWGSL from './shaders/render.wgsl?raw';
-import { presets, randomPreset, bandsFromImage, windTable, bandTable, hexToLinear, TABLE, type Preset } from './presets';
+import { presets, randomPreset, newSeed, bandsFromImage, windTable, bandTable, hexToLinear, TABLE, type Preset } from './presets';
 import { perspective, lookAt, multiply, invert, planetRotation, normalize, type Vec3 } from './math';
 import { Panel } from './ui';
 import { t, lang, setLang } from './i18n';
@@ -118,6 +118,14 @@ async function start() {
   const app = new App(device);
   window.gasPlanet = { settings: S, capture: () => app.capture(), readRow: (w, f, y) => app.readRow(w, f, y) };
   document.getElementById('lang')?.addEventListener('click', () => app.toggleLang());
+  window.addEventListener('keydown', (e) => {
+    const tag = (e.target as HTMLElement)?.tagName;
+    if (tag === 'INPUT' && (e.target as HTMLInputElement).type === 'text') return;
+    if (!(e.ctrlKey || e.metaKey)) return;
+    const k = e.key.toLowerCase();
+    if (k === 'z' && !e.shiftKey) { e.preventDefault(); app.undo(); }
+    else if (k === 'y' || (k === 'z' && e.shiftKey)) { e.preventDefault(); app.redo(); }
+  });
   app.run();
 }
 
@@ -245,6 +253,7 @@ class App {
     this.applyPreset();
     this.buildUI();
     this.bindInput();
+    this.remember();
   }
 
   private module(label: string, code: string): GPUShaderModule {
@@ -309,10 +318,17 @@ class App {
   }
 
   private applyPreset() {
-    this.preset = S.preset === 'Zufall' ? randomPreset(S.seed * 7919) : presets.find((p) => p.name === S.preset) ?? presets[0];
-    const t = this.preset.tune;
+    const p = S.preset === 'Zufall' ? randomPreset(S.seed) : presets.find((x) => x.name === S.preset) ?? presets[0];
+    const t = p.tune;
     S.turbulence = t.turbulence; S.convection = t.convection; S.bandWobble = t.bandWobble;
     S.stormTint = t.stormTint; S.relief = t.relief;
+    this.usePreset(p);
+    this.needsInit = true;
+  }
+
+  /** Planetendaten übernehmen, ohne die Regler zu verändern (für Laden und Rückgängig). */
+  private usePreset(p: Preset) {
+    this.preset = p;
     this.storms = this.preset.storms.map((s) => ({
       lat: s.lat, lon: s.lon, radius: s.radius, strength: s.strength, kick: 0,
       sign: (s.kind === 'cyclone' ? 1 : -1) * (s.lat >= 0 ? 1 : -1),
@@ -320,9 +336,164 @@ class App {
     }));
     this.jets = windTable(this.preset);
     this.writeTables();
-    this.needsInit = true;
     this.panel?.refresh();
     this.updateInfo();
+  }
+
+  // ---------- Verlauf, Speichern, Planeten-Code ----------
+
+  private history: string[] = [];
+  private hIndex = -1;
+  private hTimer = 0;
+
+  private snapshot(): string {
+    const { paused: _paused, ...rest } = S;
+    return JSON.stringify({ v: 1, s: rest, preset: this.preset });
+  }
+
+  /** Nach jeder Änderung (kurz verzögert) einen Stand merken. */
+  private remember() {
+    clearTimeout(this.hTimer);
+    this.hTimer = window.setTimeout(() => {
+      const snap = this.snapshot();
+      if (this.history[this.hIndex] === snap) return;
+      this.history = this.history.slice(0, this.hIndex + 1);
+      this.history.push(snap);
+      if (this.history.length > 100) this.history.shift();
+      this.hIndex = this.history.length - 1;
+      this.updateUndoButtons();
+    }, 400);
+  }
+
+  undo() { if (this.hIndex > 0) { this.hIndex--; this.restore(this.history[this.hIndex]); this.updateUndoButtons(); } }
+  redo() { if (this.hIndex < this.history.length - 1) { this.hIndex++; this.restore(this.history[this.hIndex]); this.updateUndoButtons(); } }
+
+  private updateUndoButtons() {
+    const u = document.getElementById('btn-undo') as HTMLButtonElement | null;
+    const r = document.getElementById('btn-redo') as HTMLButtonElement | null;
+    if (u) u.disabled = this.hIndex <= 0;
+    if (r) r.disabled = this.hIndex >= this.history.length - 1;
+  }
+
+  /** Einen gespeicherten Stand anwenden; nur neu starten, wenn sich der Planet geändert hat. */
+  private restore(json: string) {
+    const snap = JSON.parse(json) as { v: number; s: Partial<typeof S>; preset: Preset };
+    const prev = { ...S };
+    const prevPreset = JSON.stringify(this.preset);
+    Object.assign(S, snap.s, { paused: prev.paused });
+    this.usePreset(snap.preset);
+    if (prev.velRes !== S.velRes || prev.curlRes !== S.curlRes) this.allocVel();
+    if (prev.dyeRes !== S.dyeRes) this.allocDye();
+    if (prev.particles !== S.particles) this.allocParticles();
+    if (prevPreset !== JSON.stringify(snap.preset)) this.needsInit = true;
+    canvas.classList.toggle('map', S.map);
+    this.updateVisibility();
+    this.panel.refresh();
+  }
+
+  private encode(json: string): string {
+    const bytes = new TextEncoder().encode(json);
+    let bin = '';
+    bytes.forEach((b) => { bin += String.fromCharCode(b); });
+    return 'FGP1:' + btoa(bin);
+  }
+
+  private decode(code: string): string {
+    const raw = code.trim().replace(/^FGP1:/, '');
+    const bin = atob(raw);
+    return new TextDecoder().decode(Uint8Array.from(bin, (c) => c.charCodeAt(0)));
+  }
+
+  private loadSaves(): { name: string; code: string }[] {
+    try { return JSON.parse(localStorage.getItem('fgp-saves') || '[]'); } catch { return []; }
+  }
+
+  private storeSaves(list: { name: string; code: string }[]) {
+    try { localStorage.setItem('fgp-saves', JSON.stringify(list)); } catch { /* Speicher gesperrt */ }
+  }
+
+  /** Abschnitt "Speichern": Verlauf, benannte Speicherplätze, Code zum Weitergeben. */
+  private buildSaveSection() {
+    const box = document.createElement('div');
+    box.className = 'save-box';
+    box.innerHTML = `
+      <div class="row row-buttons">
+        <button id="btn-undo" type="button">${t('↶ Rückgängig', '↶ Undo')}</button>
+        <button id="btn-redo" type="button">${t('↷ Wiederholen', '↷ Redo')}</button>
+      </div>
+      <div class="row row-save">
+        <input id="save-name" type="text" maxlength="40" placeholder="${t('Name, z. B. Mein Jupiter', 'Name, e.g. My Jupiter')}">
+        <button id="btn-save" type="button">${t('Speichern', 'Save')}</button>
+      </div>
+      <div class="row row-save">
+        <select id="save-list"></select>
+        <button id="btn-load" type="button">${t('Laden', 'Load')}</button>
+        <button id="btn-delete" type="button" aria-label="${t('Gespeicherten Stand löschen', 'Delete saved state')}">✕</button>
+      </div>
+      <div class="row row-save">
+        <input id="code-in" type="text" placeholder="${t('Planeten-Code einfügen', 'Paste planet code')}">
+        <button id="btn-code-load" type="button">${t('Laden', 'Load')}</button>
+      </div>
+      <div class="row row-buttons">
+        <button id="btn-code-copy" type="button">${t('Planeten-Code kopieren', 'Copy planet code')}</button>
+      </div>
+      <p class="note" id="save-msg" aria-live="polite"></p>`;
+    this.panel.custom(box);
+    const $ = <T extends HTMLElement>(id: string) => box.querySelector('#' + id) as T;
+    const msg = (text: string) => { $('save-msg').textContent = text; };
+    const fill = () => {
+      const sel = $<HTMLSelectElement>('save-list');
+      const list = this.loadSaves();
+      sel.innerHTML = list.length ? '' : `<option value="">${t('noch nichts gespeichert', 'nothing saved yet')}</option>`;
+      list.forEach((e, i) => { const o = document.createElement('option'); o.value = String(i); o.textContent = e.name; sel.append(o); });
+    };
+    fill();
+    $('btn-undo').addEventListener('click', () => this.undo());
+    $('btn-redo').addEventListener('click', () => this.redo());
+    $('btn-save').addEventListener('click', () => {
+      const input = $<HTMLInputElement>('save-name');
+      const name = input.value.trim() || `${this.preset.name} · ${new Date().toLocaleString()}`;
+      const list = this.loadSaves().filter((e) => e.name !== name);
+      list.unshift({ name, code: this.encode(this.snapshot()) });
+      this.storeSaves(list.slice(0, 50));
+      fill();
+      input.value = '';
+      msg(t(`Gespeichert: ${name} (nur in diesem Browser).`, `Saved: ${name} (in this browser only).`));
+    });
+    $('btn-load').addEventListener('click', () => {
+      const i = Number($<HTMLSelectElement>('save-list').value);
+      const e = this.loadSaves()[i];
+      if (!e) return;
+      this.restore(this.decode(e.code));
+      this.remember();
+      msg(t(`Geladen: ${e.name}`, `Loaded: ${e.name}`));
+    });
+    $('btn-delete').addEventListener('click', () => {
+      const i = Number($<HTMLSelectElement>('save-list').value);
+      const list = this.loadSaves();
+      if (!list[i]) return;
+      const [gone] = list.splice(i, 1);
+      this.storeSaves(list);
+      fill();
+      msg(t(`Gelöscht: ${gone.name}`, `Deleted: ${gone.name}`));
+    });
+    $('btn-code-copy').addEventListener('click', () => {
+      const code = this.encode(this.snapshot());
+      const input = $<HTMLInputElement>('code-in');
+      navigator.clipboard.writeText(code)
+        .then(() => msg(t('Code kopiert. Einfügen und „Laden“ stellt genau diesen Planeten wieder her.', 'Code copied. Paste it and press “Load” to restore exactly this planet.')))
+        .catch(() => { input.value = code; input.select(); msg(t('Code steht im Feld oben, markiert zum Kopieren.', 'The code is in the field above, selected for copying.')); });
+    });
+    $('btn-code-load').addEventListener('click', () => {
+      try {
+        this.restore(this.decode($<HTMLInputElement>('code-in').value));
+        this.remember();
+        msg(t('Planet aus Code geladen.', 'Planet loaded from code.'));
+      } catch {
+        msg(t('Das ist kein gültiger Planeten-Code. Er beginnt mit FGP1:', 'That is not a valid planet code. It starts with FGP1:'));
+      }
+    });
+    this.updateUndoButtons();
   }
 
   private jets: Float32Array = new Float32Array(TABLE);
@@ -753,7 +924,7 @@ class App {
     const n = (v: number) => (v >= 1e6 ? `${(v / 1e6).toFixed(v % 1e6 ? 2 : 0)} ${t('Mio.', 'M')}` : v >= 1e3 ? `${Math.round(v / 1024)} k` : String(v));
     const presetName = (name: string) => ({ Neptun: t('Neptun', 'Neptune'), 'Heißer Jupiter': t('Heißer Jupiter', 'Hot Jupiter') } as Record<string, string>)[name] ?? name;
 
-    this.panel = new Panel(root, S as unknown as Record<string, number | string | boolean>, on);
+    this.panel = new Panel(root, S as unknown as Record<string, number | string | boolean>, on, DEFAULTS as unknown as Record<string, number | string | boolean>);
     this.panel
       .section('Planet')
       .select('preset', t('Vorlage', 'Preset'), [...presets.map((p) => [p.name, presetName(p.name)] as [string, string]), ['Zufall', t('Zufallsplanet', 'Random planet')]],
@@ -772,6 +943,7 @@ class App {
           this.preset = { ...this.preset, name: `${this.preset.name} (${t('Farben aus Bild', 'colours from image')})`, bands };
           this.writeTables();
           this.needsDye = true;
+          this.remember();
           const info = document.getElementById('planet-info');
           if (info) info.textContent = `${this.preset.name} · ${t('Farben aus', 'colours from')} ${f.name}`;
         }).catch(() => fail(t('<b>Das Bild ließ sich nicht lesen.</b> Nimm ein JPG, PNG oder WebP.', '<b>Could not read the image.</b> Use a JPG, PNG or WebP.'))))
@@ -779,7 +951,7 @@ class App {
         ['btn-reset', t('Neu starten', 'Restart'), () => { this.needsInit = true; }],
         ['btn-warm', t('Einschwingen', 'Spin up'), () => { this.warm = WARM_STEPS; this.warmTotal = WARM_STEPS; showLoading(true); }],
         ['btn-defaults', t('Regler zurücksetzen', 'Reset controls'), () => this.resetSettings()],
-        ['btn-seed', t('Neuer Zufall', 'New seed'), () => { S.seed = (S.seed % 9973) + 1; if (S.preset === 'Zufall') this.applyPreset(); this.needsInit = true; }],
+        ['btn-seed', t('🎲 Zufallsplanet', '🎲 Random planet'), () => { S.preset = 'Zufall'; S.seed = newSeed(); this.applyPreset(); this.remember(); }],
         ['btn-pause', S.paused ? t('Weiter', 'Resume') : 'Pause', () => { S.paused = !S.paused; (document.getElementById('btn-pause') as HTMLButtonElement).textContent = S.paused ? t('Weiter', 'Resume') : 'Pause'; }],
       ])
       .section(t('Verfahren', 'Method'), t('Strömung bestimmt, woher der Wind kommt. Darstellung bestimmt, wie die Wolken ihm folgen. Alle vier Kombinationen laufen.',
@@ -880,6 +1052,8 @@ class App {
       .select('view', t('Feld anzeigen', 'Show field'), [['0', t('Wolken', 'Clouds')], ['1', t('Wind (Richtung)', 'Wind (direction)')], ['2', t('Wirbelstärke', 'Vorticity')], ['3', t('Druck', 'Pressure')]],
         t('Debug-Ansichten. Wind: Rot = Ost, Grün = Nord. Wirbelstärke: Rot = gegen den Uhrzeigersinn, Blau = im Uhrzeigersinn. Druck gibt es nur bei Stable Fluids.',
           'Debug views. Wind: red = east, green = north. Vorticity: red = counter-clockwise, blue = clockwise. Pressure exists only with Stable Fluids.'));
+    this.panel.section(t('Speichern und Rückgängig', 'Save and undo'), t('Strg+Z / Strg+Y machen Änderungen rückgängig. Doppelklick auf einen Reglernamen setzt nur diesen zurück.', 'Ctrl+Z / Ctrl+Y undo and redo. Double-click a control name to reset just that control.'));
+    this.buildSaveSection();
     this.updateVisibility();
     this.applyStaticText();
   }
@@ -923,6 +1097,7 @@ class App {
     this.panel.refresh();
     const pause = document.getElementById('btn-pause');
     if (pause) pause.textContent = 'Pause';
+    this.remember();
   }
 
   /** Sprache wechseln: Panel neu aufbauen, feste Texte ersetzen. */
@@ -932,8 +1107,9 @@ class App {
   }
 
   private onChange(key: Key) {
+    this.remember();
     switch (key) {
-      case 'preset': this.applyPreset(); break;
+      case 'preset': if (S.preset === 'Zufall') S.seed = newSeed(); this.applyPreset(); break;
       case 'quality': this.downgrades = 0; this.applyQuality(true); this.panel.refresh(); break;
       case 'contrast': this.writeTables(); break;
       case 'fineStripes': this.needsDye = true; break;

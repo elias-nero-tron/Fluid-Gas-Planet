@@ -88,7 +88,7 @@ Level-of-Detail: beim Zoomen zusätzliches, mit dem Wind verschobenes Detailraus
 Multigrid statt Jacobi; Flussfeld im Curl-Modus nur alle n Bilder neu; Qualitätsstufen automatisch nach fps.
 
 ### 7. Kleinere Wünsche
-- Zufallsplanet mit mehr Zufall (Farbfamilien, Ringsysteme, Sturmtypen).
+- ~~Zufallsplanet mit mehr Zufall~~ erledigt in v0.2.3 (Familien, ungleiche Bänder, Sturmtypen, Ringe; Speichern/Rückgängig).
 - Gleichmäßigere equi-angulare Würfelprojektion.
 - Presets als JSON-Dateien laden/speichern.
 - Idee „Kontinente unter die Atmosphäre“ (Erdwetter): braucht Heizung, Wasserdampf mit
