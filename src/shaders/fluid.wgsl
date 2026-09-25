@@ -76,7 +76,10 @@ fn grad2(c: Cell, dfA: f32, dfB: f32) -> vec2f { return c.inv * vec2f(dfA, dfB);
 fn initVel(@builtin(global_invocation_id) id: vec3u) {
   if (outside(id)) { return; }
   let p = cell(id).p;
-  let v = east(p) * jetAt(latitude(p)) + curlOnSphere(p, 3.0, S.seed, 3) * 0.01;
+  var v = east(p) * jetAt(latitude(p)) + curlOnSphere(p, 3.0, S.seed, 3) * 0.01;
+  // Stürme als Anfangswirbel einsetzen. Danach leben sie nur noch von der Physik
+  // (außer "Stürme festhalten" ist aufgedreht).
+  v = mix(v, stormFlow(p), stormMask(p, 1.1).w);
   put(id, vec4f(tangent(p, v), 0.0));
 }
 
