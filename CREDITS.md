@@ -12,7 +12,8 @@ evaluation on real hardware, and the decisive expert objections during developme
   analysis, see [docs/STATUS.md](docs/STATUS.md)),
 - “the scars were not there before” (led to measuring the cube-map sampling error at edges),
 - the image of pouring cream into coffee as a test for sources, obstacles and sharp transport,
-- the comparison with the Alien: Isolation gas giant (led to “separate the scales”, ROADMAP 1a).
+- the comparison with the Alien: Isolation gas giant (led to “separate the scales”, ROADMAP 1a),
+- view-dependent detail: “the closer you zoom, the better, without losing fps” (ROADMAP 1a).
 
 Implemented with the help of **Claude** (Anthropic) as an AI programming assistant.
 
