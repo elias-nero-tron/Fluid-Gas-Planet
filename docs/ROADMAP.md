@@ -23,8 +23,8 @@ dem Entwicklungsgespräch anfangen kann. Hintergrund: [STATUS.md](STATUS.md), Fo
 
 | Schwachpunkt | Ursache | Siehe |
 |---|---|---|
-| Wirkt aus der Nähe wie eine kleine, zähe Flüssigkeit statt wie Jupiter | falscher Kennzahlenbereich: Ro zu groß, effektive Reynolds-Zahl zu klein, kein Deformationsradius | Baustelle 1, 2 |
-| Keine kompakten, runden Wirbel; stattdessen Nord-Süd-Wellen | 2D-inkompressibel = Deformationsradius unendlich | Baustelle 1 |
+| Wirkt aus der Nähe wie eine kleine, zähe Flüssigkeit statt wie Jupiter | Detail wird über das Gitter geschoben statt getrennt erzeugt; dazu falscher Kennzahlenbereich (Ro zu groß, effektive Reynolds-Zahl zu klein, kein Deformationsradius) | Baustelle 1a, 1c, 2 |
+| Keine kompakten, runden Wirbel; stattdessen Nord-Süd-Wellen | 2D-inkompressibel = Deformationsradius unendlich | Baustelle 1c |
 | Keine echte 3D-Tiefe | nur eine Schicht; Relief aus Helligkeit geschätzt | Baustelle 4 |
 | Details verschwimmen oder Bänder zerfließen | Rückstellung statt Quellen; Transport ohne Begrenzer | Baustelle 2, 3 |
 | v0.2-Änderungen nicht auf echter Hardware bestätigt | nur Software-Renderer geprüft | Baustelle 0 |
@@ -36,7 +36,24 @@ Checkliste: keine Linien an Würfelkanten (Saturn, Relief an), fps gegenüber v0
 iGPU), Aussehen nicht schlechter, Kaffee-Demo läuft. Wenn `sampleCube()` zu teuer ist: Halo-Texel
 (1 Texel Rand je Fläche, per eigenem Pass befüllt) statt Verzweigung.
 
-### 1. Flachwasser-Kern (groß, wichtigster Schritt)
+### 1a. Advektierte Texturkoordinaten, „Maßstäbe trennen“ (mittel, größter sichtbarer Gewinn)
+Befund nach Vergleich mit Alien: Isolation („baked fluid sim + noise overlays“) und
+bloknayrb/gas-giant („advected-coordinate noise for flow-stretched filament detail“):
+Bisher wird **Farbe** über das Gitter geschoben. Jedes Detail muss aufgelöst werden und verschmiert.
+Besser: Die Simulation rechnet nur die großen Strömungen; zusätzlich wird eine **Herkunftskoordinate**
+(woher kommt dieser Punkt?) mitgeführt. Beim Zeichnen entsteht die Feinstruktur aus Rauschen an
+dieser Koordinate, in beliebiger Auflösung, von der Strömung zu Schlieren gezogen.
+Gegen Überdehnung 2–3 Phasen, zeitversetzt neu gestartet und weich überblendet.
+Quellen: Max & Becker 1995 (Flow Textures), Perlin & Neyret 2001 (Flow Noise),
+Neyret 2003 (Advected Textures). Umsetzung: neues Feld `uvw` (rgba16float, Herkunft als
+Richtung + Phase) mit `advectDye`-Logik, Detailrauschen in `render.wgsl` statt aus `dyeTex`.
+
+### 1b. Echte Atmosphärenstreuung (mittel)
+Weiches Streulicht am Rand und durchscheinende Wolken machen einen großen Teil des
+Alien-Isolation-Looks aus. MIT-lizenzierte WebGPU-Umsetzung: cgcostume/himmel-dunstkreis
+(Bruneton 2008 / Hillaire 2020), für eine Kugel mit dichter Atmosphäre anpassen.
+
+### 1c. Flachwasser-Kern (groß, richtige Wirbel-Physik)
 Ersetze in `fluid.wgsl` die Druck-Projektion durch Flachwasser-Gleichungen auf der Kugel:
 `∂u/∂t + (u·∇)u + f k̂×u = −g∇h + ν₄∇⁴u`, `∂h/∂t + ∇·(h u) = Q`.
 Parameter aus Jupiter-Kennzahlen ableiten: Ro ≈ 0,1, L_d = √(gH)/f ≈ 0,02·R.

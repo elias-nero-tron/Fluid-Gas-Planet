@@ -70,8 +70,9 @@ Einstieg für Menschen und für neue KI-Sitzungen, in dieser Reihenfolge:
 3. [docs/MATHEMATIK.md](docs/MATHEMATIK.md): Formeln ↔ Code
 4. [CONTRIBUTING.md](CONTRIBUTING.md): Regeln fürs Mitmachen
 
-Der wichtigste nächste Schritt ist der Umbau auf **Flachwasser-Gleichungen** (Baustelle 1). Erst
-damit rechnet das Modell im richtigen physikalischen Bereich und bildet kompakte Jupiter-Wirbel.
+Nächste Schritte nach Wirkung: **advektierte Texturkoordinaten** (Baustelle 1a: Feinstruktur
+getrennt von der Simulation, Schlieren in beliebiger Auflösung), **Atmosphärenstreuung** (1b) und
+**Flachwasser-Gleichungen** (1c: richtige Physik für kompakte Jupiter-Wirbel).
 
 ## Aufbau
 
