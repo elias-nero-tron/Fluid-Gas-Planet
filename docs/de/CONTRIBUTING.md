@@ -16,6 +16,8 @@ verlangt, dass die NOTICE-Datei in Weitergaben und abgeleiteten Werken erhalten 
 
 - **Messen statt raten.** Aussagen über Fehler mit Test belegen. Werkzeuge: `#offscreen` an die
   URL hängen, dann `window.gasPlanet.capture()` (Bild) und `window.gasPlanet.readRow()` (Feldwerte).
+- **Bei Standardwerten zählt der Look.** Eine Änderung eines Standardwerts vorher auf echter Hardware
+  optisch mit v0.1 vergleichen. Eine sauberere Messung ist kein Grund für einen schlechter aussehenden Standard.
 - **Unverifiziertes kennzeichnen.** Was nur im Software-Renderer geprüft ist, im PR so benennen.
   Auf echter Hardware Geprüftes mit Gerät und fps angeben.
 - **Kein fremder Code ohne passende Lizenz.** GPL-Projekte (z. B. Gaseous Giganticus, gas-giant)
