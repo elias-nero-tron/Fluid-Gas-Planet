@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Fluid Gas Planet</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500&display=swap">
+<style>
+  /* Eine bewusst dunkle Oberfläche: der Planet leuchtet auf Weltraumschwarz.
+     Farben aus Jupiters Wolken: Ammoniak-Creme für Text, Gürtel-Ocker als Akzent. */
+  :root {
+    color-scheme: dark;
+    --space: #07080b;
+    --panel: rgba(16, 17, 22, 0.86);
+    --line: #2a2a30;
+    --text: #ece4d4;
+    --muted: #9a9384;
+    --accent: #d7a15f;
+    --accent-dim: #6b5234;
+    --focus: #f1c98f;
+    --display: 'Barlow Condensed', 'Arial Narrow', 'Roboto Condensed', sans-serif;
+    --body: 'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+    --mono: 'IBM Plex Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
+  }
+  html, body { height: 100%; }
+  body {
+    margin: 0;
+    background: var(--space);
+    color: var(--text);
+    font: 14px/1.45 var(--body);
+    overflow: hidden;
+  }
+  #app { position: relative; height: 100%; display: grid; grid-template-columns: 1fr 340px; }
+  #stage { position: relative; min-width: 0; min-height: 0; }
+  #view { display: block; width: 100%; height: 100%; touch-action: none; cursor: grab; }
+  #view:active { cursor: grabbing; }
+  #view.map { cursor: default; }
+
+  .hud {
+    position: absolute; left: 16px; top: calc(12px + env(safe-area-inset-top, 0px)); right: 16px;
+    display: flex; flex-direction: column; gap: 2px; pointer-events: none;
+  }
+  .hud h1 {
+    margin: 0; font: 600 26px/1.05 var(--display); letter-spacing: 0.04em; text-transform: uppercase;
+    text-wrap: balance;
+  }
+  .hud .meta { font: 12px/1.4 var(--mono); color: var(--muted); font-variant-numeric: tabular-nums; }
+  #fps { color: var(--accent); }
+
+  #status {
+    position: absolute; inset: auto 16px 16px 16px; max-width: 520px; padding: 12px 14px;
+    background: #2a1512; border: 1px solid #7a3326; border-radius: 6px; color: #f6d9cf;
+  }
+
+  aside {
+    background: var(--panel); border-left: 1px solid var(--line);
+    overflow-y: auto; overscroll-behavior: contain;
+    padding-block: calc(12px + env(safe-area-inset-top, 0px)) calc(24px + env(safe-area-inset-bottom, 0px));
+    padding-inline: 16px;
+    backdrop-filter: blur(8px);
+  }
+  #panel-toggle { display: none; }
+  .help {
+    margin: 0 0 12px; padding: 10px 12px; min-height: 5.8em;
+    border: 1px solid var(--line); border-radius: 6px; background: rgba(0, 0, 0, 0.35);
+    color: var(--muted); font-size: 12.5px;
+  }
+  .help b { color: var(--text); font-weight: 500; }
+  details { border-top: 1px solid var(--line); padding-block: 8px 10px; }
+  summary {
+    cursor: pointer; list-style: none; display: flex; justify-content: space-between; align-items: center;
+    font: 600 15px/1.2 var(--display); letter-spacing: 0.08em; text-transform: uppercase; color: var(--text);
+    padding-block: 4px;
+  }
+  summary::-webkit-details-marker { display: none; }
+  summary::after { content: '+'; font-family: var(--mono); color: var(--muted); }
+  details[open] > summary::after { content: '–'; }
+  .note { margin: 2px 0 8px; font-size: 12px; color: var(--muted); }
+  .row {
+    display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 2px 8px; padding-block: 5px;
+  }
+  .row label { font-size: 13px; }
+  .row output { font: 12px var(--mono); color: var(--accent); font-variant-numeric: tabular-nums; }
+  .row input[type=range] { grid-column: 1 / -1; width: 100%; margin: 0; accent-color: var(--accent); height: 22px; }
+  .row-select { grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr); }
+  select, button {
+    font: 13px var(--body); color: var(--text); background: #1b1c22; border: 1px solid var(--line);
+    border-radius: 5px; padding: 6px 8px; min-width: 0;
+  }
+  select { width: 100%; }
+  .row-toggle label { display: flex; align-items: center; gap: 8px; cursor: pointer; }
+  .row-toggle input { accent-color: var(--accent); width: 16px; height: 16px; margin: 0; }
+  .row-buttons { display: flex; flex-wrap: wrap; gap: 8px; }
+  button { cursor: pointer; }
+  button:hover { border-color: var(--accent-dim); }
+  :focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+  .credits { margin-top: 14px; font-size: 11.5px; color: var(--muted); }
+  .credits a { color: var(--muted); }
+
+  @media (max-width: 760px) {
+    #app { grid-template-columns: 1fr; }
+    aside {
+      position: absolute; left: 0; right: 0; bottom: 0; max-height: 58%;
+      border-left: 0; border-top: 1px solid var(--line); border-radius: 12px 12px 0 0;
+      transform: translateY(calc(100% - 48px - env(safe-area-inset-bottom, 0px)));
+      transition: transform 0.25s ease;
+      padding-block: 0 calc(24px + env(safe-area-inset-bottom, 0px));
+    }
+    aside.open { transform: none; }
+    #panel-toggle {
+      display: flex; width: 100%; justify-content: space-between; align-items: center;
+      position: sticky; top: 0; z-index: 1; margin-bottom: 8px; padding: 14px 2px;
+      background: none; border: 0; border-radius: 0; color: var(--text);
+      font: 600 15px var(--display); letter-spacing: 0.08em; text-transform: uppercase;
+      background: var(--panel);
+    }
+    .hud h1 { font-size: 22px; }
+  }
+  @media (prefers-reduced-motion: reduce) { aside { transition: none; } }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="stage">
+    <canvas id="view" aria-label="Echtzeit-Simulation eines Gasplaneten"></canvas>
+    <div class="hud">
+      <h1>Fluid Gas Planet</h1>
+      <div class="meta" id="planet-info">Jupiter</div>
+      <div class="meta"><span id="fps">– fps</span> · ziehen zum Drehen, Mausrad oder zwei Finger zum Zoomen</div>
+    </div>
+    <div id="status" hidden></div>
+  </div>
+  <aside id="panel">
+    <button id="panel-toggle" type="button" aria-expanded="false" aria-controls="panel-body">Regler <span aria-hidden="true">▴</span></button>
+    <div id="panel-body"></div>
+    <p class="credits">
+      Echtzeit-WebGPU, keine Bilddateien. Verfahren nach
+      <a href="https://mofu-dev.com/en/blog/stable-fluids/" target="_blank" rel="noopener">mofu (Stable Fluids)</a> und
+      <a href="https://jasper-r.github.io/gas-giant" target="_blank" rel="noopener">jasper-r (Partikel)</a>.
+    </p>
+  </aside>
+</div>
+<script>
+  (function () {
+    var aside = document.getElementById('panel');
+    var btn = document.getElementById('panel-toggle');
+    btn.addEventListener('click', function () {
+      var open = aside.classList.toggle('open');
+      btn.setAttribute('aria-expanded', String(open));
+      btn.lastElementChild.textContent = open ? '▾' : '▴';
+    });
+  })();
+</script>
+<script type="module" src="/src/main.ts"></script>
+</body>
+</html>
