@@ -53,6 +53,7 @@ implementation is original. Thanks to the authors:
 | Dowling et al. 1998, EPIC model ([NASA-Planetary-Science/EPIC_Atmospheric_Model](https://github.com/NASA-Planetary-Science/EPIC_Atmospheric_Model)) | reference for layered gas-giant atmospheres |
 | NASA/JPL Juno, Bolton et al. 2021 | depth of the Great Red Spot (pancake vortex) |
 
+The recording in `docs/media/` was made by elias-nero-tron on real hardware.
 Images from NASA, Juno, Hubble, games and the web were only used as references during development
 and are **not** part of the repository. Screenshots in `docs/images/` are renders of this project.
 
