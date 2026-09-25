@@ -22,7 +22,7 @@ Idee und Projektleitung: **elias-nero-tron** · Lizenz: Apache 2.0 · Zitieren: 
 | Version | Inhalt | Geprüft |
 |---|---|---|
 | **v0.1.0** (Branch `release/v0.1.0`) | Prototyp: Stable Fluids und Partikel, 5 Planeten, Regler mit Erklärtexten | ✅ auf echter Hardware (iGPU, ~60 fps nach Augenmaß). Urteil: aus der Ferne überzeugend, aus der Nähe zu grob |
-| **v0.2.2** (Vorabversion, `main`; v0.1-Look, Ladebild, automatische Qualität für 60 fps) | Kanten-Fix, freie Stürme, Einschwingen, Gaseous-Giganticus-Rezept, Kaffee-Demo | 🔶 nur im Software-Renderer, Bestätigung auf Hardware offen |
+| **v0.2.3** (Vorabversion, `main`; v0.1-Look, Ladebild, 60-fps-Automatik, Zufallsplaneten, Speichern/Rückgängig) | Kanten-Fix, freie Stürme, Einschwingen, Gaseous-Giganticus-Rezept, Kaffee-Demo | 🔶 nur im Software-Renderer, Bestätigung auf Hardware offen |
 
 Was funktioniert, was nicht, und die gemessenen Befunde stehen in [docs/STATUS.md](docs/de/STATUS.md).
 
@@ -45,6 +45,9 @@ Simulator öffentlich unter der Pages-Adresse dieses Repos, die Kaffee-Demo unte
   (Farbtextur wird mitgeführt) oder *Partikel* (bis 4 Mio.).
 - **Planeten sind Zahlen:** gemessene Windprofile, Farbbänder, Stürme, Abplattung, Achsneigung,
   Ringe. Dazu „Farben aus Bild“: Bandfarben aus einem Foto messen.
+- **Zufallsplaneten und Speichern:** 🎲 würfelt einen echten Zufallsplaneten aus fünf Familien (jupiter-,
+  saturnartig, Eisriese, heißer Jupiter, exotisch). Rückgängig/Wiederholen (Strg+Z/Y), Doppelklick auf einen
+  Reglernamen setzt ihn zurück, benannte Speicherplätze und ein Planeten-Code zum Weitergeben.
 - **Rund 40 Regler**, jeder erklärt, was er physikalisch verändert. Debug-Ansichten für Wind,
   Wirbelstärke und Druck, Kartenansicht der ganzen Kugel.
 - **Darstellung:** Ellipsoid, Minnaert-Randverdunkelung, Relief, Dunstsaum, Ringe mit Schatten.

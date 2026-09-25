@@ -250,52 +250,113 @@ export async function bandsFromImage(file: File): Promise<[number, string][]> {
   return out.reverse();
 }
 
-/** Zufälliger Gasplanet aus einem Seed: Anzahl Jets, Farben und Stürme werden gewürfelt. */
+/** Neuer Zufallswert aus dem Zufallsgenerator des Browsers (32 Bit). */
+export function newSeed(): number {
+  const a = new Uint32Array(1);
+  crypto.getRandomValues(a);
+  return a[0] || 1;
+}
+
+/**
+ * Zufälliger Gasplanet aus einem Seed. Gleicher Seed = gleicher Planet (reproduzierbar, speicherbar).
+ * Erst wird eine Familie gewürfelt (jupiter-, saturnartig, Eisriese, heißer Jupiter, exotisch),
+ * dann Bänder mit ungleichen Breiten, Jets an den Bandgrenzen, Stürme, Ringe und Stimmung.
+ */
 export function randomPreset(seed: number): Preset {
-  let s = seed >>> 0 || 1;
-  const rnd = () => ((s = (s * 1664525 + 1013904223) >>> 0) / 4294967296);
-  const jets = 3 + Math.floor(rnd() * 8);
-  const eqSign = rnd() < 0.7 ? 1 : -1;
-  const wind: [number, number][] = [[-90, 0]];
-  for (let i = 1; i < jets * 2; i++) {
-    const lat = -90 + (180 * i) / (jets * 2);
-    const sign = i % 2 === 0 ? 1 : -1;
-    const eq = Math.cos((lat * Math.PI) / 180);
-    wind.push([lat, (sign * (40 + rnd() * 80) + eqSign * 150 * Math.pow(eq, 6)) * (0.5 + eq)]);
-  }
-  wind.push([90, 0]);
-  const hue = rnd() * 360;
+  // mulberry32: kleiner, guter Pseudozufall
+  let st = seed >>> 0;
+  const rnd = () => {
+    st = (st + 0x6d2b79f5) >>> 0;
+    let t = st;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+  const range = (a: number, b: number) => a + (b - a) * rnd();
+  const pick = <T,>(arr: T[]) => arr[Math.floor(rnd() * arr.length)];
   const hsl = (h: number, sat: number, l: number) => {
+    h = ((h % 360) + 360) % 360;
     const a = sat * Math.min(l, 1 - l);
     const f = (n: number) => {
       const k = (n + h / 30) % 12;
       return l - a * Math.max(-1, Math.min(k - 3, 9 - k, 1));
     };
-    const to = (v: number) => Math.round(v * 255).toString(16).padStart(2, '0');
+    const to = (v: number) => Math.round(Math.min(1, Math.max(0, v)) * 255).toString(16).padStart(2, '0');
     return `#${to(f(0))}${to(f(8))}${to(f(4))}`;
   };
-  const bandCount = 6 + Math.floor(rnd() * 14);
+
+  type Family = { name: string; hue: [number, number]; sat: [number, number]; zoneL: [number, number]; beltL: [number, number];
+    bands: [number, number]; eq: number; jet: [number, number]; contrast: number; atmoSat: number };
+  const families: Family[] = [
+    { name: 'jovian', hue: [20, 45], sat: [0.25, 0.55], zoneL: [0.78, 0.9], beltL: [0.35, 0.55], bands: [10, 18], eq: 1, jet: [40, 160], contrast: 1, atmoSat: 0.4 },
+    { name: 'saturnian', hue: [35, 55], sat: [0.2, 0.4], zoneL: [0.75, 0.88], beltL: [0.6, 0.72], bands: [8, 14], eq: 3, jet: [30, 120], contrast: 0.5, atmoSat: 0.3 },
+    { name: 'ice', hue: [185, 230], sat: [0.35, 0.65], zoneL: [0.55, 0.75], beltL: [0.4, 0.6], bands: [4, 9], eq: -2, jet: [60, 250], contrast: 0.6, atmoSat: 0.6 },
+    { name: 'hot', hue: [0, 30], sat: [0.55, 0.85], zoneL: [0.45, 0.65], beltL: [0.15, 0.3], bands: [5, 10], eq: 6, jet: [100, 400], contrast: 1.2, atmoSat: 0.8 },
+    { name: 'exotic', hue: [0, 360], sat: [0.3, 0.7], zoneL: [0.6, 0.85], beltL: [0.25, 0.5], bands: [6, 20], eq: 0, jet: [30, 200], contrast: 1, atmoSat: 0.6 },
+  ];
+  const fam = pick(families);
+  const hue = range(fam.hue[0], fam.hue[1]);
+  const accentHue = hue + pick([30, 60, 150, 180, 210, -40]);
+
+  // Bandgrenzen mit ungleichen Breiten (Summe = 180°)
+  const nb = Math.round(range(fam.bands[0], fam.bands[1]));
+  const widths = Array.from({ length: nb }, () => range(0.4, 1.6));
+  const total = widths.reduce((x, y) => x + y, 0);
+  const edges: number[] = [-90];
+  for (const w of widths) edges.push(edges[edges.length - 1] + (180 * w) / total);
+  edges[edges.length - 1] = 90;
+
+  // Farben: abwechselnd helle Zonen und dunkle Gürtel, gelegentlich Akzentband, Pole kühler
   const bands: [number, string][] = [];
-  for (let i = 0; i <= bandCount; i++) {
-    const lat = -90 + (180 * i) / bandCount;
-    const light = i % 2 === 0 ? 0.65 + rnd() * 0.2 : 0.3 + rnd() * 0.2;
-    bands.push([lat, hsl(hue + (rnd() - 0.5) * 60, 0.25 + rnd() * 0.4, light)]);
+  for (let i = 0; i < nb; i++) {
+    const mid = (edges[i] + edges[i + 1]) / 2;
+    const polar = Math.pow(Math.abs(mid) / 90, 2);
+    const zone = i % 2 === 0;
+    let h = hue + range(-12, 12);
+    if (rnd() < 0.12) h = accentHue;
+    const l = zone ? range(fam.zoneL[0], fam.zoneL[1]) : range(fam.beltL[0], fam.beltL[1]);
+    const c = hsl(h + polar * range(-40, 60), range(fam.sat[0], fam.sat[1]) * (1 - 0.5 * polar), l * (1 - 0.25 * polar));
+    bands.push([mid, c]);
   }
+  bands.unshift([-90, hsl(hue + 180 * range(0, 0.4), 0.2, range(0.3, 0.5))]);
+  bands.push([90, hsl(hue + 180 * range(0, 0.4), 0.2, range(0.3, 0.5))]);
+
+  // Jets an den Bandgrenzen mit wechselndem Vorzeichen, Äquatorjet je nach Familie
+  const wind: [number, number][] = [[-90, 0]];
+  for (let i = 1; i < nb; i++) {
+    const lat = edges[i];
+    const sign = i % 2 === 0 ? 1 : -1;
+    const cos = Math.cos((lat * Math.PI) / 180);
+    const eqPart = fam.eq * 60 * Math.exp(-Math.pow(lat / range(12, 30), 2));
+    wind.push([lat, sign * range(fam.jet[0], fam.jet[1]) * (0.4 + 0.6 * cos) + eqPart]);
+  }
+  wind.push([90, 0]);
+
+  // Stürme: ein großer Hauptsturm (manchmal), Ovale, Barken
   const storms: Storm[] = [];
-  const count = Math.floor(rnd() * 6);
-  for (let i = 0; i < count; i++) {
-    const lat = (rnd() - 0.5) * 140;
-    storms.push({
-      name: `Sturm ${i + 1}`, lat, lon: rnd() * 360, radius: 2 + rnd() * 7,
-      kind: rnd() < 0.7 ? 'anticyclone' : 'cyclone',
-      color: hsl(hue + 180 * rnd(), 0.4, 0.3 + rnd() * 0.5), strength: 0.3 + rnd() * 0.5,
-    });
+  if (rnd() < 0.6) {
+    const lat = range(-35, 35);
+    storms.push({ name: 'Großer Fleck', lat, lon: range(0, 360), radius: range(5, 11), kind: 'anticyclone',
+      color: pick([hsl(accentHue, 0.6, 0.45), hsl(hue - 20, 0.7, 0.4), hsl(hue, 0.15, 0.9), hsl(hue + 200, 0.5, 0.25)]), strength: range(0.6, 1) });
   }
+  const small = Math.floor(range(0, 9));
+  for (let i = 0; i < small; i++) {
+    const anti = rnd() < 0.7;
+    storms.push({ name: anti ? 'Oval' : 'Barke', lat: range(-70, 70), lon: range(0, 360), radius: range(1.5, 4.5),
+      kind: anti ? 'anticyclone' : 'cyclone', color: anti ? hsl(hue, 0.15, range(0.85, 0.95)) : hsl(hue, 0.5, range(0.2, 0.35)), strength: range(0.3, 0.7) });
+  }
+
+  const tilt = rnd() < 0.08 ? range(60, 100) : range(0, 35);
+  const rings = rnd() < 0.4
+    ? (() => { const inner = range(1.2, 1.7); return { inner, outer: inner + range(0.25, 1.3), color: hsl(hue + range(-30, 30), range(0.05, 0.3), range(0.4, 0.8)), opacity: range(0.15, 0.9) }; })()
+    : null;
+
   return {
-    name: 'Zufall', wind, bands, storms,
-    oblateness: 0.02 + rnd() * 0.08, tilt: rnd() * 30, rotationHours: 8 + rnd() * 20,
-    cloud: hsl(hue, 0.3, 0.9), atmosphere: hsl(hue, 0.5, 0.7), atmosphereStrength: 0.2 + rnd() * 0.4,
-    rings: rnd() < 0.35 ? { inner: 1.3 + rnd() * 0.3, outer: 1.9 + rnd() * 0.6, color: hsl(hue + 30, 0.2, 0.6), opacity: 0.4 + rnd() * 0.5 } : null,
-    tune: { turbulence: 0.3 + rnd() * 0.5, convection: rnd(), bandWobble: 0.4 + rnd(), stormTint: 0.6, relief: 0.3 },
+    name: `Zufall #${seed.toString(16).padStart(8, '0')}`, wind, bands, storms,
+    oblateness: range(0.005, 0.12), tilt, rotationHours: range(7, 30),
+    cloud: hsl(hue + range(-20, 20), 0.2, range(0.88, 0.97)),
+    atmosphere: hsl(fam.name === 'hot' ? range(10, 30) : hue + range(150, 210), fam.atmoSat, 0.7), atmosphereStrength: range(0.2, 0.6),
+    rings,
+    tune: { turbulence: range(0.2, 0.8), convection: range(0, 1.5), bandWobble: range(0.3, 1.2), stormTint: range(0.6, 2), relief: range(0.1, 0.5) },
   };
 }

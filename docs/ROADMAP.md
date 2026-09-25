@@ -86,7 +86,7 @@ Multigrid instead of Jacobi; recompute the curl flow field only every n frames; 
 levels from measured fps.
 
 ### 7. Smaller wishes
-- Random planet with more variety (colour families, ring systems, storm types).
+- ~~Random planet with more variety~~ done in v0.2.3 (families, uneven bands, storm types, rings; save/undo).
 - Equi-angular cube projection for more uniform cells.
 - Load/save presets as JSON.
 - “Continents under the atmosphere” (Earth weather): needs heating, water vapour with condensation
