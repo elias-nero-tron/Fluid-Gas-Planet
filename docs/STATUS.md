@@ -1,85 +1,69 @@
-# Stand und Übergabe
+# Status and handover
 
-Diese Datei fasst zusammen, was geprüft ist, was nicht, und was die Fehlersuche ergeben hat.
-Sie ist für spätere Sitzungen gedacht, damit niemand von vorne suchen muss.
+What is verified, what is not, and what debugging found. Written so a new session (human or AI)
+can continue without reading the original development conversation. German original: [de/STATUS.md](de/STATUS.md).
 
-## Geprüft vs. unverifiziert
+## Verified vs. unverified
 
-| Stand | Commit | Status |
+| State | Where | Status |
 |---|---|---|
-| v0.1.0: Erster Prototyp (beide Verfahren, Presets, Regler) | Branch `release/v0.1.0` (`e8dd276`) | **vom Nutzer getestet** auf echter Hardware (integrierte GPU, 25–41 fps). Urteil: aus der Ferne ca. 8/10, Details zu schnell/zu grob. |
-| v0.2.0 (Vorabversion): alles danach | `main` (Merge `59ce542`) | **unverifiziert**: nur im Headless-Browser mit Software-Rendering (SwiftShader) geprüft, nicht vom Nutzer. |
-| `demos/coffee.html` (Sahne im Kaffee) | letzter Commit | **ungetestet**: Shader kompilieren, das Bild wurde nie gesehen (Headless-Chromium verliert beim Anzeigen auf dem Canvas das Gerät). |
+| v0.1.0: first prototype (both methods, presets, controls) | branch `release/v0.1.0` (`e8dd276`) | **tested by the author on real hardware** (integrated GPU; counter showed 25–41 fps, by eye up to ~60). Verdict: about 8/10 from afar, too fast and too coarse up close. |
+| v0.2.0 (pre-release): everything after | `main` | **unverified**: checked only in a headless browser with software rendering (SwiftShader). |
+| `demos/coffee.html` (cream in coffee) | `main` | **untested visually**: shaders compile; the rendered image has never been seen (headless Chromium loses the device when presenting to a canvas). |
 
-Nutzer-Rückmeldung zu den unverifizierten Versionen 2–3: „Narben“-Linien sichtbar, wirkte schlechter.
-Die Ursache ist gefunden und in Version 4 behoben (siehe unten), aber vom Nutzer noch nicht bestätigt.
+Author feedback on intermediate versions 2–3: visible “scar” lines, looked worse. The cause was found
+and fixed in version 4 (below); the author’s first look at version 4 showed swirling detail and relief,
+but 10 fps while spinning up. Spin-up is now adaptive (keeps ~30 fps). Steady-state fps pending.
 
-## Befunde der Fehlersuche (gemessen, nicht geraten)
+## Findings (measured, not guessed)
 
-1. **Narben an den Würfelkanten.** Hardware-Abtasten einer Cubemap nahe den Flächenkanten:
-   maximaler Fehler 0,139 gegenüber 0,0003 im Flächeninneren (Test mit bekannter Funktion,
-   384² je Fläche, SwiftShader). Weil Farbe und Wind jeden Schritt neu abgetastet werden,
-   wächst der Fehler zu Linien. Früher hat die starke Band-Rückstellung (0,06) ihn verdeckt,
-   mit 0,02 wurde er sichtbar. **Fix:** `sampleCube()` in `common.wgsl`: im Inneren Hardware,
-   an Kanten manuelles 4-Tap mit Texeln der Nachbarfläche. Offen: ob echte GPUs denselben
-   Fehler haben, und was der Fix auf einer iGPU an fps kostet.
-2. **Wirbelverstärkung war ~10× zu stark** (ε = 6): f = ε·Δx·ω lieferte ~0,1 rad/s² bei Jets
-   von 0,06 rad/s. Das Wirbelfeld bestand aus Gitterrauschen. Neuer Standard 0,5.
-3. **Jet-Rückstellung hat Wirbel plattgebügelt**: Sie zog jede Ost-West-Komponente zum Profil,
-   auch die von Wirbeln. Jetzt wird nur das Breitenkreis-Mittel zurückgezogen (GPU-Summe je
-   Breitenband mit Atomics, `zonalSum` in `fluid.wgsl`).
-4. **Details wurden selbst gelöscht**: Weichzeichnen 12 %/Bild und Band-Rückstellung.
-   Außerdem sind glatte Farbverläufe unsichtbar, wenn man sie dehnt. Daher „Feinstreifen“.
-5. **Haare an Bandkanten**: nord-süd-gestreckte Rossby-Wellen (β-Effekt) aus Anfangsrauschen.
-   Physikalisch korrekt für ein 2D-Modell ohne Deformationsradius (siehe unten).
-6. Headless-Tests: Canvas-Präsentation verliert in SwiftShader das Gerät. Darum Testmodus
-   `#offscreen` (rendert in Textur, `window.gasPlanet.capture()`, `readRow()` für Feldwerte).
+1. **Scars along cube edges.** Hardware cube-map sampling near face edges: max error 0.139 vs 0.0003
+   in face interiors (known test function, 384² per face, SwiftShader). Dye and wind are resampled
+   every step, so the error accumulated into lines. Strong band restoring (0.06) had hidden it;
+   lowering it to 0.02 exposed it. **Fix:** `sampleCube()` in `common.wgsl` — hardware bilinear inside
+   a face, manual 4-tap across edges using texels of the neighbouring face. Open: whether real GPUs
+   show the same error, and the fps cost on integrated GPUs.
+2. **Vorticity confinement was ~10× too strong** (ε = 6): f = ε·Δx·ω gave ~0.1 rad/s² against jets of
+   0.06 rad/s; the vorticity field was mostly grid noise. Default now 0.5.
+3. **Jet restoring flattened vortices:** it pulled every east–west component to the profile,
+   including a vortex’s. Now only the latitude-circle mean is restored (GPU sum per latitude band with
+   atomics, `zonalSum` in `fluid.wgsl`).
+4. **Detail was being erased** by blur (12 %/frame) and band restoring. Also, smooth colour
+   gradients stay invisible when stretched, hence “fine stripes”.
+5. **Hair at band edges**: meridionally stretched Rossby waves (β-effect) from initial noise.
+   Physically correct for a 2D model without a deformation radius (below).
+6. Headless tests: presenting to a canvas loses the device in SwiftShader. Hence `#offscreen` mode
+   (renders to a texture; `window.gasPlanet.capture()`, `readRow()` for field values).
 
-## Kernbefund: das Modell rechnet im falschen Bereich
+## Core finding: the model runs in the wrong regime
 
-Nutzer-Einwand (berechtigt): „Die Mathematik wirkt wie für ein 10×10-cm-Objekt, nicht für
-1000×1000 km." Ob etwas wie Kaffee oder wie Jupiter aussieht, bestimmen dimensionslose Zahlen:
+Author’s objection (correct): “the maths behaves like a 10×10 cm object, not 1000×1000 km.”
+Whether something looks like coffee or like Jupiter is decided by dimensionless numbers:
 
-| Kennzahl | Kaffeetasse | Jupiter (GRS) | aktuelles Modell |
+| Number | Coffee cup | Jupiter (GRS) | current model |
 |---|---|---|---|
-| Rossby-Zahl Ro = U/(f·L) | ≫ 1 (Rotation egal) | ≈ 0,1 | ≈ 0,7 bei Standardreglern |
-| Reynolds-Zahl (effektiv) | ~10⁴ | riesig | ~10²–10³ durch numerische Zähigkeit |
-| Deformationsradius L_d/R | – | ≈ 0,02 (1000–2000 km) | ∞ (starrer Deckel) |
-| Tiefe : Breite der Wirbel | ~1 : 1 (Trichter) | ~1 : 40 (Pfannkuchen, GRS einige 100 km tief) | 2D |
+| Rossby number Ro = U/(f·L) | ≫ 1 (rotation irrelevant) | ≈ 0.1 | ≈ 0.7 with default controls |
+| Reynolds number (effective) | ~10⁴ | enormous | ~10²–10³ from numerical viscosity |
+| Deformation radius L_d/R | – | ≈ 0.02 (1000–2000 km) | ∞ (rigid lid) |
+| Depth : width of vortices | ~1 : 1 (funnels) | ~1 : 40 (pancake; GRS a few 100 km deep) | 2D |
 
-Übersehen in der Recherche: Cho & Polvani 1996 (Physics of Fluids 8, 1531): Flachwasser-Turbulenz
-auf der rotierenden Kugel bildet von selbst Bänder und Wirbel, gesteuert von Rotation,
-Deformationsradius und (Hyper-)Dissipation. Referenzmodell der Planetenforschung: EPIC
-(NASA-Planetary-Science/EPIC_Atmospheric_Model, GPL, isentrope Schichten). Der Plan hat die
-barotrope Wirbelgleichung gewählt. Das ist der Sonderfall L_d = ∞, also der falsche Ausgangspunkt.
+Missed in the research: Cho & Polvani 1996 (Physics of Fluids 8, 1531) — shallow-water turbulence on a
+rotating sphere forms bands and vortices by itself, controlled by rotation, deformation radius and
+(hyper)dissipation. Reference model in planetary science: EPIC (NASA-Planetary-Science/EPIC_Atmospheric_Model,
+GPL, isentropic layers). The first plan chose the barotropic vorticity equation, which is the special
+case L_d = ∞, the wrong starting point.
 
-**Nächster Schritt (empfohlen, neue Sitzung):** zuerst ROADMAP 1a (advektierte Texturkoordinaten,
-sichtbarster Gewinn), dann Flachwasser:
-1. Strömungskern durch Flachwasser-Gleichungen auf der Kugel ersetzen (Felder: u, h),
-   Parameter auf Jupiter-Werte: Ro ≈ 0,1, L_d/R ≈ 0,02.
-2. Hyperviskosität (∇⁴ oder ∇⁸) statt numerischer Zähigkeit; Transport mit Begrenzer.
-3. h als Wolkenhöhe fürs Relief (echte Schatten statt Helligkeits-Schätzung).
-4. Danach 2–3 Schichten (NH₄SH-Wolken, NH₃-Wolken, Dunst) für echte Tiefe; Konvektion als
-   Quellen (∇·u ≠ 0 an der Wolkenobergrenze), wie in der Kaffee-Demo.
+Second finding (comparison with the Alien: Isolation gas giant, “baked fluid sim and noise overlays”):
+fine detail should not be transported as colour on the grid, but generated at render time from noise
+at advected source coordinates. See [ROADMAP.md](ROADMAP.md) item 1a.
 
-## Was dem Modell physikalisch noch fehlt
+**Recommended next step:** ROADMAP 1a (advected texture coordinates, biggest visible gain), then
+1b (atmospheric scattering), then 1c (shallow water with Ro ≈ 0.1, L_d/R ≈ 0.02, hyperviscosity,
+h as cloud height).
 
-- **Atmosphärendicke / Rossby-Deformationsradius.** Das Modell ist 2D-inkompressibel
-  (starrer Deckel, L_d = ∞). Mit Flachwasser-Gleichungen (Schichtdicke h als Feld) entstehen
-  kompakte, langlebige Wirbel statt langer Wellen. Das ist der wichtigste nächste Schritt.
-- **Quellen/Senken (Aufquellen).** Konvektionswolken quellen auf und strömen von einem Punkt
-  weg: an der Wolkenobergrenze ist ∇·u ≠ 0. Der Löser erzwingt ∇·u = 0. In der Kaffee-Demo
-  ist das umgesetzt (Poisson mit `div − Quelle`), bei Jupiter noch nicht.
-- **Begrenzer beim Farbtransport** (Min/Max-Klammer nach BFECC, Selle et al. 2008): in der
-  Kaffee-Demo drin, bei Jupiter noch nicht.
-- **Sturm als Hindernis**: Die Wirbelschleppe links vom Großen Roten Fleck entsteht, weil der
-  Sturm im Strom steht. Gezielt nachbilden, wenn die Wirbel kompakt genug sind.
+## Author wishes still open
 
-## Wünsche des Nutzers, noch offen
-
-- Nahaufnahmen wie Juno (Filamente, Relief) statt nur Fernansicht.
-- Zufallsplanet mit mehr Zufall.
-- Idee: Kontinente unter die Atmosphäre legen (Erdwetter). Braucht Heizung, Wasserdampf mit
-  Kondensation, Topographie. Eigenes Projekt.
-- Referenzen: Gaseous Giganticus (Rezept übernommen, Code GPL, nicht kopiert),
-  jasper-r (Partikel), mofu (Stable Fluids), Juno/Voyager-Bilder im Chat.
+- Close-ups like Juno (filaments, relief) instead of only the distant view.
+- Random planet with more variety.
+- Idea: continents under the atmosphere (Earth weather): needs heating, water vapour with condensation
+  and topography. A separate follow-up project.

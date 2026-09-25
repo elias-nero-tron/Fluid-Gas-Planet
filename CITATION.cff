@@ -1,6 +1,6 @@
 cff-version: 1.2.0
 message: "Wenn du dieses Projekt nutzt oder darauf aufbaust, zitiere es bitte so. / If you use or build on this project, please cite it as below."
-title: "Fluid Gas Planet: Echtzeit-Gasplaneten mit Strömungssimulation in WebGPU"
+title: "Fluid Gas Planet: real-time gas giants with fluid simulation in WebGPU"
 type: software
 authors:
   - alias: elias-nero-tron
@@ -19,6 +19,6 @@ keywords:
   - procedural planet
   - cube sphere
 abstract: >-
-  Echtzeit-Darstellung von Gasplaneten ohne Bilddateien: Strömungssimulation (Stable Fluids)
-  auf einem Würfelkugel-Gitter, Partikel-Advektion nach dem Verfahren von Gaseous Giganticus,
-  physikalisch motivierte Jets, Stürme und Beleuchtung, komplett auf der GPU in WebGPU/WGSL.
+  Real-time rendering of gas giants without image textures: fluid simulation (Stable Fluids) on a
+  cube-sphere grid, particle advection following the Gaseous Giganticus method, physically motivated
+  jets, storms and lighting, entirely on the GPU in WebGPU/WGSL.
