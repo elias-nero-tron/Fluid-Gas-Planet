@@ -9,8 +9,8 @@
 // (direkte Nachbarn, wie in GPU Gems 38) und dämpft dadurch Zickzack-Moden in Gittergröße.
 
 @group(0) @binding(1) var samp: sampler;
-@group(0) @binding(2) var srcA: texture_cube<f32>;
-@group(0) @binding(3) var srcB: texture_cube<f32>;
+@group(0) @binding(2) var srcA: texture_2d_array<f32>;
+@group(0) @binding(3) var srcB: texture_2d_array<f32>;
 @group(0) @binding(4) var dst: texture_storage_2d_array<rgba16float, write>;
 // Breitenkreis-Mittel des Ostwinds: [2·i] = Summe, [2·i+1] = Gewicht, Festkomma.
 @group(0) @binding(5) var<storage, read_write> zonal: array<atomic<i32>>;
@@ -18,8 +18,8 @@
 const ZBINS = 128u;
 const ZSCALE = 10000.0;
 
-fn A(d: vec3f) -> vec4f { return textureSampleLevel(srcA, samp, d, 0.0); }
-fn B(d: vec3f) -> vec4f { return textureSampleLevel(srcB, samp, d, 0.0); }
+fn A(d: vec3f) -> vec4f { return sampleCube(srcA, samp, d); }
+fn B(d: vec3f) -> vec4f { return sampleCube(srcB, samp, d); }
 
 fn outside(id: vec3u) -> bool { return f32(id.x) >= S.velN || f32(id.y) >= S.velN; }
 

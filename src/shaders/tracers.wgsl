@@ -1,8 +1,8 @@
 // Sichtbare Wolkenfelder: Farbstoff-Advektion, Curl-Noise-Flussfeld und Partikel.
 
 @group(0) @binding(1) var samp: sampler;
-@group(0) @binding(2) var srcA: texture_cube<f32>;
-@group(0) @binding(3) var srcB: texture_cube<f32>;
+@group(0) @binding(2) var srcA: texture_2d_array<f32>;
+@group(0) @binding(3) var srcB: texture_2d_array<f32>;
 @group(0) @binding(4) var dst: texture_storage_2d_array<rgba16float, write>;
 
 struct Particle {
@@ -11,8 +11,8 @@ struct Particle {
 };
 @group(0) @binding(5) var<storage, read_write> parts: array<Particle>;
 
-fn A(d: vec3f) -> vec4f { return textureSampleLevel(srcA, samp, d, 0.0); }
-fn B(d: vec3f) -> vec4f { return textureSampleLevel(srcB, samp, d, 0.0); }
+fn A(d: vec3f) -> vec4f { return sampleCube(srcA, samp, d); }
+fn B(d: vec3f) -> vec4f { return sampleCube(srcB, samp, d); }
 
 fn texDir(id: vec3u, n: f32) -> vec3f { return faceDir(id.z, (vec2f(id.xy) + 0.5) / n); }
 
