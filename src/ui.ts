@@ -17,6 +17,7 @@ export class Panel {
     root: HTMLElement,
     private s: Settings,
     private onChange: (key: string) => void,
+    private defaults?: Settings,
   ) {
     this.help = document.createElement('p');
     this.help.className = 'help';
@@ -53,7 +54,16 @@ export class Panel {
     const out = document.createElement('output');
     out.htmlFor = `ctl-${key}`;
     row.append(lab, out);
-    const show = () => { this.help.innerHTML = `<b>${label}.</b> ${hint}`; };
+    const reset = this.defaults && key in this.defaults ? t(' Doppelklick auf den Namen setzt nur diesen Regler zurück.', ' Double-click the name to reset just this control.') : '';
+    const show = () => { this.help.innerHTML = `<b>${label}.</b> ${hint}<span class="reset-hint">${reset}</span>`; };
+    // Doppelklick auf den Namen: nur diesen Regler auf den Standard zurücksetzen
+    lab.addEventListener('dblclick', (e) => {
+      if (!this.defaults || !(key in this.defaults)) return;
+      e.preventDefault();
+      this.s[key] = this.defaults[key];
+      this.refresh();
+      this.onChange(key);
+    });
     row.addEventListener('pointerenter', show);
     row.addEventListener('focusin', show);
     row.addEventListener('pointerdown', show);
@@ -143,6 +153,12 @@ export class Panel {
     row.classList.add('row-file');
     row.append(input);
     input.addEventListener('change', () => { if (input.files?.[0]) onFile(input.files[0]); input.value = ''; });
+    return this;
+  }
+
+  /** Beliebiges eigenes Element in den aktuellen Abschnitt setzen. */
+  custom(el: HTMLElement): this {
+    (this.current ?? this.body).append(el);
     return this;
   }
 
