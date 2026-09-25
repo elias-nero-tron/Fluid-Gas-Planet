@@ -23,8 +23,8 @@ but 10 fps while spinning up. Spin-up is now adaptive (keeps ~30 fps). Steady-st
    lowering it to 0.02 exposed it. **Fix:** `sampleCube()` in `common.wgsl` — hardware bilinear inside
    a face, manual 4-tap across edges using texels of the neighbouring face. Open: whether real GPUs
    show the same error, and the fps cost on integrated GPUs.
-2. **Vorticity confinement was ~10× too strong** (ε = 6): f = ε·Δx·ω gave ~0.1 rad/s² against jets of
-   0.06 rad/s; the vorticity field was mostly grid noise. Default now 0.5.
+2. **Vorticity confinement ε = 6 amplifies grid noise**: f = ε·Δx·ω gave ~0.1 rad/s² against jets of
+   0.06 rad/s. It is nonetheless the default again (v0.1 look, see 7); 0.5 is the cleaner option.
 3. **Jet restoring flattened vortices:** it pulled every east–west component to the profile,
    including a vortex’s. Now only the latitude-circle mean is restored (GPU sum per latitude band with
    atomics, `zonalSum` in `fluid.wgsl`).
@@ -34,6 +34,13 @@ but 10 fps while spinning up. Spin-up is now adaptive (keeps ~30 fps). Steady-st
    Physically correct for a 2D model without a deformation radius (below).
 6. Headless tests: presenting to a canvas loses the device in SwiftShader. Hence `#offscreen` mode
    (renders to a texture; `window.gasPlanet.capture()`, `readRow()` for field values).
+
+7. **Over-correction (lesson).** Author observations were treated as bug reports, and defaults were
+   tuned until the measurements were clean. The look got worse (flat “wood grain” stripes, GRS
+   fading) even though each change was locally justified. Since v0.2.1 the **defaults are the v0.1
+   look** confirmed by the author on hardware (confinement 6, band restoring 0.06, fine stripes off,
+   storms held, 12 s spin-up); the cleaner settings remain available as controls. Rule: changes to
+   defaults must be compared visually against v0.1 on real hardware before they ship.
 
 ## Core finding: the model runs in the wrong regime
 
