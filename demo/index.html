@@ -1,0 +1,1055 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Fluid Gas Planet</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500&display=swap">
+<style>
+  /* Eine bewusst dunkle Oberfläche: der Planet leuchtet auf Weltraumschwarz.
+     Farben aus Jupiters Wolken: Ammoniak-Creme für Text, Gürtel-Ocker als Akzent. */
+  :root {
+    color-scheme: dark;
+    --space: #07080b;
+    --panel: rgba(16, 17, 22, 0.86);
+    --line: #2a2a30;
+    --text: #ece4d4;
+    --muted: #9a9384;
+    --accent: #d7a15f;
+    --accent-dim: #6b5234;
+    --focus: #f1c98f;
+    --display: 'Barlow Condensed', 'Arial Narrow', 'Roboto Condensed', sans-serif;
+    --body: 'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+    --mono: 'IBM Plex Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
+  }
+  html, body { height: 100%; }
+  body {
+    margin: 0;
+    background: var(--space);
+    color: var(--text);
+    font: 14px/1.45 var(--body);
+    overflow: hidden;
+  }
+  #app { position: relative; height: 100%; display: grid; grid-template-columns: 1fr 340px; }
+  #stage { position: relative; min-width: 0; min-height: 0; }
+  #view { display: block; width: 100%; height: 100%; touch-action: none; cursor: grab; }
+  #view:active { cursor: grabbing; }
+  #view.map { cursor: default; }
+
+  .hud {
+    position: absolute; left: 16px; top: calc(12px + env(safe-area-inset-top, 0px)); right: 16px;
+    display: flex; flex-direction: column; gap: 2px; pointer-events: none;
+  }
+  .hud h1 {
+    margin: 0; font: 600 26px/1.05 var(--display); letter-spacing: 0.04em; text-transform: uppercase;
+    text-wrap: balance;
+  }
+  .hud .meta { font: 12px/1.4 var(--mono); color: var(--muted); font-variant-numeric: tabular-nums; }
+  #fps { color: var(--accent); }
+
+  #status {
+    position: absolute; inset: auto 16px 16px 16px; max-width: 520px; padding: 12px 14px;
+    background: #2a1512; border: 1px solid #7a3326; border-radius: 6px; color: #f6d9cf;
+  }
+
+  aside {
+    background: var(--panel); border-left: 1px solid var(--line);
+    overflow-y: auto; overscroll-behavior: contain;
+    padding-block: calc(12px + env(safe-area-inset-top, 0px)) calc(24px + env(safe-area-inset-bottom, 0px));
+    padding-inline: 16px;
+    backdrop-filter: blur(8px);
+  }
+  #panel-toggle { display: none; }
+  .panel-head { display: flex; justify-content: flex-end; align-items: center; gap: 8px; margin-bottom: 8px; }
+  #lang { font: 600 12px var(--mono); letter-spacing: 0.08em; padding: 5px 9px; }
+  .help {
+    margin: 0 0 12px; padding: 10px 12px; min-height: 5.8em;
+    border: 1px solid var(--line); border-radius: 6px; background: rgba(0, 0, 0, 0.35);
+    color: var(--muted); font-size: 12.5px;
+  }
+  .help b { color: var(--text); font-weight: 500; }
+  details { border-top: 1px solid var(--line); padding-block: 8px 10px; }
+  summary {
+    cursor: pointer; list-style: none; display: flex; justify-content: space-between; align-items: center;
+    font: 600 15px/1.2 var(--display); letter-spacing: 0.08em; text-transform: uppercase; color: var(--text);
+    padding-block: 4px;
+  }
+  summary::-webkit-details-marker { display: none; }
+  summary::after { content: '+'; font-family: var(--mono); color: var(--muted); }
+  details[open] > summary::after { content: '–'; }
+  .note { margin: 2px 0 8px; font-size: 12px; color: var(--muted); }
+  .row {
+    display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 2px 8px; padding-block: 5px;
+  }
+  .row label { font-size: 13px; }
+  .row output { font: 12px var(--mono); color: var(--accent); font-variant-numeric: tabular-nums; }
+  .row input[type=range] { grid-column: 1 / -1; width: 100%; margin: 0; accent-color: var(--accent); height: 22px; }
+  .row-select { grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr); }
+  select, button {
+    font: 13px var(--body); color: var(--text); background: #1b1c22; border: 1px solid var(--line);
+    border-radius: 5px; padding: 6px 8px; min-width: 0;
+  }
+  select { width: 100%; }
+  .row-toggle label { display: flex; align-items: center; gap: 8px; cursor: pointer; }
+  .row-toggle input { accent-color: var(--accent); width: 16px; height: 16px; margin: 0; }
+  .row-buttons { display: flex; flex-wrap: wrap; gap: 8px; }
+  .row-file input { grid-column: 1 / -1; width: 100%; font: 12px var(--body); color: var(--muted); }
+  .row-file input::file-selector-button {
+    font: 13px var(--body); color: var(--text); background: #1b1c22; border: 1px solid var(--line);
+    border-radius: 5px; padding: 6px 8px; margin-right: 8px; cursor: pointer;
+  }
+  button { cursor: pointer; }
+  button:hover { border-color: var(--accent-dim); }
+  :focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+  .credits { margin-top: 14px; font-size: 11.5px; color: var(--muted); }
+  .credits a { color: var(--muted); }
+
+  @media (max-width: 760px) {
+    #app { grid-template-columns: 1fr; }
+    aside {
+      position: absolute; left: 0; right: 0; bottom: 0; max-height: 58%;
+      border-left: 0; border-top: 1px solid var(--line); border-radius: 12px 12px 0 0;
+      transform: translateY(calc(100% - 48px - env(safe-area-inset-bottom, 0px)));
+      transition: transform 0.25s ease;
+      padding-block: 0 calc(24px + env(safe-area-inset-bottom, 0px));
+    }
+    aside.open { transform: none; }
+    .panel-head { position: sticky; top: 0; z-index: 1; background: var(--panel); margin-bottom: 8px; }
+    #panel-toggle {
+      display: flex; flex: 1; justify-content: space-between; align-items: center;
+      position: sticky; top: 0; z-index: 1; margin-bottom: 8px; padding: 14px 2px;
+      background: none; border: 0; border-radius: 0; color: var(--text);
+      font: 600 15px var(--display); letter-spacing: 0.08em; text-transform: uppercase;
+      background: var(--panel);
+    }
+    .hud h1 { font-size: 22px; }
+  }
+  @media (prefers-reduced-motion: reduce) { aside { transition: none; } }
+</style>
+  <script type="module" crossorigin>(function(){const t=document.createElement("link").relList;if(t&&t.supports&&t.supports("modulepreload"))return;for(const r of document.querySelectorAll('link[rel="modulepreload"]'))i(r);new MutationObserver(r=>{for(const a of r)if(a.type==="childList")for(const o of a.addedNodes)o.tagName==="LINK"&&o.rel==="modulepreload"&&i(o)}).observe(document,{childList:!0,subtree:!0});function n(r){const a={};return r.integrity&&(a.integrity=r.integrity),r.referrerPolicy&&(a.referrerPolicy=r.referrerPolicy),r.crossOrigin==="use-credentials"?a.credentials="include":r.crossOrigin==="anonymous"?a.credentials="omit":a.credentials="same-origin",a}function i(r){if(r.ep)return;r.ep=!0;const a=n(r);fetch(r.href,a)}})();const I=`// Gemeinsame Bausteine für alle Compute-Shader.
+// Alle Felder liegen als Cubemap (6 Ebenen) auf der Einheitskugel.
+// Vektoren (Wind) werden als 3D-Tangentialvektoren in Körperkoordinaten gespeichert,
+// dadurch gibt es keine Pol-Singularität und keine Sonderfälle an Würfelkanten.
+
+const PI = 3.14159265359;
+const MAX_STORMS = 16u;
+
+struct Sim {
+  dt: f32, time: f32, frame: f32, velN: f32,
+  dyeN: f32, flowN: f32, vortexStrength: f32, omega: f32,
+  jetStrength: f32, jetRelax: f32, turbulence: f32, turbScale: f32,
+  confinement: f32, drag: f32, fineStripes: f32, bfecc: f32,
+  bandRelax: f32, convection: f32, stormStrength: f32, stormCount: f32,
+  curlStrength: f32, curlFreq: f32, curlSpeed: f32, curlOctaves: f32,
+  particleCount: f32, lifetime: f32, opacity: f32, blur: f32,
+  seed: f32, bandWobble: f32, stormTint: f32, vortexCount: f32,
+  cloud: vec4f,                 // Farbe aufsteigender Konvektionswolken (linear RGB)
+  jets: array<vec4f, 16>,       // 64 Stützstellen, Breite −90°..+90°, Einheit rad/s bei jetStrength 1
+  bands: array<vec4f, 64>,      // Bandfarbe (linear RGB) je Breite
+  storms: array<vec4f, 16>,     // xyz Zentrum (Körperkoordinaten), w Radius in rad
+  stormInfo: array<vec4f, 16>,  // x Drehsinn·Stärke, yzw Farbe
+  stormWeight: array<vec4f, 4>, // wie stark jeder Sturm gerade angetrieben wird (0 = frei)
+};
+
+@group(0) @binding(0) var<uniform> S: Sim;
+
+// ---------- Cubemap-Abbildung (WebGPU-Konvention: +X −X +Y −Y +Z −Z) ----------
+
+fn faceDir(face: u32, st: vec2f) -> vec3f {
+  let a = st.x * 2.0 - 1.0;
+  let b = st.y * 2.0 - 1.0;
+  switch face {
+    case 0u: { return normalize(vec3f(1.0, -b, -a)); }
+    case 1u: { return normalize(vec3f(-1.0, -b, a)); }
+    case 2u: { return normalize(vec3f(a, 1.0, b)); }
+    case 3u: { return normalize(vec3f(a, -1.0, -b)); }
+    case 4u: { return normalize(vec3f(a, -b, 1.0)); }
+    default: { return normalize(vec3f(-a, -b, -1.0)); }
+  }
+}
+
+// Richtung -> (st in [0,1]², Fläche) ohne Begrenzung.
+fn cubeUV(d: vec3f) -> vec3f {
+  let ad = abs(d);
+  var face = 0.0; var sc = 0.0; var tc = 0.0; var ma = 1.0;
+  if (ad.x >= ad.y && ad.x >= ad.z) {
+    ma = ad.x;
+    if (d.x > 0.0) { face = 0.0; sc = -d.z; } else { face = 1.0; sc = d.z; }
+    tc = -d.y;
+  } else if (ad.y >= ad.z) {
+    ma = ad.y;
+    if (d.y > 0.0) { face = 2.0; tc = d.z; } else { face = 3.0; tc = -d.z; }
+    sc = d.x;
+  } else {
+    ma = ad.z;
+    if (d.z > 0.0) { face = 4.0; sc = d.x; } else { face = 5.0; sc = -d.x; }
+    tc = -d.y;
+  }
+  return vec3f(vec2f(sc, tc) / ma * 0.5 + 0.5, face);
+}
+
+// Nahtloses bilineares Abtasten der Würfelfelder.
+// Gemessen: das Hardware-Abtasten über Würfelkanten weicht bis zu 500-mal stärker ab als im
+// Flächeninneren. Weil die Farbe jeden Schritt neu abgetastet wird, wachsen daraus Narben.
+// Darum: im Inneren tastet die Hardware ab (dort exakt); nahe der Kante werden die vier
+// Nachbar-Texel einzeln geholt, Texel jenseits der Kante über ihre Richtung auf der Nachbarfläche.
+fn loadDir(t: texture_2d_array<f32>, s: sampler, q: vec3f) -> vec4f {
+  let u = cubeUV(q);
+  return textureSampleLevel(t, s, u.xy, i32(u.z), 0.0);
+}
+
+fn sampleCube(t: texture_2d_array<f32>, s: sampler, p: vec3f) -> vec4f {
+  let n = f32(textureDimensions(t).x);
+  let u = cubeUV(p);
+  let x = u.xy * n - 0.5;
+  if (all(x >= vec2f(0.0)) && all(x <= vec2f(n - 1.0))) {
+    return textureSampleLevel(t, s, u.xy, i32(u.z), 0.0);
+  }
+  let i0 = floor(x);
+  let f = x - i0;
+  let face = u32(u.z);
+  var c: array<vec4f, 4>;
+  for (var k = 0u; k < 4u; k++) {
+    let ij = i0 + vec2f(f32(k & 1u), f32(k >> 1u));
+    if (all(ij >= vec2f(0.0)) && all(ij <= vec2f(n - 1.0))) {
+      c[k] = textureLoad(t, vec2i(ij), i32(face), 0);
+    } else {
+      c[k] = loadDir(t, s, faceDir(face, (ij + 0.5) / n));
+    }
+  }
+  return mix(mix(c[0], c[1], f.x), mix(c[2], c[3], f.x), f.y);
+}
+
+// Richtung -> (Fläche, Texel) für Schreibzugriffe aus Partikeln.
+fn dirToTexel(d: vec3f, n: u32) -> vec3u {
+  let ad = abs(d);
+  var face = 0u; var sc = 0.0; var tc = 0.0; var ma = 1.0;
+  if (ad.x >= ad.y && ad.x >= ad.z) {
+    ma = ad.x;
+    if (d.x > 0.0) { face = 0u; sc = -d.z; } else { face = 1u; sc = d.z; }
+    tc = -d.y;
+  } else if (ad.y >= ad.z) {
+    ma = ad.y;
+    if (d.y > 0.0) { face = 2u; tc = d.z; } else { face = 3u; tc = -d.z; }
+    sc = d.x;
+  } else {
+    ma = ad.z;
+    if (d.z > 0.0) { face = 4u; sc = d.x; } else { face = 5u; sc = -d.x; }
+    tc = -d.y;
+  }
+  let st = clamp(vec2f(sc, tc) / ma * 0.5 + 0.5, vec2f(0.0), vec2f(0.99999));
+  let px = vec2u(st * f32(n));
+  return vec3u(px, face);
+}
+
+// Orthonormale Tangentenbasis. Die Wahl darf von Punkt zu Punkt springen,
+// weil Divergenz, Laplace und Gradient unabhängig von der Basisdrehung sind.
+fn tangentBasis(p: vec3f) -> mat2x3f {
+  let helper = select(vec3f(1.0, 0.0, 0.0), vec3f(0.0, 1.0, 0.0), abs(p.y) < 0.9);
+  let e1 = normalize(cross(helper, p));
+  let e2 = cross(p, e1);
+  return mat2x3f(e1, e2);
+}
+
+fn east(p: vec3f) -> vec3f {
+  let e = cross(vec3f(0.0, 1.0, 0.0), p);
+  let l = length(e);
+  return select(vec3f(1.0, 0.0, 0.0), e / l, l > 1e-5);
+}
+
+fn latitude(p: vec3f) -> f32 { return asin(clamp(p.y, -1.0, 1.0)); }
+
+fn stepOn(p: vec3f, v: vec3f) -> vec3f { return normalize(p + v); }
+
+fn tangent(p: vec3f, v: vec3f) -> vec3f { return v - p * dot(p, v); }
+
+// ---------- Tabellen ----------
+
+fn jetAt(lat: f32) -> f32 {
+  let x = clamp((lat / PI + 0.5) * 63.0, 0.0, 63.0);
+  let i = u32(floor(x));
+  let j = min(i + 1u, 63u);
+  let a = S.jets[i / 4u][i % 4u];
+  let b = S.jets[j / 4u][j % 4u];
+  return mix(a, b, fract(x)) * S.jetStrength;
+}
+
+fn bandAt(lat: f32) -> vec3f {
+  let x = clamp((lat / PI + 0.5) * 63.0, 0.0, 63.0);
+  let i = u32(floor(x));
+  let j = min(i + 1u, 63u);
+  return mix(S.bands[i].rgb, S.bands[j].rgb, fract(x));
+}
+
+// ---------- Zufall und Rauschen ----------
+
+fn pcg3d(v0: vec3u) -> vec3u {
+  var v = v0 * 1664525u + 1013904223u;
+  v.x += v.y * v.z; v.y += v.z * v.x; v.z += v.x * v.y;
+  v ^= v >> vec3u(16u);
+  v.x += v.y * v.z; v.y += v.z * v.x; v.z += v.x * v.y;
+  return v;
+}
+
+fn hash3(i: vec3f) -> vec3f {
+  let h = pcg3d(bitcast<vec3u>(vec3i(i)));
+  return vec3f(h) * (2.0 / 4294967295.0) - 1.0;
+}
+
+fn rand4(a: u32, b: u32) -> vec4f {
+  let h = pcg3d(vec3u(a, b, 0x9e3779b9u));
+  let g = pcg3d(h.zxy ^ vec3u(b, a, 7u));
+  return vec4f(vec3f(h), f32(g.x)) / 4294967295.0;
+}
+
+// Gradientenrauschen mit analytischer Ableitung: x = Wert, yzw = Gradient.
+fn noised(x: vec3f) -> vec4f {
+  let i = floor(x);
+  let f = fract(x);
+  let u = f * f * f * (f * (f * 6.0 - 15.0) + 10.0);
+  let du = 30.0 * f * f * (f * (f - 2.0) + 1.0);
+
+  let ga = hash3(i + vec3f(0.0, 0.0, 0.0));
+  let gb = hash3(i + vec3f(1.0, 0.0, 0.0));
+  let gc = hash3(i + vec3f(0.0, 1.0, 0.0));
+  let gd = hash3(i + vec3f(1.0, 1.0, 0.0));
+  let ge = hash3(i + vec3f(0.0, 0.0, 1.0));
+  let gf = hash3(i + vec3f(1.0, 0.0, 1.0));
+  let gg = hash3(i + vec3f(0.0, 1.0, 1.0));
+  let gh = hash3(i + vec3f(1.0, 1.0, 1.0));
+
+  let va = dot(ga, f - vec3f(0.0, 0.0, 0.0));
+  let vb = dot(gb, f - vec3f(1.0, 0.0, 0.0));
+  let vc = dot(gc, f - vec3f(0.0, 1.0, 0.0));
+  let vd = dot(gd, f - vec3f(1.0, 1.0, 0.0));
+  let ve = dot(ge, f - vec3f(0.0, 0.0, 1.0));
+  let vf = dot(gf, f - vec3f(1.0, 0.0, 1.0));
+  let vg = dot(gg, f - vec3f(0.0, 1.0, 1.0));
+  let vh = dot(gh, f - vec3f(1.0, 1.0, 1.0));
+
+  let k0 = va;
+  let k1 = vb - va;
+  let k2 = vc - va;
+  let k3 = ve - va;
+  let k4 = va - vb - vc + vd;
+  let k5 = va - vc - ve + vg;
+  let k6 = va - vb - ve + vf;
+  let k7 = -va + vb + vc - vd + ve - vf - vg + vh;
+
+  let value = k0 + u.x * k1 + u.y * k2 + u.z * k3 + u.x * u.y * k4 + u.y * u.z * k5
+            + u.z * u.x * k6 + u.x * u.y * u.z * k7;
+
+  let grad = ga + u.x * (gb - ga) + u.y * (gc - ga) + u.z * (ge - ga)
+           + u.x * u.y * (ga - gb - gc + gd) + u.y * u.z * (ga - gc - ge + gg)
+           + u.z * u.x * (ga - gb - ge + gf) + u.x * u.y * u.z * (-ga + gb + gc - gd + ge - gf - gg + gh)
+           + du * (vec3f(k1, k2, k3) + u.yzx * vec3f(k4, k5, k6) + u.zxy * vec3f(k6, k4, k5)
+                   + u.yzx * u.zxy * k7);
+  return vec4f(value, grad);
+}
+
+// Divergenzfreies Rauschfeld auf der Kugel: v = p × ∇ψ (ψ = FBM-Rauschen als Stromfunktion).
+fn curlOnSphere(p: vec3f, freq: f32, t: f32, octaves: i32) -> vec3f {
+  var g = vec3f(0.0);
+  var amp = 1.0;
+  var fr = freq;
+  for (var o = 0; o < octaves; o++) {
+    let off = vec3f(f32(o) * 17.3, t * (1.0 + 0.37 * f32(o)), f32(o) * -9.1);
+    g += noised(p * fr + off).yzw * amp * fr / freq;
+    amp *= 0.5;
+    fr *= 2.03;
+  }
+  return cross(p, g);
+}
+
+fn stormW(i: u32) -> f32 { return S.stormWeight[i / 4u][i % 4u]; }
+
+// Drehfeld der angetriebenen Stürme: Rotation um das Zentrum, Gauß-Profil.
+fn stormFlow(p: vec3f) -> vec3f {
+  var v = vec3f(0.0);
+  let n = u32(S.stormCount);
+  for (var i = 0u; i < min(n, MAX_STORMS); i++) {
+    let c = S.storms[i].xyz;
+    let r = S.storms[i].w;
+    let d = acos(clamp(dot(c, p), -1.0, 1.0));
+    let x = d / r;
+    // Geschwindigkeit ~ x·exp(−x²): null im Kern, Maximum am Rand, dann Abfall.
+    let prof = x * exp(-x * x) * 2.33;
+    v += cross(c, p) / max(sin(d), 1e-4) * prof * S.stormInfo[i].x * stormW(i);
+  }
+  return v * S.stormStrength;
+}
+
+// scale: Maskenradius relativ zum Sturmradius
+fn stormMask(p: vec3f, scale: f32) -> vec4f {
+  var tint = vec3f(0.0);
+  var w = 0.0;
+  let n = u32(S.stormCount);
+  for (var i = 0u; i < min(n, MAX_STORMS); i++) {
+    let c = S.storms[i].xyz;
+    let r = S.storms[i].w;
+    let d = acos(clamp(dot(c, p), -1.0, 1.0));
+    let m = exp(-pow(d / (r * scale), 2.0)) * stormW(i);
+    tint += S.stormInfo[i].yzw * m;
+    w += m;
+  }
+  return vec4f(tint / max(w, 1e-4), min(w, 1.0));
+}
+`,te=`// Stable Fluids (Stam 1999) auf der Kugel.
+// Ablauf pro Schritt: advect -> curl -> zonalClear/zonalSum -> forces -> divergence -> jacobi×K -> project.
+//
+// Ableitungen: Nachbarn sind die echten Nachbarzellen des Würfelgitters. Ihre Richtungen
+// kommen aus der Flächenparametrisierung (auch über die Flächenkante hinaus, dann landet
+// die Abtastung nahtlos auf der Nachbarfläche). Weil die Zellen des Würfelgitters nicht
+// gleich groß und nicht rechtwinklig sind, wird der Gradient aus einem 2×2-System mit den
+// tatsächlichen Abstandsvektoren gelöst. Der Laplace-Operator für den Druck ist kompakt
+// (direkte Nachbarn, wie in GPU Gems 38) und dämpft dadurch Zickzack-Moden in Gittergröße.
+
+@group(0) @binding(1) var samp: sampler;
+@group(0) @binding(2) var srcA: texture_2d_array<f32>;
+@group(0) @binding(3) var srcB: texture_2d_array<f32>;
+@group(0) @binding(4) var dst: texture_storage_2d_array<rgba16float, write>;
+// Breitenkreis-Mittel des Ostwinds: [2·i] = Summe, [2·i+1] = Gewicht, Festkomma.
+@group(0) @binding(5) var<storage, read_write> zonal: array<atomic<i32>>;
+
+const ZBINS = 128u;
+const ZSCALE = 10000.0;
+
+fn A(d: vec3f) -> vec4f { return sampleCube(srcA, samp, d); }
+fn B(d: vec3f) -> vec4f { return sampleCube(srcB, samp, d); }
+
+fn outside(id: vec3u) -> bool { return f32(id.x) >= S.velN || f32(id.y) >= S.velN; }
+
+fn put(id: vec3u, v: vec4f) { textureStore(dst, id.xy, id.z, v); }
+
+fn safe(v: vec3f) -> vec3f {
+  // NaN/Inf-Schutz und Obergrenze für die Geschwindigkeit (rad/s).
+  if (any(v != v) || any(abs(v) > vec3f(1e4))) { return vec3f(0.0); }
+  let l = length(v);
+  return select(v, v * (1.5 / l), l > 1.5);
+}
+
+// Zelle mit ihren vier Gitternachbarn und einer lokalen Orthonormalbasis.
+struct Cell {
+  p: vec3f,
+  pE: vec3f, pW: vec3f, pN: vec3f, pS: vec3f,
+  e1: vec3f, e2: vec3f,
+  inv: mat2x2f,     // bildet (fE−fW, fN−fS) auf den Gradienten (in e1/e2) ab
+  ax: f32, ay: f32, // 1/Abstand² für den Laplace-Operator
+  size: f32,        // mittlere Zellgröße (rad)
+};
+
+fn cell(id: vec3u) -> Cell {
+  let n = S.velN;
+  let st = (vec2f(id.xy) + 0.5) / n;
+  let d = 1.0 / n;
+  var c: Cell;
+  c.p = faceDir(id.z, st);
+  c.pE = faceDir(id.z, st + vec2f(d, 0.0));
+  c.pW = faceDir(id.z, st - vec2f(d, 0.0));
+  c.pN = faceDir(id.z, st + vec2f(0.0, d));
+  c.pS = faceDir(id.z, st - vec2f(0.0, d));
+  let dA = c.pE - c.pW;
+  let dB = c.pN - c.pS;
+  c.e1 = normalize(tangent(c.p, dA));
+  c.e2 = cross(c.p, c.e1);
+  // Zeilen: dA und dB in der lokalen Basis. Gradient g erfüllt M·g = (fE−fW, fN−fS).
+  let a = dot(dA, c.e1); let b = dot(dA, c.e2);
+  let cc = dot(dB, c.e1); let dd = dot(dB, c.e2);
+  let det = a * dd - b * cc;
+  // Inverse von [[a, b], [cc, dd]] (WGSL-Matrizen sind spaltenweise).
+  c.inv = mat2x2f(vec2f(dd, -cc), vec2f(-b, a)) * (1.0 / det);
+  let hx = length(dA) * 0.5;
+  let hy = length(dB) * 0.5;
+  c.ax = 1.0 / (hx * hx);
+  c.ay = 1.0 / (hy * hy);
+  c.size = 0.5 * (hx + hy);
+  return c;
+}
+
+fn grad2(c: Cell, dfA: f32, dfB: f32) -> vec2f { return c.inv * vec2f(dfA, dfB); }
+
+@compute @workgroup_size(8, 8, 1)
+fn initVel(@builtin(global_invocation_id) id: vec3u) {
+  if (outside(id)) { return; }
+  let p = cell(id).p;
+  var v = east(p) * jetAt(latitude(p)) + curlOnSphere(p, 3.0, S.seed, 3) * 0.01;
+  // Stürme als Anfangswirbel einsetzen. Danach leben sie nur noch von der Physik
+  // (außer "Stürme festhalten" ist aufgedreht).
+  v = mix(v, stormFlow(p), stormMask(p, 1.1).w);
+  put(id, vec4f(tangent(p, v), 0.0));
+}
+
+@compute @workgroup_size(8, 8, 1)
+fn clear(@builtin(global_invocation_id) id: vec3u) {
+  if (outside(id)) { return; }
+  put(id, vec4f(0.0));
+}
+
+// Semi-Lagrange-Advektion, optional mit BFECC-Korrektur (wie im mofu-Artikel, nur in 3D).
+@compute @workgroup_size(8, 8, 1)
+fn advect(@builtin(global_invocation_id) id: vec3u) {
+  if (outside(id)) { return; }
+  let p = cell(id).p;
+  let dt = S.dt;
+  let u0 = A(p).xyz;
+  var src = stepOn(p, -u0 * dt);
+  if (S.bfecc > 0.5) {
+    let u1 = A(src).xyz;
+    let back = stepOn(src, u1 * dt);
+    let p3 = normalize(p - (back - p) * 0.5);
+    let u2 = A(p3).xyz;
+    src = stepOn(p3, -u2 * dt);
+  }
+  let v = A(src).xyz;
+  // Paralleltransport: in die Tangentialebene bei p projizieren, Betrag erhalten.
+  var vt = tangent(p, v);
+  vt *= length(v) / max(length(vt), 1e-6);
+  put(id, vec4f(safe(vt), 0.0));
+}
+
+// Wirbelstärke ζ = ∂v/∂x − ∂u/∂y (Normalkomponente der Rotation) -> x
+@compute @workgroup_size(8, 8, 1)
+fn curl(@builtin(global_invocation_id) id: vec3u) {
+  if (outside(id)) { return; }
+  let c = cell(id);
+  let dA = A(c.pE).xyz - A(c.pW).xyz;
+  let dB = A(c.pN).xyz - A(c.pS).xyz;
+  let g1 = grad2(c, dot(dA, c.e1), dot(dB, c.e1));   // ∇u₁
+  let g2 = grad2(c, dot(dA, c.e2), dot(dB, c.e2));   // ∇u₂
+  put(id, vec4f(g2.x - g1.y, 0.0, 0.0, 0.0));
+}
+
+// ---------- Breitenkreis-Mittel des Ostwinds ----------
+
+@compute @workgroup_size(64, 1, 1)
+fn zonalClear(@builtin(global_invocation_id) id: vec3u) {
+  if (id.x < ZBINS * 2u) { atomicStore(&zonal[id.x], 0); }
+}
+
+fn zbin(p: vec3f) -> u32 { return min(u32((latitude(p) / PI + 0.5) * f32(ZBINS)), ZBINS - 1u); }
+
+@compute @workgroup_size(8, 8, 1)
+fn zonalSum(@builtin(global_invocation_id) id: vec3u) {
+  if (outside(id)) { return; }
+  let c = cell(id);
+  let u = A(c.p).xyz;
+  // Gewicht = Zellfläche, damit kleine Zellen an Würfelkanten nicht überzählen.
+  let w = c.size * c.size * S.velN * S.velN;
+  let b = zbin(c.p);
+  atomicAdd(&zonal[2u * b], i32(dot(u, east(c.p)) * w * ZSCALE));
+  atomicAdd(&zonal[2u * b + 1u], i32(w * 1000.0));
+}
+
+fn zonalMean(p: vec3f) -> f32 {
+  // Linear zwischen den Nachbarbändern interpolieren, sonst entstehen Stufen.
+  let x = (latitude(p) / PI + 0.5) * f32(ZBINS) - 0.5;
+  let i0 = u32(clamp(floor(x), 0.0, f32(ZBINS - 1u)));
+  let i1 = min(i0 + 1u, ZBINS - 1u);
+  let m0 = f32(atomicLoad(&zonal[2u * i0])) / ZSCALE / max(f32(atomicLoad(&zonal[2u * i0 + 1u])) / 1000.0, 1e-6);
+  let m1 = f32(atomicLoad(&zonal[2u * i1])) / ZSCALE / max(f32(atomicLoad(&zonal[2u * i1 + 1u])) / 1000.0, 1e-6);
+  return mix(m0, m1, clamp(x - floor(x), 0.0, 1.0));
+}
+
+// Kräfte. A = Geschwindigkeit, B = Wirbelstärke.
+@compute @workgroup_size(8, 8, 1)
+fn forces(@builtin(global_invocation_id) id: vec3u) {
+  if (outside(id)) { return; }
+  let c = cell(id);
+  let p = c.p;
+  let dt = S.dt;
+  var u = A(p).xyz;
+
+  // Jets: nur das Breitenkreis-Mittel wird zum gemessenen Profil gezogen.
+  // Wirbel (Abweichungen vom Mittel) bleiben unberührt und können wachsen.
+  let e = east(p);
+  u += e * (jetAt(latitude(p)) - zonalMean(p)) * min(S.jetRelax * dt, 1.0);
+
+  // Coriolis: Drehung des Windvektors um die Flächennormale, f = 2Ω·sin(Breite).
+  let a = -2.0 * S.omega * p.y * dt;
+  u = u * cos(a) + cross(p, u) * sin(a);
+
+  // Stürme: Windfeld im Sturmgebiet zum Drehprofil ziehen.
+  let sf = stormFlow(p);
+  let sw = stormMask(p, 1.1).w;
+  u += (sf - u) * clamp(sw * 2.0 * dt, 0.0, 1.0);
+
+  // Langsam wandernde Anregung: stößt Instabilitäten an. Die Reibung begrenzt die Energie.
+  u += curlOnSphere(p, S.turbScale, S.time * 0.3 + S.seed, 2) * S.turbulence * dt;
+
+  // Vorticity Confinement (Fedkiw 2001): f = ε·Δx·(N × ω), N = ∇|ω| / |∇|ω||
+  if (S.confinement > 0.0) {
+    let g = grad2(c, abs(B(c.pE).x) - abs(B(c.pW).x), abs(B(c.pN).x) - abs(B(c.pS).x));
+    let gl = length(g);
+    if (gl > 1e-6) {
+      let nvec = (c.e1 * g.x + c.e2 * g.y) / gl;
+      u += cross(nvec, p) * B(p).x * S.confinement * c.size * dt;
+    }
+  }
+
+  u /= 1.0 + S.drag * dt;
+  put(id, vec4f(safe(tangent(p, u)), 0.0));
+}
+
+// Divergenz ∇·u -> x
+@compute @workgroup_size(8, 8, 1)
+fn divergence(@builtin(global_invocation_id) id: vec3u) {
+  if (outside(id)) { return; }
+  let c = cell(id);
+  let dA = A(c.pE).xyz - A(c.pW).xyz;
+  let dB = A(c.pN).xyz - A(c.pS).xyz;
+  let g1 = grad2(c, dot(dA, c.e1), dot(dB, c.e1));
+  let g2 = grad2(c, dot(dA, c.e2), dot(dB, c.e2));
+  put(id, vec4f(g1.x + g2.y, 0.0, 0.0, 0.0));
+}
+
+// Jacobi-Schritt für ∇²p = ∇·u mit kompaktem 5-Punkt-Stern. A = Druck, B = Divergenz.
+@compute @workgroup_size(8, 8, 1)
+fn jacobi(@builtin(global_invocation_id) id: vec3u) {
+  if (outside(id)) { return; }
+  let c = cell(id);
+  let s = c.ax * (A(c.pE).x + A(c.pW).x) + c.ay * (A(c.pN).x + A(c.pS).x);
+  let pr = (s - B(c.p).x) / (2.0 * (c.ax + c.ay));
+  put(id, vec4f(pr, 0.0, 0.0, 0.0));
+}
+
+// Druckgradient abziehen -> divergenzfreier Wind. A = Geschwindigkeit, B = Druck.
+@compute @workgroup_size(8, 8, 1)
+fn project(@builtin(global_invocation_id) id: vec3u) {
+  if (outside(id)) { return; }
+  let c = cell(id);
+  let g = grad2(c, B(c.pE).x - B(c.pW).x, B(c.pN).x - B(c.pS).x);
+  let u = A(c.p).xyz - (c.e1 * g.x + c.e2 * g.y);
+  put(id, vec4f(safe(tangent(c.p, u)), 0.0));
+}
+`,ne=`// Sichtbare Wolkenfelder: Farbstoff-Advektion, Curl-Noise-Flussfeld und Partikel.
+
+@group(0) @binding(1) var samp: sampler;
+@group(0) @binding(2) var srcA: texture_2d_array<f32>;
+@group(0) @binding(3) var srcB: texture_2d_array<f32>;
+@group(0) @binding(4) var dst: texture_storage_2d_array<rgba16float, write>;
+
+struct Particle {
+  pos: vec4f,   // xyz Richtung auf der Kugel, w Alter
+  info: vec4f,  // x Lebensdauer, yzw Farbe
+};
+@group(0) @binding(5) var<storage, read_write> parts: array<Particle>;
+
+fn A(d: vec3f) -> vec4f { return sampleCube(srcA, samp, d); }
+fn B(d: vec3f) -> vec4f { return sampleCube(srcB, samp, d); }
+
+fn texDir(id: vec3u, n: f32) -> vec3f { return faceDir(id.z, (vec2f(id.xy) + 0.5) / n); }
+
+// Bänder mit mäandernden Rändern: die Breite wird leicht verrauscht, bevor die
+// Bandfarbe nachgeschlagen wird.
+fn bandTarget(p: vec3f) -> vec3f {
+  let w = noised(p * 4.0 + vec3f(S.seed, S.time * 0.01, 0.0)).x;
+  let lat = latitude(p) + w * S.bandWobble * 0.04;
+  // Feine Streifen innerhalb der Bänder: ohne feine Farbunterschiede kann die Strömung
+  // keine sichtbaren Filamente ziehen (ein gedehnter glatter Verlauf bleibt glatt).
+  let fine = noised(vec3f(lat * 45.0, S.seed * 7.0, 0.5)).x + 0.6 * noised(vec3f(lat * 110.0, S.seed * 3.0, 2.5)).x;
+  return bandAt(lat) * (1.0 + fine * S.fineStripes * 0.6);
+}
+
+fn convectionSpot(p: vec3f) -> f32 {
+  let n = noised(p * 13.0 + vec3f(S.seed * 3.1, 0.0, S.time * 0.04)).x;
+  // Aufsteigende Wolkentürme vor allem in niedrigen und mittleren Breiten.
+  return smoothstep(0.5, 0.66, n) * smoothstep(1.15, 0.8, abs(latitude(p)));
+}
+
+fn relaxColor(p: vec3f, c0: vec3f) -> vec3f {
+  let dt = S.dt;
+  var c = mix(c0, bandTarget(p), 1.0 - exp(-S.bandRelax * dt));
+  let sm = stormMask(p, 0.55);
+  c = mix(c, sm.rgb, (1.0 - exp(-S.stormTint * dt)) * sm.w);
+  c = mix(c, S.cloud.rgb, (1.0 - exp(-S.convection * dt)) * convectionSpot(p));
+  return c;
+}
+
+@compute @workgroup_size(8, 8, 1)
+fn initDye(@builtin(global_invocation_id) id: vec3u) {
+  if (f32(id.x) >= S.dyeN || f32(id.y) >= S.dyeN) { return; }
+  let p = texDir(id, S.dyeN);
+  let sm = stormMask(p, 0.55);
+  textureStore(dst, id.xy, id.z, vec4f(mix(bandTarget(p), sm.rgb, sm.w), 1.0));
+}
+
+// Farbstoff mit dem Wind (B) mitführen, A = Farbstoff.
+@compute @workgroup_size(8, 8, 1)
+fn advectDye(@builtin(global_invocation_id) id: vec3u) {
+  if (f32(id.x) >= S.dyeN || f32(id.y) >= S.dyeN) { return; }
+  let p = texDir(id, S.dyeN);
+  let dt = S.dt;
+  let u0 = B(p).xyz;
+  var src = stepOn(p, -u0 * dt);
+  if (S.bfecc > 0.5) {
+    let u1 = B(src).xyz;
+    let back = stepOn(src, u1 * dt);
+    let p3 = normalize(p - (back - p) * 0.5);
+    let u2 = B(p3).xyz;
+    src = stepOn(p3, -u2 * dt);
+  }
+  var c = A(src).rgb;
+  if (any(c != c)) { c = bandTarget(p); }
+  textureStore(dst, id.xy, id.z, vec4f(relaxColor(p, c), 1.0));
+}
+
+// Wirbel nach dem Rezept von Gaseous Giganticus: zufällig verteilt, aber nur dort, wo die
+// Jets schwach sind (sonst zerreißt die Scherung sie sofort). Drehsinn wie die lokale Scherung,
+// Drehprofil ω(d) = ω₀·sin(π·d/r) innerhalb des Radius.
+fn curlVortices(p: vec3f) -> vec3f {
+  var v = vec3f(0.0);
+  let n = u32(S.vortexCount);
+  let peak = max(abs(S.jetStrength), 1e-5);
+  for (var i = 0u; i < n; i++) {
+    let r4 = rand4(i + 17u, u32(S.seed * 1000.0) + 991u);
+    let z = r4.x * 1.7 - 0.85;                     // nicht direkt an den Polen
+    let phi = r4.y * 2.0 * PI;
+    let s = sqrt(1.0 - z * z);
+    let c = vec3f(s * cos(phi), z, s * sin(phi));
+    let lat = asin(z);
+    if (abs(jetAt(lat)) > 0.35 * peak) { continue; }
+    let rad = 0.025 + r4.z * 0.05;
+    let d = acos(clamp(dot(c, p), -1.0, 1.0));
+    if (d >= rad) { continue; }
+    // Hintergrund-Wirbelstärke ζ ≈ −∂U/∂φ: Wirbel mit gleichem Vorzeichen überleben in der Scherung.
+    let shear = jetAt(lat + 0.01) - jetAt(lat - 0.01);
+    let sgn = select(1.0, -1.0, shear > 0.0);
+    let omega = sin(PI * d / rad) * S.vortexStrength * peak / rad * (0.6 + 0.8 * r4.w);
+    v += cross(c, p) / max(sin(d), 1e-4) * omega * d * sgn;
+  }
+  return v;
+}
+
+// Flussfeld für den Curl-Noise-Modus: Jets + Curl-Noise + Wirbel + Stürme.
+@compute @workgroup_size(8, 8, 1)
+fn flowField(@builtin(global_invocation_id) id: vec3u) {
+  if (f32(id.x) >= S.flowN || f32(id.y) >= S.flowN) { return; }
+  let p = texDir(id, S.flowN);
+  var v = east(p) * jetAt(latitude(p));
+  v += curlOnSphere(p, S.curlFreq, S.time * S.curlSpeed + S.seed, i32(S.curlOctaves)) * S.curlStrength;
+  v += curlVortices(p);
+  v += stormFlow(p);
+  textureStore(dst, id.xy, id.z, vec4f(tangent(p, v), 0.0));
+}
+
+fn spawn(i: u32, stagger: bool) -> Particle {
+  let r = rand4(i, u32(S.frame) * 747796405u + u32(S.seed * 1000.0));
+  let z = r.x * 2.0 - 1.0;
+  let phi = r.y * 2.0 * PI;
+  let s = sqrt(max(0.0, 1.0 - z * z));
+  let p = vec3f(s * cos(phi), z, s * sin(phi));
+  var col = bandTarget(p) * (0.9 + 0.2 * r.w);
+  let sm = stormMask(p, 0.55);
+  col = mix(col, sm.rgb, sm.w * clamp(S.stormTint * 0.5, 0.0, 1.0));
+  if (fract(r.w * 97.0) < S.convection * 0.003) { col = S.cloud.rgb; }
+  let life = S.lifetime * (0.5 + r.z);
+  var age = 0.0;
+  if (stagger) { age = fract(r.z * 31.7) * life; }
+  return Particle(vec4f(p, age), vec4f(life, col));
+}
+
+// Partikel bewegen und in die Farbtextur mischen (Verfahren nach jasper-r).
+// A = Farbstoff vorher, B = Flussfeld, dst = Farbstoff nachher (vorher per Kopie befüllt).
+@compute @workgroup_size(64, 1, 1)
+fn moveParticles(@builtin(global_invocation_id) gid: vec3u) {
+  let i = gid.x + gid.y * 65535u * 64u;
+  if (f32(i) >= S.particleCount) { return; }
+  var pt = parts[i];
+  if (pt.info.x <= 0.0) {
+    pt = spawn(i, true);
+  } else if (pt.pos.w >= pt.info.x && S.lifetime < 60.0) {
+    pt = spawn(i, false);
+  } else {
+    let dt = S.dt;
+    var p = pt.pos.xyz;
+    let v1 = B(p).xyz;
+    let mid = stepOn(p, v1 * dt * 0.5);
+    let v2 = B(mid).xyz;
+    p = stepOn(p, v2 * dt);
+    pt.pos = vec4f(p, pt.pos.w + dt);
+  }
+  parts[i] = pt;
+
+  let life = max(pt.info.x, 1e-3);
+  // Ab Lebensdauer 60 leben Partikel ewig (wie bei Gaseous Giganticus): nur einblenden, nie ausblenden.
+  var fade = sin(PI * clamp(pt.pos.w / life, 0.0, 1.0));
+  if (S.lifetime >= 60.0) { fade = min(pt.pos.w / 2.0, 1.0); }
+  let a = S.opacity * fade;
+  let t = dirToTexel(pt.pos.xyz, u32(S.dyeN));
+  let old = A(pt.pos.xyz).rgb;
+  textureStore(dst, t.xy, t.z, vec4f(mix(old, pt.info.yzw, a), 1.0));
+}
+
+// Weichzeichnen und zur Bandfarbe zurückblenden. A = Farbstoff nach Partikeln.
+@compute @workgroup_size(8, 8, 1)
+fn blurRelax(@builtin(global_invocation_id) id: vec3u) {
+  if (f32(id.x) >= S.dyeN || f32(id.y) >= S.dyeN) { return; }
+  let p = texDir(id, S.dyeN);
+  let tb = tangentBasis(p);
+  let h = 1.6 / S.dyeN;
+  let c = A(p).rgb;
+  let avg = (A(stepOn(p, tb[0] * h)).rgb + A(stepOn(p, -tb[0] * h)).rgb
+           + A(stepOn(p, tb[1] * h)).rgb + A(stepOn(p, -tb[1] * h)).rgb) * 0.25;
+  let blurred = mix(c, avg, S.blur);
+  textureStore(dst, id.xy, id.z, vec4f(relaxColor(p, blurred), 1.0));
+}
+`,ie=`// Planeten-Darstellung: ein Vollbild-Dreieck, jeder Pixel schneidet seinen Sichtstrahl
+// mit dem abgeplatteten Planeten und der Ringebene. Keine Meshes, keine Bilddateien.
+
+struct R {
+  invViewProj: mat4x4f,
+  camPos: vec4f,
+  body0: vec4f, body1: vec4f, body2: vec4f,   // Welt -> Körper (Zeilen)
+  sun: vec4f,       // xyz Richtung (Welt), w Intensität
+  atmo: vec4f,      // rgb Farbe, w Stärke
+  p0: vec4f,        // x Abplattung, y Relief, z Randverdunkelung, w Ansicht
+  p1: vec4f,        // x Kartenmodus, y Ring innen, z Ring außen, w Ring-Deckkraft
+  p2: vec4f,        // x Seitenverhältnis, y Zeit, z Belichtung, w Farbstoff-Auflösung
+  ringColor: vec4f, // rgb, w Ringfaden-Kontrast
+  p3: vec4f,        // x Fluss-Skala für Debug-Ansichten, y Pixelwinkel (rad)
+};
+
+@group(0) @binding(0) var<uniform> U: R;
+@group(0) @binding(1) var samp: sampler;
+@group(0) @binding(2) var dyeTex: texture_cube<f32>;
+@group(0) @binding(3) var velTex: texture_cube<f32>;
+@group(0) @binding(4) var auxTex: texture_cube<f32>;
+@group(0) @binding(5) var prsTex: texture_cube<f32>;
+
+const PI = 3.14159265359;
+
+struct VOut { @builtin(position) pos: vec4f, @location(0) ndc: vec2f };
+
+@vertex
+fn vs(@builtin(vertex_index) i: u32) -> VOut {
+  let xy = vec2f(f32((i << 1u) & 2u), f32(i & 2u)) * 2.0 - 1.0;
+  var o: VOut;
+  o.pos = vec4f(xy, 0.0, 1.0);
+  o.ndc = xy;
+  return o;
+}
+
+fn toBody(v: vec3f) -> vec3f { return vec3f(dot(U.body0.xyz, v), dot(U.body1.xyz, v), dot(U.body2.xyz, v)); }
+
+fn hash21(p: vec2f) -> f32 {
+  var q = fract(p * vec2f(123.34, 456.21));
+  q += dot(q, q + 45.32);
+  return fract(q.x * q.y);
+}
+
+fn tangentBasis(p: vec3f) -> mat2x3f {
+  let helper = select(vec3f(1.0, 0.0, 0.0), vec3f(0.0, 1.0, 0.0), abs(p.y) < 0.9);
+  let e1 = normalize(cross(helper, p));
+  return mat2x3f(e1, cross(p, e1));
+}
+
+fn east(p: vec3f) -> vec3f {
+  let e = cross(vec3f(0.0, 1.0, 0.0), p);
+  let l = length(e);
+  return select(vec3f(1.0, 0.0, 0.0), e / l, l > 1e-5);
+}
+
+// Ellipsoid x² + (y/c)² + z² = 1 mit c = 1 − Abplattung. Rückgabe: t oder −1.
+fn hitPlanet(o: vec3f, d: vec3f) -> f32 {
+  let c = 1.0 - U.p0.x;
+  let s = vec3f(1.0, 1.0 / c, 1.0);
+  let os = o * s; let ds = d * s;
+  let a = dot(ds, ds);
+  let b = dot(os, ds);
+  let k = dot(os, os) - 1.0;
+  let disc = b * b - a * k;
+  if (disc < 0.0) { return -1.0; }
+  let t = (-b - sqrt(disc)) / a;
+  return select(-1.0, t, t > 0.0);
+}
+
+fn smoothHash(x: f32, salt: f32) -> f32 {
+  let i = floor(x);
+  let f = fract(x);
+  return mix(hash21(vec2f(i, salt)), hash21(vec2f(i + 1.0, salt)), f * f * (3.0 - 2.0 * f));
+}
+
+// footprint: Breite eines Bildschirmpixels auf der Ringebene (in Planetenradien).
+// Feinstruktur, die schmaler als ein Pixel ist, wird ausgeblendet statt zu flimmern.
+fn ringDensity(r: f32, footprint: f32) -> f32 {
+  let inner = U.p1.y; let outer = U.p1.z;
+  if (r < inner || r > outer || outer <= inner) { return 0.0; }
+  let x = (r - inner) / (outer - inner);
+  // Grobe Struktur: dichter Hauptring, Lücke wie die Cassini-Teilung, schwacher Außenring.
+  var d = smoothstep(0.0, 0.08, x) * (1.0 - smoothstep(0.93, 1.0, x));
+  d *= mix(0.35, 1.0, smoothstep(0.18, 0.35, x));
+  d *= 1.0 - 0.9 * (smoothstep(0.60, 0.62, x) - smoothstep(0.66, 0.68, x));
+  d *= 1.0 - 0.6 * (smoothstep(0.86, 0.865, x) - smoothstep(0.87, 0.875, x));
+  let span = footprint / (outer - inner);
+  let fineW = 1.0 - smoothstep(0.5 / 420.0, 2.0 / 420.0, span);
+  let coarseW = 1.0 - smoothstep(0.5 / 90.0, 2.0 / 90.0, span);
+  let fine = mix(0.5, smoothHash(x * 420.0, 3.0), fineW) * 0.5 + mix(0.5, smoothHash(x * 90.0, 7.0), coarseW) * 0.5;
+  d *= mix(1.0, fine * 1.4 + 0.3 * (1.0 - fineW), U.ringColor.w);
+  return clamp(d, 0.0, 1.0) * U.p1.w;
+}
+
+fn aces(x: vec3f) -> vec3f {
+  let a = 2.51; let b = 0.03; let c = 2.43; let d = 0.59; let e = 0.14;
+  return clamp((x * (a * x + b)) / (x * (c * x + d) + e), vec3f(0.0), vec3f(1.0));
+}
+
+fn diverging(v: f32) -> vec3f {
+  let t = clamp(v, -1.0, 1.0);
+  let neg = vec3f(0.15, 0.45, 0.95);
+  let pos = vec3f(0.95, 0.35, 0.15);
+  return mix(vec3f(0.06), select(neg, pos, t > 0.0), abs(t));
+}
+
+// Farbe einer Stelle auf der Kugel je nach Ansicht.
+fn surface(q: vec3f, mode: i32) -> vec3f {
+  let fs = U.p3.x;
+  if (mode == 1) {
+    let v = textureSampleLevel(velTex, samp, q, 0.0).xyz;
+    let tb = mat2x3f(east(q), cross(q, east(q)));
+    let e = dot(v, tb[0]) * fs;
+    let n = dot(v, tb[1]) * fs;
+    return vec3f(0.5 + 0.5 * clamp(e, -1.0, 1.0), 0.5 + 0.5 * clamp(n, -1.0, 1.0), 0.6) * min(1.0, length(vec2f(e, n)) * 1.5 + 0.15);
+  }
+  if (mode == 2) { return diverging(textureSampleLevel(auxTex, samp, q, 0.0).x * fs * 0.015); }
+  // Gespeichert ist die Druckkorrektur pro Schritt (Δt·P); P ≈ f·U·L, daher Skala 60·fs²/4.
+  if (mode == 3) { return diverging(textureSampleLevel(prsTex, samp, q, 0.0).x * 60.0 * fs * fs * 0.25); }
+  return textureSampleLevel(dyeTex, samp, q, 0.0).rgb;
+}
+
+fn luminance(c: vec3f) -> f32 { return dot(c, vec3f(0.3, 0.59, 0.11)); }
+
+fn stars(d: vec3f) -> vec3f {
+  let uv = vec2f(atan2(d.z, d.x), asin(clamp(d.y, -1.0, 1.0))) * 180.0;
+  let cell = floor(uv);
+  let h = hash21(cell);
+  let f = fract(uv) - 0.5;
+  let s = smoothstep(0.25, 0.0, length(f)) * step(0.985, h);
+  return vec3f(0.8, 0.85, 1.0) * s * (h - 0.985) * 40.0;
+}
+
+@fragment
+fn fs(vin: VOut) -> @location(0) vec4f {
+  let mode = i32(U.p0.w);
+
+  // Kartenansicht: flache Weltkarte (equirektangulär) des ganzen Planeten.
+  if (U.p1.x > 0.5) {
+    let uv = vin.ndc * 0.5 + 0.5;
+    let lon = (uv.x - 0.5) * 2.0 * PI;
+    let lat = (uv.y - 0.5) * PI;
+    let q = vec3f(cos(lat) * cos(lon), sin(lat), cos(lat) * sin(lon));
+    var c = surface(q, mode);
+    if (mode == 0) { c = aces(c * U.p2.z * 0.9); }
+    return vec4f(pow(c, vec3f(1.0 / 2.2)), 1.0);
+  }
+
+  let wp = U.invViewProj * vec4f(vin.ndc, 1.0, 1.0);
+  let dir = normalize(wp.xyz / wp.w - U.camPos.xyz);
+  let o = toBody(U.camPos.xyz);
+  let d = toBody(dir);
+  let sun = normalize(toBody(U.sun.xyz));
+  let c = 1.0 - U.p0.x;
+
+  var col = stars(dir);
+  var tPlanet = hitPlanet(o, d);
+
+  // Atmosphärensaum außerhalb der Planetenscheibe.
+  if (tPlanet < 0.0) {
+    let tc = max(-dot(o, d), 0.0);
+    let cp = o + d * tc;
+    let ce = cp * vec3f(1.0, 1.0 / c, 1.0);
+    let h = length(ce) - 1.0;
+    let lit = smoothstep(-0.3, 0.4, dot(normalize(cp), sun));
+    col += U.atmo.rgb * exp(-max(h, 0.0) / 0.025) * U.atmo.w * lit * U.sun.w;
+  } else {
+    let hp = o + d * tPlanet;
+    let hs = hp * vec3f(1.0, 1.0 / c, 1.0);
+    let q = normalize(hs);
+    var n = normalize(hp * vec3f(1.0, 1.0 / (c * c), 1.0));
+
+    var albedo = surface(q, mode);
+    if (mode == 0) {
+      // Relief aus der Helligkeit: helle Wolken liegen höher (Ammoniak-Eis), dunkle tiefer.
+      if (U.p0.y > 0.0) {
+        let tb = tangentBasis(q);
+        let e = 3.0 / U.p2.w;
+        let lx = luminance(surface(normalize(q + tb[0] * e), 0)) - luminance(surface(normalize(q - tb[0] * e), 0));
+        let ly = luminance(surface(normalize(q + tb[1] * e), 0)) - luminance(surface(normalize(q - tb[1] * e), 0));
+        n = normalize(n - (tb[0] * lx + tb[1] * ly) * U.p0.y * 3.0);
+      }
+      let v = -d;
+      let ndl = dot(n, sun);
+      let ndv = max(dot(n, v), 1e-3);
+      let k = U.p0.z;
+      // Minnaert-Randverdunkelung, k = 1 ist Lambert.
+      var light = pow(max(ndl, 0.0), k) * pow(ndv, k - 1.0);
+      // Dämmerungssaum
+      light += smoothstep(0.12, -0.05, ndl) * smoothstep(-0.25, 0.0, ndl) * 0.05;
+      // Schatten der Ringe auf dem Planeten
+      if (U.p1.w > 0.0 && abs(sun.y) > 1e-4) {
+        let tr = -hp.y / sun.y;
+        if (tr > 0.0) {
+          let rp = hp + sun * tr;
+          light *= 1.0 - 0.85 * ringDensity(length(rp.xz), 0.02);
+        }
+      }
+      let rim = pow(1.0 - ndv, 3.0) * U.atmo.w * smoothstep(-0.2, 0.3, ndl);
+      col = albedo * light * U.sun.w + U.atmo.rgb * rim * U.sun.w;
+    } else {
+      col = albedo;
+    }
+  }
+
+  // Ringe: vor dem Planeten drübermischen, dahinter verdeckt.
+  if (U.p1.w > 0.0 && abs(d.y) > 1e-5 && mode == 0) {
+    let tr = -o.y / d.y;
+    if (tr > 0.0 && (tPlanet < 0.0 || tr < tPlanet)) {
+      let rp = o + d * tr;
+      let footprint = tr * U.p3.y / max(abs(d.y), 0.02);
+      let dens = ringDensity(length(rp.xz), footprint);
+      if (dens > 0.0) {
+        var lit = 0.35 + 0.65 * abs(sun.y);
+        if (hitPlanet(rp + sun * 1e-3, sun) > 0.0) { lit *= 0.08; }
+        let rc = U.ringColor.rgb * lit * U.sun.w;
+        col = mix(col, rc, dens);
+      }
+    }
+  }
+
+  var outc = col;
+  if (mode == 0) { outc = aces(col * U.p2.z); }
+  return vec4f(pow(outc, vec3f(1.0 / 2.2)), 1.0);
+}
+`,M=[{name:"Jupiter",wind:[[-90,0],[-72,15],[-66,-10],[-62,25],[-57,-15],[-53,30],[-47,-10],[-43,35],[-39,-25],[-33,45],[-29,-30],[-26,55],[-20,-60],[-17,10],[-7,140],[0,90],[7,125],[15,-10],[17,-30],[21,60],[23.5,160],[27,0],[31,40],[35,-20],[39,30],[43,-10],[48,25],[52,-15],[56,30],[60,-10],[66,20],[72,5],[90,0]],bands:[[-90,"#586572"],[-70,"#6f7784"],[-58,"#8a8176"],[-48,"#a4917b"],[-40,"#c8b69c"],[-33,"#9e7b5c"],[-28,"#d9ccb4"],[-22,"#ece2cf"],[-18,"#a87651"],[-12,"#8e5c3d"],[-7,"#c9a37f"],[-3,"#efe5d1"],[3,"#e8d9bd"],[8,"#b98c62"],[12,"#8a5535"],[17,"#a06a45"],[20,"#eadfc9"],[24,"#b98d68"],[28,"#dccdb1"],[33,"#a8896a"],[40,"#c7b89f"],[50,"#998c7c"],[62,"#7c7b80"],[75,"#646d7a"],[90,"#56616e"]],storms:[{name:"Großer Roter Fleck",lat:-22.5,lon:0,radius:9,kind:"anticyclone",color:"#b8472a",strength:.9},{name:"Oval BA",lat:-33,lon:70,radius:4,kind:"anticyclone",color:"#d8a58a",strength:.6},{name:"Weißes Oval",lat:-41,lon:150,radius:2.5,kind:"anticyclone",color:"#f2ede2",strength:.5},{name:"Weißes Oval",lat:-41,lon:200,radius:2.5,kind:"anticyclone",color:"#f2ede2",strength:.5},{name:"Braune Barke",lat:15,lon:250,radius:3,kind:"cyclone",color:"#6e4128",strength:.4},{name:"Nordpol-Zyklon",lat:84,lon:0,radius:5,kind:"cyclone",color:"#5f6d7d",strength:.5},{name:"Südpol-Zyklon",lat:-85,lon:0,radius:5,kind:"cyclone",color:"#5f6d7d",strength:.5}],oblateness:.0649,tilt:3.1,rotationHours:9.93,cloud:"#efe8da",atmosphere:"#8fb2e0",atmosphereStrength:.35,rings:null,tune:{turbulence:.4,convection:.8,bandWobble:.6,stormTint:1.6,relief:.35}},{name:"Saturn",wind:[[-90,0],[-78,100],[-70,0],[-62,50],[-55,-20],[-45,80],[-38,0],[-30,120],[-20,300],[-10,420],[0,450],[10,420],[20,300],[30,120],[38,0],[45,80],[55,-20],[62,50],[70,0],[78,120],[90,0]],bands:[[-90,"#6f7a86"],[-70,"#a59a82"],[-50,"#cdb994"],[-35,"#dcc9a3"],[-20,"#e6d4ad"],[-8,"#ecdcb6"],[0,"#f0e2bf"],[8,"#e8d5ac"],[20,"#dcc59c"],[32,"#cfb58c"],[45,"#c8b393"],[60,"#b6a88f"],[74,"#8f9296"],[90,"#6c7886"]],storms:[{name:"Nordpolar-Wirbel",lat:88,lon:0,radius:4,kind:"cyclone",color:"#7d8a8f",strength:.3},{name:"Weißer Fleck",lat:42,lon:90,radius:3,kind:"anticyclone",color:"#f3ead6",strength:.3}],oblateness:.098,tilt:26.7,rotationHours:10.66,cloud:"#f4ecd8",atmosphere:"#d9c8a0",atmosphereStrength:.25,rings:{inner:1.24,outer:2.27,color:"#d8c7a4",opacity:.9},tune:{turbulence:.35,convection:.25,bandWobble:.6,stormTint:.4,relief:.1}},{name:"Neptun",wind:[[-90,0],[-70,250],[-50,150],[-30,-100],[-15,-300],[0,-400],[15,-300],[30,-100],[50,150],[70,250],[90,0]],bands:[[-90,"#2b4f9e"],[-65,"#3c68c4"],[-45,"#3563be"],[-25,"#4a7bd6"],[-10,"#3a6bc8"],[0,"#4677d2"],[15,"#3e6fcc"],[35,"#4a7ad4"],[55,"#3563c0"],[75,"#2f58ad"],[90,"#284c98"]],storms:[{name:"Großer Dunkler Fleck",lat:-20,lon:0,radius:7,kind:"anticyclone",color:"#1a2f70",strength:.7},{name:"Begleitwolke",lat:-26,lon:8,radius:2.5,kind:"anticyclone",color:"#e6eefc",strength:.3},{name:"Scooter",lat:-42,lon:120,radius:2.5,kind:"anticyclone",color:"#d9e4f8",strength:.4},{name:"Dunkler Fleck 2",lat:-55,lon:220,radius:3.5,kind:"anticyclone",color:"#213a80",strength:.5}],oblateness:.0171,tilt:28.3,rotationHours:16.11,cloud:"#f2f6ff",atmosphere:"#7fb0ff",atmosphereStrength:.5,rings:null,tune:{turbulence:.5,convection:1.6,bandWobble:.7,stormTint:.8,relief:.6}},{name:"Uranus",wind:[[-90,0],[-60,200],[-30,60],[-15,-50],[0,-80],[15,-50],[30,60],[60,240],[90,0]],bands:[[-90,"#b9e4ea"],[-60,"#a9dbe3"],[-30,"#9fd3dd"],[0,"#9ccfda"],[30,"#a2d5de"],[55,"#b3dee6"],[75,"#c8e9ee"],[90,"#d2edf1"]],storms:[{name:"Heller Fleck",lat:30,lon:60,radius:3,kind:"anticyclone",color:"#e4f5f7",strength:.3}],oblateness:.0229,tilt:97.8,rotationHours:17.24,cloud:"#f0fbfc",atmosphere:"#bff0ff",atmosphereStrength:.45,rings:{inner:1.64,outer:2,color:"#6d7478",opacity:.25},tune:{turbulence:.2,convection:.6,bandWobble:.4,stormTint:.4,relief:.4}},{name:"Heißer Jupiter",wind:[[-90,0],[-60,-200],[-30,300],[-10,1500],[0,2e3],[10,1500],[30,300],[60,-200],[90,0]],bands:[[-90,"#2a1410"],[-60,"#4a1d12"],[-35,"#7a2e14"],[-15,"#b0481a"],[0,"#d8732a"],[15,"#a8431a"],[35,"#6e2912"],[60,"#43190f"],[90,"#26120e"]],storms:[{name:"Heißer Fleck",lat:0,lon:30,radius:14,kind:"anticyclone",color:"#ffb45a",strength:.3}],oblateness:.01,tilt:0,rotationHours:72,cloud:"#ffcf8a",atmosphere:"#ff9a5a",atmosphereStrength:.4,rings:null,tune:{turbulence:.8,convection:.2,bandWobble:1.2,stormTint:.5,relief:.15}}];function z(e){const t=parseInt(e.slice(1),16),n=[t>>16&255,t>>8&255,t&255].map(i=>Math.pow(i/255,2.2));return[n[0],n[1],n[2]]}function Z(e,t,n){if(t<=e[0][0])return e[0][1];for(let i=1;i<e.length;i++)if(t<=e[i][0]){const[r,a]=e[i-1],[o,d]=e[i],l=(t-r)/(o-r);return n(a,d,l*l*(3-2*l))}return e[e.length-1][1]}const v=64;function re(e){const t=Math.max(...e.wind.map(([,i])=>Math.abs(i))),n=new Float32Array(v);for(let i=0;i<v;i++){const r=-90+180*i/(v-1);n[i]=Z(e.wind,r,(a,o,d)=>a+(o-a)*d)/t}return n}function L(e,t){const n=e.bands.map(([o,d])=>[o,z(d)]),i=[],r=[0,0,0];for(let o=0;o<v;o++){const d=-90+180*o/(v-1),l=Z(n,d,(u,f,g)=>[u[0]+(f[0]-u[0])*g,u[1]+(f[1]-u[1])*g,u[2]+(f[2]-u[2])*g]);i.push(l);for(let u=0;u<3;u++)r[u]+=l[u]/v}const a=new Float32Array(v*4);return i.forEach((o,d)=>{for(let l=0;l<3;l++)a[d*4+l]=Math.max(0,r[l]+(o[l]-r[l])*t);a[d*4+3]=1}),a}async function se(e){const t=await createImageBitmap(e),n=256,i=Math.max(64,Math.round(256*t.height/t.width)),r=document.createElement("canvas");r.width=n,r.height=i;const a=r.getContext("2d",{willReadFrequently:!0});a.drawImage(t,0,0,n,i);const o=a.getImageData(0,0,n,i).data,d=h=>.3*o[h]+.59*o[h+1]+.11*o[h+2],l=h=>{let p=0;for(let b=0;b<n;b++)d((h*n+b)*4)>18&&p++;return p>n*.02};let u=0,f=i-1;for(;u<i-1&&!l(u);)u++;for(;f>u&&!l(f);)f--;const g=[];for(let h=0;h<v;h++){const p=90-180*h/(v-1),b=Math.round(u+(f-u)*h/(v-1));let x=0,y=n-1;for(;x<n-1&&d((b*n+x)*4)<=18;)x++;for(;y>x&&d((b*n+y)*4)<=18;)y--;const S=(x+y)/2,k=Math.max(1,(y-x)*.2);let P=0,N=0,U=0,_=0;for(let A=Math.floor(S-k);A<=Math.ceil(S+k);A++){const D=(b*n+Math.min(n-1,Math.max(0,A)))*4;P+=o[D],N+=o[D+1],U+=o[D+2],_++}const W=A=>Math.round(A/_).toString(16).padStart(2,"0");g.push([p,`#${W(P)}${W(N)}${W(U)}`])}return g.reverse()}function ae(e){let t=e>>>0||1;const n=()=>(t=t*1664525+1013904223>>>0)/4294967296,i=3+Math.floor(n()*8),r=n()<.7?1:-1,a=[[-90,0]];for(let h=1;h<i*2;h++){const p=-90+180*h/(i*2),b=h%2===0?1:-1,x=Math.cos(p*Math.PI/180);a.push([p,(b*(40+n()*80)+r*150*Math.pow(x,6))*(.5+x)])}a.push([90,0]);const o=n()*360,d=(h,p,b)=>{const x=p*Math.min(b,1-b),y=k=>{const P=(k+h/30)%12;return b-x*Math.max(-1,Math.min(P-3,9-P,1))},S=k=>Math.round(k*255).toString(16).padStart(2,"0");return`#${S(y(0))}${S(y(8))}${S(y(4))}`},l=6+Math.floor(n()*14),u=[];for(let h=0;h<=l;h++){const p=-90+180*h/l,b=h%2===0?.65+n()*.2:.3+n()*.2;u.push([p,d(o+(n()-.5)*60,.25+n()*.4,b)])}const f=[],g=Math.floor(n()*6);for(let h=0;h<g;h++){const p=(n()-.5)*140;f.push({name:`Sturm ${h+1}`,lat:p,lon:n()*360,radius:2+n()*7,kind:n()<.7?"anticyclone":"cyclone",color:d(o+180*n(),.4,.3+n()*.5),strength:.3+n()*.5})}return{name:"Zufall",wind:a,bands:u,storms:f,oblateness:.02+n()*.08,tilt:n()*30,rotationHours:8+n()*20,cloud:d(o,.3,.9),atmosphere:d(o,.5,.7),atmosphereStrength:.2+n()*.4,rings:n()<.35?{inner:1.3+n()*.3,outer:1.9+n()*.6,color:d(o+30,.2,.6),opacity:.4+n()*.5}:null,tune:{turbulence:.3+n()*.5,convection:n(),bandWobble:.4+n(),stormTint:.6,relief:.3}}}function oe(e,t,n,i){const r=1/Math.tan(e/2),a=new Float32Array(16);return a[0]=r/t,a[5]=r,a[10]=i/(n-i),a[11]=-1,a[14]=n*i/(n-i),a}function le(e,t,n){const i=G(fe(e,t)),r=G(j(n,i)),a=j(i,r);return new Float32Array([r[0],a[0],i[0],0,r[1],a[1],i[1],0,r[2],a[2],i[2],0,-C(r,e),-C(a,e),-C(i,e),1])}function ce(e,t){const n=new Float32Array(16);for(let i=0;i<4;i++)for(let r=0;r<4;r++){let a=0;for(let o=0;o<4;o++)a+=e[o*4+r]*t[i*4+o];n[i*4+r]=a}return n}function de(e){const t=new Float32Array(16);t[0]=e[5]*e[10]*e[15]-e[5]*e[11]*e[14]-e[9]*e[6]*e[15]+e[9]*e[7]*e[14]+e[13]*e[6]*e[11]-e[13]*e[7]*e[10],t[4]=-e[4]*e[10]*e[15]+e[4]*e[11]*e[14]+e[8]*e[6]*e[15]-e[8]*e[7]*e[14]-e[12]*e[6]*e[11]+e[12]*e[7]*e[10],t[8]=e[4]*e[9]*e[15]-e[4]*e[11]*e[13]-e[8]*e[5]*e[15]+e[8]*e[7]*e[13]+e[12]*e[5]*e[11]-e[12]*e[7]*e[9],t[12]=-e[4]*e[9]*e[14]+e[4]*e[10]*e[13]+e[8]*e[5]*e[14]-e[8]*e[6]*e[13]-e[12]*e[5]*e[10]+e[12]*e[6]*e[9],t[1]=-e[1]*e[10]*e[15]+e[1]*e[11]*e[14]+e[9]*e[2]*e[15]-e[9]*e[3]*e[14]-e[13]*e[2]*e[11]+e[13]*e[3]*e[10],t[5]=e[0]*e[10]*e[15]-e[0]*e[11]*e[14]-e[8]*e[2]*e[15]+e[8]*e[3]*e[14]+e[12]*e[2]*e[11]-e[12]*e[3]*e[10],t[9]=-e[0]*e[9]*e[15]+e[0]*e[11]*e[13]+e[8]*e[1]*e[15]-e[8]*e[3]*e[13]-e[12]*e[1]*e[11]+e[12]*e[3]*e[9],t[13]=e[0]*e[9]*e[14]-e[0]*e[10]*e[13]-e[8]*e[1]*e[14]+e[8]*e[2]*e[13]+e[12]*e[1]*e[10]-e[12]*e[2]*e[9],t[2]=e[1]*e[6]*e[15]-e[1]*e[7]*e[14]-e[5]*e[2]*e[15]+e[5]*e[3]*e[14]+e[13]*e[2]*e[7]-e[13]*e[3]*e[6],t[6]=-e[0]*e[6]*e[15]+e[0]*e[7]*e[14]+e[4]*e[2]*e[15]-e[4]*e[3]*e[14]-e[12]*e[2]*e[7]+e[12]*e[3]*e[6],t[10]=e[0]*e[5]*e[15]-e[0]*e[7]*e[13]-e[4]*e[1]*e[15]+e[4]*e[3]*e[13]+e[12]*e[1]*e[7]-e[12]*e[3]*e[5],t[14]=-e[0]*e[5]*e[14]+e[0]*e[6]*e[13]+e[4]*e[1]*e[14]-e[4]*e[2]*e[13]-e[12]*e[1]*e[6]+e[12]*e[2]*e[5],t[3]=-e[1]*e[6]*e[11]+e[1]*e[7]*e[10]+e[5]*e[2]*e[11]-e[5]*e[3]*e[10]-e[9]*e[2]*e[7]+e[9]*e[3]*e[6],t[7]=e[0]*e[6]*e[11]-e[0]*e[7]*e[10]-e[4]*e[2]*e[11]+e[4]*e[3]*e[10]+e[8]*e[2]*e[7]-e[8]*e[3]*e[6],t[11]=-e[0]*e[5]*e[11]+e[0]*e[7]*e[9]+e[4]*e[1]*e[11]-e[4]*e[3]*e[9]-e[8]*e[1]*e[7]+e[8]*e[3]*e[5],t[15]=e[0]*e[5]*e[10]-e[0]*e[6]*e[9]-e[4]*e[1]*e[10]+e[4]*e[2]*e[9]+e[8]*e[1]*e[6]-e[8]*e[2]*e[5];const n=e[0]*t[0]+e[1]*t[4]+e[2]*t[8]+e[3]*t[12];for(let i=0;i<16;i++)t[i]/=n;return t}function ue(e,t){const n=Math.cos(e),i=Math.sin(e),r=Math.cos(t),a=Math.sin(t),o=[[r,0,a],[0,1,0],[-a,0,r]],d=[[n,-i,0],[i,n,0],[0,0,1]],l=[[0,0,0],[0,0,0],[0,0,0]];for(let u=0;u<3;u++)for(let f=0;f<3;f++)l[u][f]=d[u][0]*o[0][f]+d[u][1]*o[1][f]+d[u][2]*o[2][f];return l}const fe=(e,t)=>[e[0]-t[0],e[1]-t[1],e[2]-t[2]],C=(e,t)=>e[0]*t[0]+e[1]*t[1]+e[2]*t[2],j=(e,t)=>[e[1]*t[2]-e[2]*t[1],e[2]*t[0]-e[0]*t[2],e[0]*t[1]-e[1]*t[0]],G=e=>{const t=Math.hypot(e[0],e[1],e[2])||1;return[e[0]/t,e[1]/t,e[2]/t]};function he(){try{const e=localStorage.getItem("fgp-lang");if(e==="en"||e==="de")return e}catch{}return(navigator.language||"en").toLowerCase().startsWith("de")?"de":"en"}let R=he();function pe(e){R=e;try{localStorage.setItem("fgp-lang",e)}catch{}document.documentElement.lang=e}const s=(e,t)=>R==="de"?e:t;class ge{constructor(t,n,i){this.s=n,this.onChange=i,this.help=document.createElement("p"),this.help.className="help",this.help.id="help",this.help.textContent=s("Tippe oder fahre über einen Regler, um zu sehen, was er in der Simulation verändert.","Tap or hover a control to see what it changes in the simulation."),this.body=document.createElement("div"),this.body.className="controls",t.append(this.help,this.body)}s;onChange;bindings=[];body;help;current=null;section(t,n,i=!0){const r=document.createElement("details");r.open=i;const a=document.createElement("summary");if(a.textContent=t,r.append(a),n){const o=document.createElement("p");o.className="note",o.textContent=n,r.append(o)}return this.body.append(r),this.current=r,this}row(t,n,i){const r=document.createElement("div");r.className="row";const a=document.createElement("label");a.htmlFor=`ctl-${t}`,a.textContent=n;const o=document.createElement("output");o.htmlFor=`ctl-${t}`,r.append(a,o);const d=()=>{this.help.innerHTML=`<b>${n}.</b> ${i}`};return r.addEventListener("pointerenter",d),r.addEventListener("focusin",d),r.addEventListener("pointerdown",d),(this.current??this.body).append(r),{row:r,lab:a,out:o}}range(t,n,i,r,a,o,d=l=>String(l)){const{row:l,out:u}=this.row(t,n,o),f=document.createElement("input");f.type="range",f.id=`ctl-${t}`,f.min=String(i),f.max=String(r),f.step=String(a),l.append(f);const g=()=>{f.value=String(this.s[t]),u.textContent=d(Number(this.s[t]))};return f.addEventListener("input",()=>{this.s[t]=Number(f.value),u.textContent=d(Number(f.value)),this.onChange(t)}),this.bindings.push({key:t,update:g,row:l}),g(),this}select(t,n,i,r){const{row:a,out:o}=this.row(t,n,r);o.remove();const d=document.createElement("select");d.id=`ctl-${t}`;for(const[u,f]of i){const g=document.createElement("option");g.value=u,g.textContent=f,d.append(g)}a.classList.add("row-select"),a.append(d);const l=()=>{d.value=String(this.s[t])};return d.addEventListener("change",()=>{const u=Number(d.value);this.s[t]=typeof this.s[t]=="number"&&!Number.isNaN(u)?u:d.value,this.onChange(t)}),this.bindings.push({key:t,update:l,row:a}),l(),this}toggle(t,n,i){const{row:r,lab:a,out:o}=this.row(t,n,i);o.remove();const d=document.createElement("input");d.type="checkbox",d.id=`ctl-${t}`,r.classList.add("row-toggle"),a.prepend(d);const l=()=>{d.checked=!!this.s[t]};return d.addEventListener("change",()=>{this.s[t]=d.checked,this.onChange(t)}),this.bindings.push({key:t,update:l,row:r}),l(),this}buttons(t){const n=document.createElement("div");n.className="row row-buttons";for(const[i,r,a]of t){const o=document.createElement("button");o.type="button",o.id=i,o.textContent=r,o.addEventListener("click",a),n.append(o)}return(this.current??this.body).append(n),this}file(t,n,i,r){const{row:a,lab:o,out:d}=this.row(t,n,i);d.remove();const l=document.createElement("input");return l.type="file",l.accept="image/*",l.id=`ctl-${t}`,l.className="file",o.htmlFor=l.id,a.classList.add("row-file"),a.append(l),l.addEventListener("change",()=>{l.files?.[0]&&r(l.files[0]),l.value=""}),this}visible(t,n){for(const i of this.bindings)i.key===t&&(i.row.hidden=!n)}refresh(){for(const t of this.bindings)t.update()}}const F=matchMedia("(pointer: coarse)").matches&&Math.min(screen.width,screen.height)<820,c={preset:"Jupiter",seed:1,quality:F?"phone":"standard",flow:"fluid",look:"dye",timeScale:1,paused:!1,velRes:128,iterations:24,bfecc:!0,jetStrength:.06,jetRelax:.25,omega:.4,turbulence:.6,turbScale:4,confinement:.5,drag:.02,curlStrength:.5,curlFreq:4,curlSpeed:.04,curlOctaves:4,curlRes:F?256:384,vortexCount:32,vortexStrength:1,particles:F?262144:1048576,lifetime:60,opacity:.2,blur:.02,dyeRes:F?384:768,bandRelax:.02,fineStripes:.7,bandWobble:1,contrast:1,convection:.8,storms:!0,stormStrength:1,stormTint:.6,stormHold:0,stormSpawn:.3,sunAngle:35,relief:.35,limb:1.15,atmosphere:1,exposure:.95,spinSpeed:1,view:0,map:!1},be={...c},me={phone:{velRes:96,dyeRes:384,curlRes:256,particles:262144,dpr:1.25},standard:{velRes:128,dyeRes:768,curlRes:384,particles:1048576,dpr:1.75},high:{velRes:192,dyeRes:1024,curlRes:768,particles:4194304,dpr:2}},m=document.getElementById("view"),O=document.getElementById("status"),ve=document.getElementById("fps"),xe=document.getElementById("warm");function w(e){O.hidden=!1,O.innerHTML=e}async function ye(){if(!("gpu"in navigator)){w(s("<b>WebGPU fehlt in diesem Browser.</b> Nimm Chrome oder Edge ab Version 113, Safari ab 26 oder Firefox ab 141. Auf Android geht Chrome ab Version 121.","<b>This browser has no WebGPU.</b> Use Chrome or Edge 113+, Safari 26+ or Firefox 141+. On Android, Chrome 121+."));return}const e=await navigator.gpu.requestAdapter({powerPreference:"high-performance"});if(!e){w(s("<b>Keine WebGPU-Grafikkarte gefunden.</b> Prüfe, ob die Hardwarebeschleunigung im Browser eingeschaltet ist.","<b>No WebGPU graphics adapter found.</b> Check that hardware acceleration is enabled in the browser."));return}const t=await e.requestDevice({requiredLimits:{maxStorageBufferBindingSize:e.limits.maxStorageBufferBindingSize,maxBufferSize:e.limits.maxBufferSize}});t.lost.then(i=>w(`${s("<b>Die Grafikkarte wurde getrennt.</b>","<b>The GPU was disconnected.</b>")} ${i.message} ${s("Lade die Seite neu.","Reload the page.")}`)),t.addEventListener("uncapturederror",i=>{console.error(i.error.message),w(`<b>GPU-Fehler:</b> ${i.error.message}`)});const n=new we(t);window.gasPlanet={settings:c,capture:()=>n.capture(),readRow:(i,r,a)=>n.readRow(i,r,a)},document.getElementById("lang")?.addEventListener("click",()=>n.toggleLang()),n.run()}const B=16,K=32,J=K+4,Y=J+v,X=Y+v*4,Q=X+B*4,ee=Q+B*4,q=ee+B,V=60,T=1/60,E=480,H=8,$=2.5;class we{constructor(t){this.device=t,this.offscreen||this.ctx.configure({device:t,format:this.format,alphaMode:"opaque"}),this.sampler=t.createSampler({magFilter:"linear",minFilter:"linear",addressModeU:"clamp-to-edge",addressModeV:"clamp-to-edge"}),this.simBuf=t.createBuffer({size:q*4,usage:GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST}),this.renderBuf=t.createBuffer({size:V*4,usage:GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST});const n=GPUShaderStage.COMPUTE;this.computeLayout=t.createBindGroupLayout({entries:[{binding:0,visibility:n,buffer:{type:"uniform"}},{binding:1,visibility:n,sampler:{type:"filtering"}},{binding:2,visibility:n,texture:{sampleType:"float",viewDimension:"2d-array"}},{binding:3,visibility:n,texture:{sampleType:"float",viewDimension:"2d-array"}},{binding:4,visibility:n,storageTexture:{access:"write-only",format:"rgba16float",viewDimension:"2d-array"}},{binding:5,visibility:n,buffer:{type:"storage"}}]});const i=t.createPipelineLayout({bindGroupLayouts:[this.computeLayout]}),r=this.module("fluid",I+te),a=this.module("tracers",I+ne);for(const d of["initVel","clear","advect","curl","zonalClear","zonalSum","forces","divergence","jacobi","project"])this.pipes[d]=t.createComputePipeline({layout:i,compute:{module:r,entryPoint:d}});for(const d of["initDye","advectDye","flowField","moveParticles","blurRelax"])this.pipes[d]=t.createComputePipeline({layout:i,compute:{module:a,entryPoint:d}});const o=this.module("render",ie);this.renderPipe=t.createRenderPipeline({layout:"auto",vertex:{module:o,entryPoint:"vs"},fragment:{module:o,entryPoint:"fs",targets:[{format:this.format}]},primitive:{topology:"triangle-list"}}),this.dummy=this.cubeField(8),this.zonal=t.createBuffer({size:256*4,usage:GPUBufferUsage.STORAGE}),this.applyQuality(!1),this.applyPreset(),this.buildUI(),this.bindInput()}device;offscreen=location.hash==="#offscreen";format=this.offscreen?"rgba8unorm":navigator.gpu.getPreferredCanvasFormat();target=null;ctx=m.getContext("webgpu");sampler;simBuf;renderBuf;simData=new Float32Array(q);renderData=new Float32Array(V);computeLayout;pipes={};renderPipe;vel=[];prs=[];aux;div;dye=[];flow;dummy;parts;zonal;partCapacity=0;vc=0;pc=0;dc=0;preset=M[0];storms=[];stepAcc=0;needsDye=!1;time=0;frame=0;spin=0;needsInit=!0;warm=0;warmRate=2;cam={yaw:-.35,pitch:.12,dist:4.3};dpr=1.75;panel;module(t,n){const i=this.device.createShaderModule({label:t,code:n});return i.getCompilationInfo().then(r=>{const a=r.messages.filter(o=>o.type==="error");a.length&&w(`<b>Shader ${t}:</b> `+a.map(o=>`Zeile ${o.lineNum}: ${o.message}`).join("<br>"))}),i}cubeField(t){const n=this.device.createTexture({size:[t,t,6],format:"rgba16float",usage:GPUTextureUsage.TEXTURE_BINDING|GPUTextureUsage.STORAGE_BINDING|GPUTextureUsage.COPY_SRC|GPUTextureUsage.COPY_DST});return{tex:n,n:t,cube:n.createView({dimension:"cube"}),store:n.createView({dimension:"2d-array"})}}applyQuality(t){const n=me[c.quality];t&&n&&(c.velRes=n.velRes,c.dyeRes=n.dyeRes,c.curlRes=n.curlRes,c.particles=n.particles),this.dpr=n?n.dpr:1.5,this.allocVel(),this.allocDye(),this.allocParticles()}allocVel(){for(const n of[...this.vel,...this.prs])n.tex.destroy();this.aux?.tex.destroy(),this.div?.tex.destroy(),this.flow?.tex.destroy();const t=c.velRes;this.vel=[this.cubeField(t),this.cubeField(t)],this.prs=[this.cubeField(t),this.cubeField(t)],this.aux=this.cubeField(t),this.div=this.cubeField(t),this.flow=this.cubeField(c.curlRes),this.needsInit=!0}allocDye(){for(const t of this.dye)t.tex.destroy();this.dye=[this.cubeField(c.dyeRes),this.cubeField(c.dyeRes)],this.needsDye=!0}allocParticles(){const t=Math.min(c.particles,Math.floor(this.device.limits.maxStorageBufferBindingSize/32));c.particles=t,!(t<=this.partCapacity)&&(this.parts?.destroy(),this.parts=this.device.createBuffer({size:t*32,usage:GPUBufferUsage.STORAGE|GPUBufferUsage.COPY_DST}),this.partCapacity=t)}applyPreset(){this.preset=c.preset==="Zufall"?ae(c.seed*7919):M.find(n=>n.name===c.preset)??M[0];const t=this.preset.tune;c.turbulence=t.turbulence,c.convection=t.convection,c.bandWobble=t.bandWobble,c.stormTint=t.stormTint,c.relief=t.relief,this.storms=this.preset.storms.map(n=>({lat:n.lat,lon:n.lon,radius:n.radius,strength:n.strength,kick:0,sign:(n.kind==="cyclone"?1:-1)*(n.lat>=0?1:-1),color:z(n.color)})),this.jets=re(this.preset),this.writeTables(),this.needsInit=!0,this.panel?.refresh(),this.updateInfo()}jets=new Float32Array(v);writeTables(){const t=this.simData;t.set(this.jets,J),t.set(L(this.preset,c.contrast),Y),t.set([...z(this.preset.cloud),1],K)}jetAt(t){const n=Math.min(Math.max((t/Math.PI+.5)*(v-1),0),v-1),i=Math.floor(n),r=Math.min(i+1,v-1);return(this.jets[i]+(this.jets[r]-this.jets[i])*(n-i))*c.jetStrength}writeSim(t,n=!1){const i=this.simData,r=c.jetStrength,a=this.activeStorms();i.set([t,this.time,this.frame,c.velRes,c.dyeRes,this.flow.n,c.vortexStrength,c.omega,r,c.jetRelax,c.turbulence*r*.05,c.turbScale,c.confinement,c.drag,c.fineStripes,c.bfecc?1:0,c.bandRelax,c.convection,r*c.stormStrength,a.length,c.curlStrength*r,c.curlFreq,c.curlSpeed,c.curlOctaves,c.particles,c.lifetime,c.opacity,c.blur,c.seed,c.bandWobble,c.stormTint,c.vortexCount],0),a.forEach((o,d)=>{const l=o.lat*Math.PI/180,u=o.lon*Math.PI/180;i.set([Math.cos(l)*Math.cos(u),Math.sin(l),Math.cos(l)*Math.sin(u),o.radius*Math.PI/180],X+d*4),i.set([o.sign*o.strength,...o.color],Q+d*4);let f=o.kick>0?Math.sin(Math.PI*(1-o.kick/$)):c.flow==="curl"?1:c.stormHold;n&&o.kick===0&&(f=1),i[ee+d]=f}),this.device.queue.writeBuffer(this.simBuf,0,i)}activeStorms(){return this.storms.filter(t=>t.kick>0||c.storms).slice(0,B)}updateStorms(t){for(const n of this.storms){if(n.kick>0){n.kick=Math.max(0,n.kick-t);continue}const i=n.lat*Math.PI/180;n.lon-=this.jetAt(i)*t/Math.max(Math.cos(i),.2)*(180/Math.PI)}if(this.storms=this.storms.filter((n,i)=>i<this.preset.storms.length||n.kick>0),c.flow==="fluid"&&Math.random()<c.stormSpawn*t&&this.activeStorms().length<B){const n=(Math.random()*2-1)*65,i=Math.random()<.75,r=L(this.preset,c.contrast),a=Math.round((n+90)/180*(v-1))*4,o=i?z(this.preset.cloud):[r[a]*.55,r[a+1]*.5,r[a+2]*.45];this.storms.push({lat:n,lon:Math.random()*360,radius:1.2+Math.random()*2.8,sign:(i?-1:1)*(n>=0?1:-1),strength:.5+Math.random()*.6,color:o,kick:$})}}writeRender(){const t=m.width,n=m.height,i=Math.cos(this.cam.pitch),r=Math.sin(this.cam.pitch),a=[Math.sin(this.cam.yaw)*i*this.cam.dist,r*this.cam.dist,Math.cos(this.cam.yaw)*i*this.cam.dist],o=oe(32*Math.PI/180,t/n,.05,100),d=le(a,[0,0,0],[0,1,0]),l=de(ce(o,d)),u=ue(this.preset.tilt*Math.PI/180,this.spin),f=c.sunAngle*Math.PI/180,g=G([Math.sin(f),.18,Math.cos(f)]),h=z(this.preset.atmosphere),p=this.preset.rings,b=p?z(p.color):[0,0,0],x=this.renderData;x.set(l,0),x.set([...a,1,u[0][0],u[1][0],u[2][0],0,u[0][1],u[1][1],u[2][1],0,u[0][2],u[1][2],u[2][2],0,...g,1.7,h[0],h[1],h[2],this.preset.atmosphereStrength*c.atmosphere,this.preset.oblateness,c.relief,c.limb,c.view,c.map?1:0,p?p.inner:0,p?p.outer:0,p?p.opacity:0,t/n,this.time,c.exposure,c.dyeRes,b[0],b[1],b[2],.6,1/Math.max(c.jetStrength,1e-4),2*Math.tan(16*Math.PI/180)/n,0,0],16),this.device.queue.writeBuffer(this.renderBuf,0,x)}bind(t,n,i,r=this.zonal){return this.device.createBindGroup({layout:this.computeLayout,entries:[{binding:0,resource:{buffer:this.simBuf}},{binding:1,resource:this.sampler},{binding:2,resource:(t??this.dummy).store},{binding:3,resource:(n??this.dummy).store},{binding:4,resource:i.store},{binding:5,resource:{buffer:r}}]})}run2D(t,n,i,r,a){t.setPipeline(this.pipes[n]),t.setBindGroup(0,this.bind(i,r,a));const o=Math.ceil(a.n/8);t.dispatchWorkgroups(o,o,6)}initFields(t,n){const i=t.beginComputePass();n&&(this.run2D(i,"initVel",null,null,this.vel[0]),this.run2D(i,"clear",null,null,this.prs[0]),this.run2D(i,"clear",null,null,this.aux),this.vc=0,this.pc=0),this.run2D(i,"initDye",null,null,this.dye[0]),this.dc=0,i.end(),n&&t.clearBuffer(this.parts)}step(t){const n=t.beginComputePass();let i;if(c.flow==="fluid"){this.run2D(n,"advect",this.vel[this.vc],null,this.vel[1-this.vc]),this.vc=1-this.vc,this.run2D(n,"curl",this.vel[this.vc],null,this.aux),n.setPipeline(this.pipes.zonalClear),n.setBindGroup(0,this.bind(null,null,this.div)),n.dispatchWorkgroups(4),this.run2D(n,"zonalSum",this.vel[this.vc],null,this.div),this.run2D(n,"forces",this.vel[this.vc],this.aux,this.vel[1-this.vc]),this.vc=1-this.vc,this.run2D(n,"divergence",this.vel[this.vc],null,this.div);for(let r=0;r<c.iterations;r++)this.run2D(n,"jacobi",this.prs[this.pc],this.div,this.prs[1-this.pc]),this.pc=1-this.pc;this.run2D(n,"project",this.vel[this.vc],this.prs[this.pc],this.vel[1-this.vc]),this.vc=1-this.vc,i=this.vel[this.vc]}else this.run2D(n,"flowField",null,null,this.flow),i=this.flow;if(c.look==="dye")this.run2D(n,"advectDye",this.dye[this.dc],i,this.dye[1-this.dc]),this.dc=1-this.dc,n.end();else{n.end();const r=this.dye[this.dc],a=this.dye[1-this.dc];t.copyTextureToTexture({texture:r.tex},{texture:a.tex},[r.n,r.n,6]);const o=t.beginComputePass();o.setPipeline(this.pipes.moveParticles),o.setBindGroup(0,this.bind(r,i,a,this.parts));const d=Math.ceil(c.particles/64);o.dispatchWorkgroups(Math.min(d,65535),Math.ceil(d/65535)),this.run2D(o,"blurRelax",a,null,r),o.end()}return i}last=performance.now();fpsAcc=0;fpsFrames=0;run(){const t=n=>{const i=Math.min((n-this.last)/1e3,.1);this.last=n,this.fpsAcc+=i,this.fpsFrames++,this.fpsAcc>.5&&(ve.textContent=`${Math.round(this.fpsFrames/this.fpsAcc)} fps`,this.fpsAcc=0,this.fpsFrames=0),this.resize(),this.frameOnce(i),this.offscreen?this.device.queue.onSubmittedWorkDone().then(()=>requestAnimationFrame(t)):requestAnimationFrame(t)};requestAnimationFrame(t)}simStep(t){return this.time+=T,this.frame++,this.updateStorms(T),this.writeSim(T),this.step(t)}submitStep(){const t=this.device.createCommandEncoder(),n=this.simStep(t);return this.device.queue.submit([t.finish()]),n}frameOnce(t){if(this.needsInit||this.needsDye){const o=this.device.createCommandEncoder();this.needsInit&&(this.time=0,this.stepAcc=0),this.writeSim(0,!0),this.initFields(o,this.needsInit),this.device.queue.submit([o.finish()]),this.needsInit&&(this.warm=E),this.needsInit=!1,this.needsDye=!1}let n=c.flow==="fluid"?this.vel[this.vc]:this.flow;if(!c.paused){this.warm>0&&this.offscreen?this.warmRate=H:this.warm>0&&(t>1/28?this.warmRate=Math.max(1,this.warmRate-1):t<1/45&&(this.warmRate=Math.min(H,this.warmRate+1)));for(let d=0;d<this.warmRate&&this.warm>0;d++,this.warm--)n=this.submitStep();this.stepAcc+=c.timeScale;const o=Math.min(Math.floor(this.stepAcc),8);this.stepAcc-=o;for(let d=0;d<o;d++)n=this.submitStep()}xe.textContent=this.warm>0?` · ${s("Einschwingen","spinning up")} ${Math.round(100*(1-this.warm/E))} %`:"",this.spin+=c.paused?0:t*.08*c.spinSpeed*(9.93/this.preset.rotationHours);const i=this.device.createCommandEncoder();this.writeRender();const r=this.device.createBindGroup({layout:this.renderPipe.getBindGroupLayout(0),entries:[{binding:0,resource:{buffer:this.renderBuf}},{binding:1,resource:this.sampler},{binding:2,resource:this.dye[this.dc].cube},{binding:3,resource:n.cube},{binding:4,resource:this.aux.cube},{binding:5,resource:this.prs[this.pc].cube}]}),a=i.beginRenderPass({colorAttachments:[{view:this.targetView(),loadOp:"clear",storeOp:"store",clearValue:[0,0,0,1]}]});a.setPipeline(this.renderPipe),a.setBindGroup(0,r),a.draw(3),a.end(),this.device.queue.submit([i.finish()])}targetView(){return this.offscreen?((!this.target||this.target.width!==m.width||this.target.height!==m.height)&&(this.target?.destroy(),this.target=this.device.createTexture({size:[m.width,m.height],format:"rgba8unorm",usage:GPUTextureUsage.RENDER_ATTACHMENT|GPUTextureUsage.COPY_SRC})),this.target.createView()):this.ctx.getCurrentTexture().createView()}async readRow(t,n,i){const r=t==="dye"?this.dye[this.dc]:t==="flow"?this.flow:this.vel[this.vc],a=Math.ceil(r.n*8/256)*256,o=this.device.createBuffer({size:a,usage:GPUBufferUsage.COPY_DST|GPUBufferUsage.MAP_READ}),d=this.device.createCommandEncoder();d.copyTextureToBuffer({texture:r.tex,origin:[0,i,n]},{buffer:o,bytesPerRow:a},[r.n,1,1]),this.device.queue.submit([d.finish()]),await o.mapAsync(GPUMapMode.READ);const l=new Uint16Array(o.getMappedRange().slice(0));o.destroy();const u=g=>{const h=g>>15?-1:1,p=g>>10&31,b=g&1023;return p===0?h*b*2**-24:p===31?NaN:h*(1+b/1024)*2**(p-15)},f=[];for(let g=0;g<r.n;g++)f.push([0,1,2,3].map(h=>u(l[g*4+h])));return f}async capture(){if(!this.target)return"";const t=this.target.width,n=this.target.height,i=Math.ceil(t*4/256)*256,r=this.device.createBuffer({size:i*n,usage:GPUBufferUsage.COPY_DST|GPUBufferUsage.MAP_READ}),a=this.device.createCommandEncoder();a.copyTextureToBuffer({texture:this.target},{buffer:r,bytesPerRow:i},[t,n]),this.device.queue.submit([a.finish()]),await r.mapAsync(GPUMapMode.READ);const o=new Uint8Array(r.getMappedRange()),d=new ImageData(t,n);for(let u=0;u<n;u++)d.data.set(o.subarray(u*i,u*i+t*4),u*t*4);r.unmap(),r.destroy();const l=document.createElement("canvas");return l.width=t,l.height=n,l.getContext("2d").putImageData(d,0,0),l.toDataURL("image/png")}resize(){const t=Math.min(devicePixelRatio||1,this.dpr),n=Math.max(1,Math.round(m.clientWidth*t)),i=Math.max(1,Math.round(m.clientHeight*t));(m.width!==n||m.height!==i)&&(m.width=n,m.height=i)}bindInput(){const t=new Map;let n=0;m.addEventListener("pointerdown",r=>{m.setPointerCapture(r.pointerId),t.set(r.pointerId,{x:r.clientX,y:r.clientY})});const i=r=>{t.delete(r.pointerId),n=0};m.addEventListener("pointerup",i),m.addEventListener("pointercancel",i),m.addEventListener("pointermove",r=>{const a=t.get(r.pointerId);if(a){if(t.set(r.pointerId,{x:r.clientX,y:r.clientY}),t.size===2){const[o,d]=[...t.values()],l=Math.hypot(o.x-d.x,o.y-d.y);n&&this.zoom(n/l),n=l;return}c.map||(this.cam.yaw-=(r.clientX-a.x)*.006,this.cam.pitch=Math.max(-1.45,Math.min(1.45,this.cam.pitch+(r.clientY-a.y)*.006)))}}),m.addEventListener("wheel",r=>{r.preventDefault(),this.zoom(Math.exp(r.deltaY*.001))},{passive:!1})}zoom(t){this.cam.dist=Math.max(1.25,Math.min(8,this.cam.dist*t))}buildUI(){const t=document.getElementById("panel-body");t.innerHTML="";const n=l=>this.onChange(l),i=l=>`${Math.round(l*100)} %`,r=l=>l.toFixed(2),a=l=>l.toFixed(3),o=l=>l>=1e6?`${(l/1e6).toFixed(l%1e6?2:0)} ${s("Mio.","M")}`:l>=1e3?`${Math.round(l/1024)} k`:String(l),d=l=>({Neptun:s("Neptun","Neptune"),"Heißer Jupiter":s("Heißer Jupiter","Hot Jupiter")})[l]??l;this.panel=new ge(t,c,n),this.panel.section("Planet").select("preset",s("Vorlage","Preset"),[...M.map(l=>[l.name,d(l.name)]),["Zufall",s("Zufallsplanet","Random planet")]],s("Lädt Windprofil, Farbbänder, Stürme, Abplattung und Ringe eines Planeten. Alles sind Zahlen, keine Bilder.","Loads a planet’s wind profile, colour bands, storms, oblateness and rings. All numbers, no images.")).select("quality",s("Qualität","Quality"),[["phone",s("Handy","Phone")],["standard","Standard"],["high",s("Hoch (4 Mio. Partikel)","High (4 M particles)")]],s("Setzt Gitterauflösung, Farbauflösung, Partikelzahl und Pixeldichte auf einmal. „Handy“ ist für Smartphones gedacht.","Sets grid resolution, colour resolution, particle count and pixel density at once. “Phone” is meant for smartphones.")).file("image",s("Farben aus Bild","Colours from image"),s("Lade ein Planetenfoto oder eine flache Karte. Für jeden Breitengrad wird die mittlere Farbe gemessen und als Bandfarbe übernommen. Das Bild wird nicht als Textur benutzt, die Wolken entstehen weiter aus der Simulation.","Load a planet photo or a flat map. The average colour of each latitude becomes that band’s colour. The image is not used as a texture; the clouds still come from the simulation."),l=>se(l).then(u=>{this.preset={...this.preset,name:`${this.preset.name} (${s("Farben aus Bild","colours from image")})`,bands:u},this.writeTables(),this.needsDye=!0;const f=document.getElementById("planet-info");f&&(f.textContent=`${this.preset.name} · ${s("Farben aus","colours from")} ${l.name}`)}).catch(()=>w(s("<b>Das Bild ließ sich nicht lesen.</b> Nimm ein JPG, PNG oder WebP.","<b>Could not read the image.</b> Use a JPG, PNG or WebP.")))).buttons([["btn-reset",s("Neu starten","Restart"),()=>{this.needsInit=!0}],["btn-warm",s("Einschwingen","Spin up"),()=>{this.warm=E}],["btn-defaults",s("Regler zurücksetzen","Reset controls"),()=>this.resetSettings()],["btn-seed",s("Neuer Zufall","New seed"),()=>{c.seed=c.seed%9973+1,c.preset==="Zufall"&&this.applyPreset(),this.needsInit=!0}],["btn-pause",c.paused?s("Weiter","Resume"):"Pause",()=>{c.paused=!c.paused,document.getElementById("btn-pause").textContent=c.paused?s("Weiter","Resume"):"Pause"}]]).section(s("Verfahren","Method"),s("Strömung bestimmt, woher der Wind kommt. Darstellung bestimmt, wie die Wolken ihm folgen. Alle vier Kombinationen laufen.","Flow decides where the wind comes from. Look decides how the clouds follow it. All four combinations work.")).select("flow",s("Strömung","Flow"),[["fluid","Stable Fluids (mofu)"],["curl","Curl noise (jasper-r)"]],s("Stable Fluids löst die Strömungsgleichung mit Druck, Coriolis und Wirbeln (physikalisch). Curl-Noise ist ein verwirbeltes Rauschfeld plus Jets (schnell, aber ohne Physik).","Stable Fluids solves the flow equations with pressure, Coriolis and vortices (physical). Curl noise is a swirling noise field plus jets (fast, but no physics).")).select("look",s("Darstellung","Look"),[["dye",s("Farbstoff","Dye")],["particles",s("Partikel","Particles")]],s("Farbstoff: jede Zelle der Farbtextur wird mit dem Wind verschoben. Partikel: Millionen Punkte fliegen mit dem Wind und färben die Textur, die langsam verblasst.","Dye: every cell of the colour texture is carried by the wind. Particles: millions of points ride the wind and paint the texture, which slowly fades.")).range("timeScale",s("Zeitraffer","Time lapse"),.25,8,.25,s("Simulationsschritte pro Bild. Jeder Schritt ist gleich groß, die Physik bleibt also dieselbe, sie läuft nur schneller ab. Kostet entsprechend mehr Rechenleistung. Zum schnellen Erreichen des stabilen Zustands gibt es den Knopf „Einschwingen“.","Simulation steps per frame. Every step has the same size, so the physics stay the same and just run faster. Costs more GPU time. To reach a settled state quickly, use “Spin up”."),l=>`${l.toFixed(2)}×`).section(s("Wind und Physik","Wind and physics"),s("Wirkt bei Strömung „Stable Fluids“. Jet-Stärke wirkt überall.","Applies to the “Stable Fluids” flow. Jet strength applies everywhere.")).range("jetStrength",s("Jet-Stärke","Jet strength"),0,.2,.002,s("Spitzengeschwindigkeit der Ost-West-Winde in Radiant pro Sekunde. Bei Jupiter wären das echte 150 m/s. Skaliert auch Stürme und Turbulenz.","Peak east–west wind speed in radians per second (on Jupiter the real value is 150 m/s). Also scales storms and turbulence."),a).range("jetRelax",s("Jet-Rückstellung","Jet restoring"),0,2,.01,s("Wie stark das Breitenkreis-Mittel der Ost-West-Winde zum gemessenen Windprofil zurückgezogen wird. Wirbel bleiben unberührt. 0 = die Strömung ist frei und die Bänder zerfallen mit der Zeit.","How strongly the latitude-circle mean of the east–west wind is pulled back to the measured profile. Vortices are left alone. 0 = free flow, bands decay over time."),r).range("omega",s("Coriolis (Rotation)","Coriolis (rotation)"),0,3,.01,s("Physikalische Planetenrotation in der Strömungsgleichung. Lenkt Winde ab (Nordhalbkugel nach rechts) und erzeugt über den β-Effekt Rossby-Wellen und langlebige Wirbel. 0 = nicht rotierender Planet. Die sichtbare Drehung stellst du unter „Drehgeschwindigkeit“ ein.","Physical planet rotation in the flow equations. Deflects winds (to the right in the north) and, through the β-effect, creates Rossby waves and long-lived vortices. 0 = non-rotating planet. The visible spin is set under “Spin speed”."),r).range("turbulence",s("Turbulenz","Turbulence"),0,3,.01,s("Kleine zufällige Anstöße im Wind. Sie lösen die Scherinstabilitäten an den Jet-Rändern aus (Kelvin-Helmholtz-Wellen).","Small random kicks in the wind. They trigger shear instabilities at jet edges (Kelvin–Helmholtz waves)."),r).range("turbScale",s("Turbulenz-Größe","Turbulence scale"),1,20,.5,s("Größe der Anstöße: klein = viele feine Wirbel, groß = wenige große.","Size of the kicks: small = many fine eddies, large = a few big ones."),l=>l.toFixed(1)).range("confinement",s("Wirbelverstärkung","Vorticity confinement"),0,8,.05,s("Vorticity Confinement: gibt Wirbeln die Energie zurück, die das grobe Gitter wegschmiert. Wirkt vor allem auf die kleinsten Wirbel. Über etwa 2 pumpt es Gitterrauschen auf und die Bänder werden kammartig.","Gives vortices back the energy the coarse grid smears away, mostly for the smallest eddies. Above about 2 it amplifies grid noise and bands turn comb-like."),r).range("drag",s("Reibung","Drag"),0,.5,.005,s("Bremst den ganzen Wind gleichmäßig ab.","Slows the whole wind field uniformly."),a).range("iterations",s("Druck-Iterationen","Pressure iterations"),2,80,1,s("Jacobi-Schritte für die Druckgleichung. Mehr = sauberer divergenzfrei, aber teurer. Der wichtigste Leistungsregler.","Jacobi steps for the pressure equation. More = closer to divergence-free, but slower. The most important performance control.")).range("velRes",s("Gitter je Würfelfläche","Grid per cube face"),32,256,16,s("Auflösung des Windgitters. 128 heißt 6 × 128 × 128 Zellen auf der Kugel.","Wind grid resolution. 128 means 6 × 128 × 128 cells on the sphere."),l=>`${l}²`).toggle("bfecc",s("BFECC-Advektion","BFECC advection"),s("Fehlerkorrektur beim Mitführen (vor, zurück, halben Fehler abziehen). Macht Wirbel und Farbkanten schärfer, kostet zwei zusätzliche Abtastungen.","Error correction during transport (back, forth, subtract half the error). Sharper vortices and colour edges for two extra samples.")).section("Curl noise",s("Wirkt bei Strömung „Curl-Noise“.","Applies to the “Curl noise” flow."),!1).range("curlStrength",s("Stärke","Strength"),0,3,.01,s("Wie stark das Rauschfeld gegenüber den Jets ist.","Strength of the noise field relative to the jets."),r).range("curlFreq",s("Frequenz","Frequency"),1,16,.1,s("Größe der Wirbel im Rauschfeld: hoch = viele kleine.","Size of the swirls in the noise: high = many small ones."),l=>l.toFixed(1)).range("curlSpeed",s("Veränderung","Evolution"),0,.5,.005,s("Wie schnell sich das Rauschfeld mit der Zeit umbaut.","How fast the noise field changes over time."),a).range("curlOctaves",s("Oktaven","Octaves"),1,6,1,s("Anzahl überlagerter Rausch-Ebenen. Mehr = feinere Details.","Number of stacked noise layers. More = finer detail.")).range("vortexCount",s("Wirbel","Vortices"),0,128,1,s("Anzahl eingestreuter Wirbel (Rezept aus Gaseous Giganticus). Sie werden nur dort gesetzt, wo die Jets schwach sind, und drehen mit der lokalen Scherung, damit sie nicht zerrissen werden.","Number of seeded vortices (Gaseous Giganticus recipe). Placed only where jets are weak, spinning with the local shear so they are not torn apart.")).range("vortexStrength",s("Wirbel-Stärke","Vortex strength"),0,4,.05,s("Drehgeschwindigkeit der eingestreuten Wirbel relativ zur Jet-Stärke.","Spin of the seeded vortices relative to jet strength."),r).range("curlRes",s("Feinheit Strömungsfeld","Flow field resolution"),64,1024,64,s("Auflösung des Curl-Noise-Strömungsfelds je Würfelfläche. Gaseous Giganticus nutzt 2048. Feiner = feinere Filamente, kostet Rechenzeit.","Resolution of the curl noise flow field per cube face. Gaseous Giganticus uses 2048. Finer = finer filaments, more GPU time."),l=>`${l}²`).section(s("Partikel","Particles"),s("Wirkt bei Darstellung „Partikel“.","Applies to the “Particles” look."),!1).range("particles",s("Anzahl","Count"),16384,4194304,16384,s("Anzahl der Partikel. jasper-r nutzte 4 Mio. bei 80 fps auf einem PC. Handys schaffen etwa 0,25 bis 1 Mio.","Number of particles. jasper-r used 4 M at 80 fps on a PC. Phones manage roughly 0.25 to 1 M."),o).range("lifetime",s("Lebensdauer","Lifetime"),.5,60,.5,s("Sekunden, bis ein Partikel neu geboren wird. Lang = lange Schlieren. Ganz rechts (60) leben Partikel ewig wie bei Gaseous Giganticus und ziehen immer feinere Fäden.","Seconds until a particle respawns. Long = long streaks. At the far right (60) particles live forever, as in Gaseous Giganticus, and draw ever finer threads."),l=>l>=60?s("ewig","forever"):`${l.toFixed(1)} s`).range("opacity",s("Deckkraft","Opacity"),.01,1,.01,s("Wie stark ein Partikel seine Farbe in die Textur schreibt.","How strongly a particle writes its colour into the texture."),i).range("blur",s("Weichzeichnen","Blur"),0,1,.01,s("Verwischt die Textur jedes Bild ein wenig, damit aus Punkten Wolken werden.","Blurs the texture slightly every frame so points become clouds."),i).section(s("Wolken und Stürme","Clouds and storms")).range("bandRelax",s("Band-Rückstellung","Band restoring"),0,.5,.005,s("Wie schnell die Farbe zum Band ihrer Breite zurückkehrt. 0 = alles vermischt sich irgendwann zu Brei, hoch = starre Streifen.","How fast colour returns to its latitude’s band. 0 = everything eventually mixes into mush, high = rigid stripes."),a).range("fineStripes",s("Feinstreifen","Fine stripes"),0,2,.05,s("Feine Farbstreifen innerhalb der Bänder. Erst sie machen sichtbar, wie die Strömung Farbe zu Filamenten zieht, wie auf den Juno-Nahaufnahmen.","Fine colour stripes inside the bands. They make it visible how the flow pulls colour into filaments, as in Juno close-ups."),r).range("bandWobble",s("Band-Mäander","Band meander"),0,3,.05,s("Verbiegt die Bandgrenzen mit Rauschen, damit sie nicht wie mit dem Lineal gezogen sind.","Bends band edges with noise so they are not ruler-straight."),r).range("contrast",s("Band-Kontrast","Band contrast"),0,2.5,.05,s("Verstärkt oder dämpft den Farbunterschied zwischen hellen Zonen und dunklen Gürteln.","Raises or lowers the colour difference between bright zones and dark belts."),r).range("convection",s("Konvektion","Convection"),0,4,.05,s("Helle Wolkentürme, die aus der Tiefe aufsteigen (Ammoniak-Eis).","Bright cloud towers rising from below (ammonia ice)."),r).toggle("storms",s("Vorlagen-Stürme","Preset storms"),s("Setzt beim Start die bekannten Stürme der Vorlage als Wirbel ein (z. B. Großer Roter Fleck). Danach leben sie von der Physik allein: Sie treiben, verformen sich, verschmelzen oder zerfallen.","Seeds the preset’s known storms as vortices at start (e.g. the Great Red Spot). After that they live on physics alone: they drift, deform, merge or decay.")).range("stormHold",s("Stürme festhalten","Hold storms"),0,1,.01,s("Treibt die Vorlagen-Stürme dauerhaft an und färbt sie nach. 0 = reine Physik (Stürme dürfen vergehen), 1 = der Sturm wird ständig nachgeführt wie ein Beobachtungsdatum. Bei Curl-Noise immer voll, weil das Rauschfeld keine eigene Dynamik hat.","Keeps driving and recolouring the preset storms. 0 = pure physics (storms may fade), 1 = the storm is enforced like observation data. Always full in curl noise mode, which has no dynamics of its own."),i).range("stormSpawn",s("Neue Stürme","New storms"),0,2,.01,s("Wie oft aufsteigende Konvektion einen neuen Wirbel anstößt (pro Sekunde Simulationszeit). Meist Antizyklone (weiße Ovale), manchmal Zyklone (dunkle Barken). Nur bei Stable Fluids.","How often rising convection kicks off a new vortex (per second of simulated time). Mostly anticyclones (white ovals), sometimes cyclones (dark barges). Stable Fluids only."),r).range("stormStrength",s("Sturm-Stärke","Storm strength"),0,4,.05,s("Drehgeschwindigkeit der Stürme relativ zur Jet-Stärke.","Storm spin relative to jet strength."),r).range("stormTint",s("Sturm-Farbe","Storm colour"),0,4,.05,s("Wie stark ein angetriebener Sturm seine eigene Farbe in die Wolken gibt.","How strongly a driven storm tints the clouds with its own colour."),r).range("dyeRes",s("Farbauflösung","Colour resolution"),128,1536,64,s("Auflösung der Wolkentextur je Würfelfläche. Bestimmt die Schärfe beim Heranzoomen.","Cloud texture resolution per cube face. Sets sharpness when zooming in."),l=>`${l}²`).section(s("Licht und Ansicht","Light and view")).range("sunAngle",s("Sonnenstand","Sun angle"),-180,180,1,s("Richtung der Sonne. 0° = Sonne hinter der Kamera (voller Planet), 90° = Halbphase.","Sun direction. 0° = sun behind the camera (full disc), 90° = half phase."),l=>`${l}°`).range("relief","Relief",0,2,.01,s("Hebt helle Wolken optisch an und wirft weiche Schatten, wie bei den Juno-Nahaufnahmen.","Lifts bright clouds visually and casts soft shadows, as in Juno close-ups."),r).range("limb",s("Randverdunkelung","Limb darkening"),.8,2,.01,s("Minnaert-Exponent. 1 = matte Kugel; höher = dunkler Rand wie bei echten Gasplaneten.","Minnaert exponent. 1 = matte sphere; higher = darker limb, as on real gas giants."),r).range("atmosphere",s("Dunstsaum","Haze rim"),0,3,.05,s("Helligkeit des Atmosphärensaums am Planetenrand.","Brightness of the atmospheric rim at the planet’s edge."),r).range("exposure",s("Belichtung","Exposure"),.3,3,.05,s("Gesamthelligkeit.","Overall brightness."),r).range("spinSpeed",s("Drehgeschwindigkeit","Spin speed"),0,5,.05,s("Sichtbare Eigendrehung. Von Norden gesehen gegen den Uhrzeigersinn, mit Norden oben laufen die Wolken also von links nach rechts. 1 = Tempo passend zur Tageslänge der Vorlage, 0 = steht still. Ändert nur die Ansicht, nicht die Physik.","Visible spin. Counter-clockwise seen from the north, so with north up the clouds move left to right. 1 = matches the preset’s day length, 0 = still. Affects the view only, not the physics."),l=>`${l.toFixed(2)}×`).toggle("map",s("Kartenansicht","Map view"),s("Zeigt die ganze Kugel als flache Weltkarte (Längen- und Breitengrade). Gut, um Jets und Stürme zu vergleichen.","Shows the whole sphere as a flat map (longitude/latitude). Good for comparing jets and storms.")).select("view",s("Feld anzeigen","Show field"),[["0",s("Wolken","Clouds")],["1",s("Wind (Richtung)","Wind (direction)")],["2",s("Wirbelstärke","Vorticity")],["3",s("Druck","Pressure")]],s("Debug-Ansichten. Wind: Rot = Ost, Grün = Nord. Wirbelstärke: Rot = gegen den Uhrzeigersinn, Blau = im Uhrzeigersinn. Druck gibt es nur bei Stable Fluids.","Debug views. Wind: red = east, green = north. Vorticity: red = counter-clockwise, blue = clockwise. Pressure exists only with Stable Fluids.")),this.updateVisibility(),this.applyStaticText()}applyStaticText(){const t=(r,a)=>{const o=document.getElementById(r);o&&(o.textContent=a)};t("hint",s("ziehen zum Drehen, Mausrad oder zwei Finger zum Zoomen","drag to rotate, scroll or pinch to zoom")),t("panel-title",s("Regler","Controls")),t("lang",R==="de"?"EN":"DE");const n=document.getElementById("lang");n&&n.setAttribute("aria-label",s("Sprache: Englisch","Language: German"));const i=document.getElementById("credits");i&&(i.innerHTML=s('Echtzeit-WebGPU, keine Bilddateien. Idee: elias-nero-tron. Verfahren nach <a href="https://mofu-dev.com/en/blog/stable-fluids/" target="_blank" rel="noopener">mofu</a>, <a href="https://jasper-r.github.io/gas-giant" target="_blank" rel="noopener">jasper-r</a> und Gaseous Giganticus. <a href="https://github.com/elias-nero-tron/Fluid-Gas-Planet" target="_blank" rel="noopener">Quellcode</a>','Real-time WebGPU, no image files. Idea: elias-nero-tron. Methods after <a href="https://mofu-dev.com/en/blog/stable-fluids/" target="_blank" rel="noopener">mofu</a>, <a href="https://jasper-r.github.io/gas-giant" target="_blank" rel="noopener">jasper-r</a> and Gaseous Giganticus. <a href="https://github.com/elias-nero-tron/Fluid-Gas-Planet" target="_blank" rel="noopener">Source code</a>')),this.updateInfo()}updateInfo(){const t=document.getElementById("planet-info");if(!t)return;const n=this.preset;t.textContent=`${n.name} · ${s("Abplattung","oblateness")} ${n.oblateness.toFixed(3)} · ${s("Achse","tilt")} ${n.tilt.toFixed(1)}° · ${s("Tag","day")} ${n.rotationHours.toFixed(1)} h · ${n.storms.length} ${s("Stürme","storms")}`}updateVisibility(){const t=c.flow==="fluid",n=c.look==="particles";for(const i of["jetRelax","omega","turbulence","turbScale","confinement","drag","iterations","velRes","stormSpawn"])this.panel.visible(i,t);for(const i of["curlStrength","curlFreq","curlSpeed","curlOctaves","vortexCount","vortexStrength","curlRes"])this.panel.visible(i,!t);for(const i of["particles","lifetime","opacity","blur"])this.panel.visible(i,n)}resetSettings(){const t={preset:c.preset,quality:c.quality,velRes:c.velRes,dyeRes:c.dyeRes,curlRes:c.curlRes,particles:c.particles,seed:c.seed};Object.assign(c,be,t),this.applyPreset(),m.classList.toggle("map",c.map),this.updateVisibility(),this.panel.refresh();const n=document.getElementById("btn-pause");n&&(n.textContent="Pause")}toggleLang(){pe(R==="de"?"en":"de"),this.buildUI()}onChange(t){switch(t){case"preset":this.applyPreset();break;case"quality":this.applyQuality(!0),this.panel.refresh();break;case"contrast":this.writeTables();break;case"fineStripes":this.needsDye=!0;break;case"velRes":case"curlRes":this.allocVel();break;case"dyeRes":this.allocDye();break;case"particles":this.allocParticles();break;case"flow":case"look":this.updateVisibility();break;case"map":m.classList.toggle("map",c.map);break}}}ye().catch(e=>w(`${s("<b>Start fehlgeschlagen:</b>","<b>Start failed:</b>")} ${e instanceof Error?e.message:String(e)}`));</script>
+</head>
+<body>
+<div id="app">
+  <div id="stage">
+    <canvas id="view" aria-label="Real-time gas giant simulation"></canvas>
+    <div class="hud">
+      <h1>Fluid Gas Planet</h1>
+      <div class="meta" id="planet-info">Jupiter</div>
+      <div class="meta"><span id="fps">– fps</span><span id="warm"></span> · <span id="hint">drag to rotate, scroll or pinch to zoom</span></div>
+    </div>
+    <div id="status" hidden></div>
+  </div>
+  <aside id="panel">
+    <div class="panel-head"><button id="panel-toggle" type="button" aria-expanded="false" aria-controls="panel-body"><span id="panel-title">Controls</span> <span aria-hidden="true">▴</span></button><button id="lang" type="button">DE</button></div>
+    <div id="panel-body"></div>
+    <p class="credits" id="credits"></p>
+  </aside>
+</div>
+<script>
+  (function () {
+    var aside = document.getElementById('panel');
+    var btn = document.getElementById('panel-toggle');
+    btn.addEventListener('click', function () {
+      var open = aside.classList.toggle('open');
+      btn.setAttribute('aria-expanded', String(open));
+      btn.querySelector('[aria-hidden]').textContent = open ? '▾' : '▴';
+    });
+  })();
+</script>
+</body>
+</html>
