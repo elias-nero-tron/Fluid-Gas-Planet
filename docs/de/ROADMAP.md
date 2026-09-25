@@ -48,6 +48,13 @@ Quellen: Max & Becker 1995 (Flow Textures), Perlin & Neyret 2001 (Flow Noise),
 Neyret 2003 (Advected Textures). Umsetzung: neues Feld `uvw` (rgba16float, Herkunft als
 Richtung + Phase) mit `advectDye`-Logik, Detailrauschen in `render.wgsl` statt aus `dyeTex`.
 
+**Sichtabhängiges Detail (Idee von elias-nero-tron):** Detailarbeit nur dort, wo die Kamera hinschaut.
+Heranzoomen wird schärfer, ohne fps zu kosten. Reine Partikel-Konzentration im Sichtfeld hat einen Haken:
+Neu sichtbare Stellen haben beim Drehen keine Schlieren-Vorgeschichte. Mit advektierten Koordinaten bleibt
+die Strömung global und billig, das Detail entsteht pro sichtbarem Pixel, also genau „näher = feiner,
+gleiche Kosten“. (jasper-rs Artikel verteilt die Partikel über die ganze Kugel; das ist nicht der Grund
+für den guten Look dort, sondern Licht und weiche Schlieren.)
+
 ### 1b. Echte Atmosphärenstreuung (mittel)
 Weiches Streulicht am Rand und durchscheinende Wolken machen einen großen Teil des
 Alien-Isolation-Looks aus. MIT-lizenzierte WebGPU-Umsetzung: cgcostume/himmel-dunstkreis
