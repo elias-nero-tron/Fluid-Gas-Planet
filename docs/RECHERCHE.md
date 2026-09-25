@@ -60,8 +60,45 @@ Wirbelstärke-Formulierung, die für rotierende Planeten die richtige Physik ist
   verschwommenen Band-Bild (ca. 200×1200 px).
 - **Für uns:** Bestätigt die Wahl **Cubemap statt Equirect**. Den Trick „Farbband als
   Eingangsverteilung“ ersetzen wir durch eine prozedurale Palette (kein Bild).
-- Eine Echtzeit-Variante davon (Partikel per Compute-Shader) existiert als Demo
-  „Gas giant particle sim on a sphere“ (jasper-r.github.io/gas-giant), Quellcode nicht gefunden.
+- Eine Echtzeit-Variante davon ist der Artikel „Gas giant particle sim on a sphere“
+  (jasper-r.github.io/gas-giant), siehe Abschnitt 6.
+
+### 6. jasper-r: Gas giant particle sim on a sphere (2022) – Wunsch-Look „Minimum“
+Quelle: Blogartikel `_posts/2022-02-22-gas-giant.html` im Repo
+[Jasper-R/Jasper-R.github.io](https://github.com/Jasper-R/Jasper-R.github.io). Gebaut in der
+Unigine-Engine (C#, Shadersprache UUSL). **Der Simulationscode ist nicht veröffentlicht**, das
+Verfahren ist aber vollständig beschrieben und lässt sich in WGSL nachbauen:
+- Idee: Gaseous Giganticus nachbauen, aber in Echtzeit – die Partikel-Schleife läuft als
+  Compute-Shader statt auf der CPU. Ergebnis: **4 Mio. Partikel bei 80 fps**.
+- Partikel (Position + Lebenszeit) liegen in Polarkoordinaten in einem Puffer.
+- Oberflächentextur in **sinusoidaler Projektion** (flächentreu):
+  `y = H·φ/π`, `x = W·(θ/2π − 0,5)·sin φ`.
+- Strömung: **3D-Curl-Noise**, auf der Kugel ausgewertet, als Flow-Map gespeichert. Das
+  Noise wird über die Zeit verschoben; die Oktaven werden **eine pro Frame** aufgebaut
+  (Kanäle BA), danach nach RG kopiert → billige Aktualisierung.
+- Farbe: Partikel starten mit einer Farbe aus einem Breitengrad-Verlauf, werden mit
+  geringer Deckkraft in die Textur gemischt; die Textur wird **weichgezeichnet und blendet
+  langsam zur Grundfarbe zurück**.
+- Partikel werden **blockweise neu gestartet** (nicht alle gleichzeitig), Deckkraft
+  blendet über die Lebenszeit ein/aus → kein Flackern.
+
+**Für uns:** der schnellste Weg zu einem guten Bild. Curl-Noise ist allerdings nur Zufall –
+Jets und langlebige Stürme muss man zusätzlich ins Flussfeld einbauen.
+
+### 7. mofu-dev: Stable Fluids with three.js (2022) – Wunsch-Look „schöner“
+Quelle: [Blogartikel](https://mofu-dev.com/en/blog/stable-fluids/) (als PDF gelesen). Klassische
+Stable Fluids nach Stam auf einer **flachen** Fläche, three.js/WebGL, Fragment-Shader + FBOs:
+1. Äußere Kraft (Maus) auf die Geschwindigkeit addieren.
+2. Advektion semi-Lagrange, optional **BFECC** (rückwärts, vorwärts, Fehler halbieren,
+   nochmal rückwärts) → deutlich schärfere Wirbel.
+3. Viskosität per Jacobi-Iteration (für Optik optional).
+4. Divergenz → Druck per Jacobi (Poisson) → Druckgradient von der Geschwindigkeit abziehen.
+5. Färbung aus dem Geschwindigkeitsfeld.
+
+Keine Lizenzangabe → wir übernehmen das Rezept (Standardverfahren), keinen Code.
+**Für uns:** genau diese Schritte, aber auf der Kugel: Geschwindigkeit als 3D-Tangentialvektor
+in einer Cubemap, Nachbarn über Schritte entlang der Tangentialebene, Kraft = Jets +
+Coriolis + Stürme statt Maus. Das ist die Brücke zum Wirbelstärke-Löser im Plan.
 
 ### 4. Atmosphäre: himmel-dunstkreis (MIT) und Bruneton (BSD-3)
 - WebGPU-Compute, TypeScript, Shader als `.wgsl`-Strings, Qualität über
