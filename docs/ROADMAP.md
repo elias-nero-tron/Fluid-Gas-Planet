@@ -45,6 +45,13 @@ Perlin & Neyret 2001 (flow noise), Neyret 2003 (advected textures). Implementati
 `uvw` (rgba16float, source direction + phase) using the `advectDye` logic; detail noise in
 `render.wgsl` instead of reading `dyeTex`.
 
+**View-dependent detail (idea by elias-nero-tron):** spend the detail work only where the camera
+looks, so zooming in gets sharper without losing fps. Pure particle concentration in the view has a
+catch: when the planet turns, newly visible areas lack the accumulated streak history. With advected
+coordinates the flow stays global and cheap, and detail is generated per visible pixel, which gives
+exactly this “closer = finer, same cost” behaviour. (Note: jasper-r’s article distributes particles
+over the whole sphere, so this is not what makes that demo look good; lighting and soft streaks do.)
+
 ### 1b. Real atmospheric scattering (medium)
 Soft rim scattering and translucent clouds are a large part of the Alien: Isolation look.
 MIT-licensed WebGPU implementation: cgcostume/himmel-dunstkreis (Bruneton 2008 / Hillaire 2020),
