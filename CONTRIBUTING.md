@@ -1,25 +1,27 @@
-# Mitmachen
+# Contributing
 
-Weiterentwicklung ist ausdrücklich erwünscht: Forke, lerne, baue darauf auf. Bitte nenne dabei
-den Urheber (siehe [NOTICE](NOTICE), [CITATION.cff](CITATION.cff)). Die Apache-2.0-Lizenz
-verlangt, dass die NOTICE-Datei in Weitergaben und abgeleiteten Werken erhalten bleibt.
+Building on this project is explicitly welcome: fork it, learn from it, extend it. Please credit the
+author when you do (see [NOTICE](NOTICE), [CITATION.cff](CITATION.cff)); the Apache 2.0 license
+requires the NOTICE file to be kept in redistributions and derivative works.
+German version: [docs/de/CONTRIBUTING.md](docs/de/CONTRIBUTING.md).
 
-## Einstieg
+## Getting started
 
-1. [README](README.md) lesen, dann [docs/STATUS.md](docs/STATUS.md) (Stand und Befunde) und
-   [docs/ROADMAP.md](docs/ROADMAP.md) (Baustellen). Formeln und Fundstellen im Code:
-   [docs/MATHEMATIK.md](docs/MATHEMATIK.md).
-2. `npm install && npm run dev`, Browser mit WebGPU öffnen.
-3. Eine Baustelle aus der Roadmap wählen und im Issue oder Pull Request darauf verweisen.
+1. Read the [README](README.md), then [docs/STATUS.md](docs/STATUS.md) (state and findings) and
+   [docs/ROADMAP.md](docs/ROADMAP.md) (work items). Formulas and code locations:
+   [docs/MATH.md](docs/MATH.md).
+2. `npm install && npm run dev`, open a WebGPU browser.
+3. Pick a roadmap item and reference it in your issue or pull request.
 
-## Regeln
+## Rules
 
-- **Messen statt raten.** Aussagen über Fehler mit Test belegen. Werkzeuge: `#offscreen` an die
-  URL hängen, dann `window.gasPlanet.capture()` (Bild) und `window.gasPlanet.readRow()` (Feldwerte).
-- **Unverifiziertes kennzeichnen.** Was nur im Software-Renderer geprüft ist, im PR so benennen.
-  Auf echter Hardware Geprüftes mit Gerät und fps angeben.
-- **Kein fremder Code ohne passende Lizenz.** GPL-Projekte (z. B. Gaseous Giganticus, gas-giant)
-  nur als Ideenquelle. Übernommene Verfahren in [CREDITS.md](CREDITS.md) eintragen.
-- **Keine Bilddateien für die Planetenoberfläche.** Bilder nur als Messvorlage (z. B. „Farben aus Bild“).
-- Vor dem PR: `npm run typecheck` und `npm run build`.
-- Deutsch oder Englisch, beides willkommen.
+- **Measure, don't guess.** Back claims about bugs with a test. Tools: append `#offscreen` to the
+  URL, then `window.gasPlanet.capture()` (image) and `window.gasPlanet.readRow()` (field values).
+- **Label unverified work.** Say in the PR if something was only checked in a software renderer;
+  for real-hardware checks, state the device and fps.
+- **No third-party code without a compatible license.** GPL projects (e.g. Gaseous Giganticus,
+  gas-giant) are idea sources only. Add adopted methods to [CREDITS.md](CREDITS.md).
+- **No image files for the planet surface.** Images only as measurement input (e.g. “Colours from image”).
+- Keep both languages in the UI (`src/i18n.ts`, `t(german, english)`).
+- Before a PR: `npm run typecheck` and `npm run build`.
+- English or German, both welcome.

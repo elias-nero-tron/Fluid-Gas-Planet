@@ -1,15 +1,21 @@
 Fluid Gas Planet
 Copyright 2026 elias-nero-tron
 
-Urheber (Idee, Konzept, Projektleitung und Bewertung): elias-nero-tron
-Die Urheberschaft gilt der Person, nicht dem Konto. Zieht das Projekt auf ein anderes
-Konto oder eine Organisation um, bleibt diese Nennung bestehen.
+Author (idea, concept, project lead, evaluation): elias-nero-tron
+Authorship belongs to the person, not to the account. If the project moves to another
+account or organisation, this credit stays.
 
-Dieses Projekt steht unter der Apache License, Version 2.0 (siehe LICENSE).
-Wer dieses Werk oder ein davon abgeleitetes Werk weitergibt, muss diese NOTICE-Datei
-mitliefern (Abschnitt 4(d) der Lizenz) und soll das Projekt nach CITATION.cff zitieren.
+This project is licensed under the Apache License, Version 2.0 (see LICENSE).
+Anyone redistributing this work or a derivative work must include this NOTICE file
+(section 4(d) of the license) and is asked to cite the project as described in CITATION.cff.
 
-Umsetzung mit Unterstützung von Claude (Anthropic) als KI-Programmierassistent.
+Implemented with the help of Claude (Anthropic) as an AI programming assistant.
 
-Das Projekt enthält keinen fremden Quellcode. Übernommene Verfahren und Ideen
-sind in CREDITS.md mit Quelle aufgeführt.
+The project contains no third-party source code. Adopted methods and ideas are listed
+with their sources in CREDITS.md.
+
+---
+
+Urheber (Idee, Konzept, Projektleitung, Bewertung): elias-nero-tron
+Die Urheberschaft gilt der Person, nicht dem Konto. Wer das Werk oder ein abgeleitetes Werk
+weitergibt, muss diese NOTICE-Datei mitliefern und soll nach CITATION.cff zitieren.

@@ -1,88 +1,93 @@
-# Baustellen und Roadmap
+# Roadmap and open work
 
-Sortiert nach Wirkung. Jede Baustelle ist so beschrieben, dass man sie ohne Vorwissen aus
-dem Entwicklungsgespräch anfangen kann. Hintergrund: [STATUS.md](STATUS.md), Formeln: [MATHEMATIK.md](MATHEMATIK.md).
+Ranked by impact. Each item can be started without knowledge of the original conversation.
+Background: [STATUS.md](STATUS.md), formulas: [MATH.md](MATH.md). German original: [de/ROADMAP.md](de/ROADMAP.md).
 
-## Stärken, auf denen man aufbauen kann
+## Strengths to build on
 
-- **Läuft in Echtzeit im Browser**, auf integrierter Grafik 25–41 fps (Nutzer-Test v0.1).
-- **Keine Bilddateien**: Planeten sind Zahlen (Windprofil, Farbbänder, Stürme). Fünf Vorlagen
-  plus Zufallsplanet plus „Farben aus Bild“.
-- **Zwei Verfahren frei kombinierbar**: Stable Fluids (physikalisch) und Curl-Noise/Partikel
-  (Gaseous-Giganticus-Rezept), jeweils mit Farbstoff oder Partikeln.
-- **Saubere Kugel-Geometrie**: Würfelkugel ohne Pol-Singularität, Wind als 3D-Tangentialvektor,
-  Ableitungen mit echter Gittermetrik, nahtloses Abtasten über Kanten.
-- **Physik mit Begründung**: Coriolis als exakte Drehung, Jets über das Breitenkreis-Mittel,
-  Stürme frei beweglich, Drucklöser. Jeder Regler erklärt im Panel, was er physikalisch tut.
-- **Darstellung**: Ellipsoid, Minnaert-Randverdunkelung, Relief, Dunstsaum, Ringe mit
-  Schatten und Antialiasing.
-- **Testbarkeit**: `#offscreen`-Modus mit Bild- und Feldauslese für Headless-Tests.
-- **Ehrliche Befundlage**: Jeder bekannte Fehler ist gemessen und dokumentiert.
+- **Runs in real time in the browser**, on integrated graphics (author test, v0.1).
+- **No image files**: planets are numbers (wind profile, colour bands, storms). Five presets,
+  random planets and “Colours from image”.
+- **Two methods, freely combined**: Stable Fluids (physical) and curl noise/particles (Gaseous
+  Giganticus recipe), each with dye or particles.
+- **Clean sphere geometry**: cube-sphere without pole singularity, wind as 3D tangent vectors,
+  metric-aware derivatives, seam-exact sampling across edges.
+- **Physics with reasons**: Coriolis as an exact rotation, jets via the latitude-circle mean, free
+  storms, pressure solver. Every control explains what it does physically.
+- **Rendering**: ellipsoid, Minnaert limb darkening, relief, haze rim, rings with shadows and anti-aliasing.
+- **Testability**: `#offscreen` mode with image and field read-back for headless tests.
+- **Honest record**: every known bug is measured and documented.
 
-## Schwachpunkte (bekannt)
+## Known weaknesses
 
-| Schwachpunkt | Ursache | Siehe |
+| Weakness | Cause | Item |
 |---|---|---|
-| Wirkt aus der Nähe wie eine kleine, zähe Flüssigkeit statt wie Jupiter | Detail wird über das Gitter geschoben statt getrennt erzeugt; dazu falscher Kennzahlenbereich (Ro zu groß, effektive Reynolds-Zahl zu klein, kein Deformationsradius) | Baustelle 1a, 1c, 2 |
-| Keine kompakten, runden Wirbel; stattdessen Nord-Süd-Wellen | 2D-inkompressibel = Deformationsradius unendlich | Baustelle 1c |
-| Keine echte 3D-Tiefe | nur eine Schicht; Relief aus Helligkeit geschätzt | Baustelle 4 |
-| Details verschwimmen oder Bänder zerfließen | Rückstellung statt Quellen; Transport ohne Begrenzer | Baustelle 2, 3 |
-| v0.2-Änderungen nicht auf echter Hardware bestätigt | nur Software-Renderer geprüft | Baustelle 0 |
+| Up close it looks like a small, viscous fluid rather than Jupiter | detail is transported on the grid instead of generated separately; wrong regime (Ro too high, effective Reynolds number too low, no deformation radius) | 1a, 1c, 2 |
+| No compact round vortices; north–south waves instead | 2D incompressible = infinite deformation radius | 1c |
+| No real 3D depth | single layer; relief estimated from brightness | 4 |
+| Detail blurs or bands dissolve | restoring instead of sources; transport without limiter | 2, 3 |
+| v0.2 not confirmed on real hardware | only software renderer | 0 |
 
-## Baustellen
+## Work items
 
-### 0. v0.2 auf echter Hardware prüfen (klein, zuerst)
-Checkliste: keine Linien an Würfelkanten (Saturn, Relief an), fps gegenüber v0.1 (25–41 fps auf
-iGPU), Aussehen nicht schlechter, Kaffee-Demo läuft. Wenn `sampleCube()` zu teuer ist: Halo-Texel
-(1 Texel Rand je Fläche, per eigenem Pass befüllt) statt Verzweigung.
+### 0. Verify v0.2 on real hardware (small, first)
+Checklist: no lines along cube edges (Saturn, relief on); steady-state fps vs. v0.1; look not worse;
+coffee demo runs. If `sampleCube()` is too expensive: halo texels (1-texel border per face filled by
+a separate pass) instead of branching.
 
-### 1a. Advektierte Texturkoordinaten, „Maßstäbe trennen“ (mittel, größter sichtbarer Gewinn)
-Befund nach Vergleich mit Alien: Isolation („baked fluid sim + noise overlays“) und
-bloknayrb/gas-giant („advected-coordinate noise for flow-stretched filament detail“):
-Bisher wird **Farbe** über das Gitter geschoben. Jedes Detail muss aufgelöst werden und verschmiert.
-Besser: Die Simulation rechnet nur die großen Strömungen; zusätzlich wird eine **Herkunftskoordinate**
-(woher kommt dieser Punkt?) mitgeführt. Beim Zeichnen entsteht die Feinstruktur aus Rauschen an
-dieser Koordinate, in beliebiger Auflösung, von der Strömung zu Schlieren gezogen.
-Gegen Überdehnung 2–3 Phasen, zeitversetzt neu gestartet und weich überblendet.
-Quellen: Max & Becker 1995 (Flow Textures), Perlin & Neyret 2001 (Flow Noise),
-Neyret 2003 (Advected Textures). Umsetzung: neues Feld `uvw` (rgba16float, Herkunft als
-Richtung + Phase) mit `advectDye`-Logik, Detailrauschen in `render.wgsl` statt aus `dyeTex`.
+### 1a. Advected texture coordinates — “separate the scales” (medium, biggest visible gain)
+So far **colour** is pushed across the grid: every detail must be resolved, and it blurs. Better: the
+simulation computes only the large-scale flow; additionally a **source coordinate** (where did this
+point come from?) is advected. At render time, fine structure is generated from noise at that
+coordinate, at any resolution, stretched into streaks by the flow. Against over-stretching, 2–3
+phases restart staggered in time and cross-fade. Sources: Max & Becker 1995 (flow textures),
+Perlin & Neyret 2001 (flow noise), Neyret 2003 (advected textures). Implementation: new field
+`uvw` (rgba16float, source direction + phase) using the `advectDye` logic; detail noise in
+`render.wgsl` instead of reading `dyeTex`.
 
-### 1b. Echte Atmosphärenstreuung (mittel)
-Weiches Streulicht am Rand und durchscheinende Wolken machen einen großen Teil des
-Alien-Isolation-Looks aus. MIT-lizenzierte WebGPU-Umsetzung: cgcostume/himmel-dunstkreis
-(Bruneton 2008 / Hillaire 2020), für eine Kugel mit dichter Atmosphäre anpassen.
+**View-dependent detail (idea by elias-nero-tron):** spend the detail work only where the camera
+looks, so zooming in gets sharper without losing fps. Pure particle concentration in the view has a
+catch: when the planet turns, newly visible areas lack the accumulated streak history. With advected
+coordinates the flow stays global and cheap, and detail is generated per visible pixel, which gives
+exactly this “closer = finer, same cost” behaviour. (Note: jasper-r’s article distributes particles
+over the whole sphere, so this is not what makes that demo look good; lighting and soft streaks do.)
 
-### 1c. Flachwasser-Kern (groß, richtige Wirbel-Physik)
-Ersetze in `fluid.wgsl` die Druck-Projektion durch Flachwasser-Gleichungen auf der Kugel:
+### 1b. Real atmospheric scattering (medium)
+Soft rim scattering and translucent clouds are a large part of the Alien: Isolation look.
+MIT-licensed WebGPU implementation: cgcostume/himmel-dunstkreis (Bruneton 2008 / Hillaire 2020),
+to be adapted to a sphere with a dense atmosphere.
+
+### 1c. Shallow-water core (large, the right vortex physics)
+Replace the pressure projection in `fluid.wgsl` with shallow-water equations on the sphere:
 `∂u/∂t + (u·∇)u + f k̂×u = −g∇h + ν₄∇⁴u`, `∂h/∂t + ∇·(h u) = Q`.
-Parameter aus Jupiter-Kennzahlen ableiten: Ro ≈ 0,1, L_d = √(gH)/f ≈ 0,02·R.
-Erwartung (Cho & Polvani 1996): Bänder und kompakte, langlebige Wirbel entstehen von selbst.
-Zeitschritt: Schwerewellen begrenzen Δt (CFL mit √(gH)), eventuell semi-implizit.
+Derive parameters from Jupiter’s numbers: Ro ≈ 0.1, L_d = √(gH)/f ≈ 0.02·R. Expected (Cho & Polvani
+1996): bands and compact, long-lived vortices emerge by themselves. Time step limited by gravity
+waves (CFL with √(gH)); possibly semi-implicit.
 
-### 2. Hyperviskosität und Begrenzer (mittel)
-∇⁴-Dämpfung nur der kleinsten Skalen. In `advect`/`advectDye` den Min/Max-Begrenzer aus
-`demos/coffee.html` (`advectCream`) übernehmen. Ziel: Filamente bleiben scharf, ohne Rauschen.
+### 2. Hyperviscosity and limiter (medium)
+∇⁴ damping of only the smallest scales. Port the min/max limiter from `demos/coffee.html`
+(`advectCream`) into `advect`/`advectDye`. Goal: sharp filaments without noise.
 
-### 3. Konvektion als Quelle (mittel)
-Aufquellende Wolken als Quellterm Q (in Flachwasser: Masse in h) statt als Farbfleck.
-Prototyp in der Kaffee-Demo (`source()`, `divergence()`). Liefert die turbulenten Gebiete neben
-dem Großen Roten Fleck und weiße Konvektionstürme.
+### 3. Convection as a source (medium)
+Upwelling clouds as source term Q (in shallow water: mass into h) instead of a colour blob.
+Prototype in the coffee demo (`source()`, `divergence()`). Produces the turbulent regions next to
+the Great Red Spot and white convective towers.
 
-### 4. Schichten und echte Höhe (groß)
-2–3 Schichten (NH₄SH-Wolken, NH₃-Wolken, Dunst), h als Wolkenhöhe fürs Relief, Schatten der
-oberen Schicht auf die untere. Referenzmodell: EPIC (isentrope Schichten).
+### 4. Layers and real height (large)
+2–3 layers (NH₄SH clouds, NH₃ clouds, haze), h as cloud height for relief, shadows of the upper
+layer on the lower one. Reference model: EPIC (isentropic layers).
 
-### 5. Nahaufnahmen (mittel)
-Level-of-Detail: beim Zoomen zusätzliches, mit dem Wind verschobenes Detailrauschen
-(zweiphasige Flow-Map), damit Juno-artige Filamente unterhalb der Gitterauflösung entstehen.
+### 5. Close-ups (medium)
+Level of detail: when zooming in, extra detail noise advected by the wind (two-phase flow map) so
+Juno-like filaments appear below grid resolution. Largely covered by 1a.
 
-### 6. Leistung (mittel)
-Multigrid statt Jacobi; Flussfeld im Curl-Modus nur alle n Bilder neu; Qualitätsstufen automatisch nach fps.
+### 6. Performance (medium)
+Multigrid instead of Jacobi; recompute the curl flow field only every n frames; automatic quality
+levels from measured fps.
 
-### 7. Kleinere Wünsche
-- Zufallsplanet mit mehr Zufall (Farbfamilien, Ringsysteme, Sturmtypen).
-- Gleichmäßigere equi-angulare Würfelprojektion.
-- Presets als JSON-Dateien laden/speichern.
-- Idee „Kontinente unter die Atmosphäre“ (Erdwetter): braucht Heizung, Wasserdampf mit
-  Kondensation und Topographie. Eigenes Folgeprojekt, gleiche Grundlage.
+### 7. Smaller wishes
+- Random planet with more variety (colour families, ring systems, storm types).
+- Equi-angular cube projection for more uniform cells.
+- Load/save presets as JSON.
+- “Continents under the atmosphere” (Earth weather): needs heating, water vapour with condensation
+  and topography. A separate follow-up project on the same foundation.

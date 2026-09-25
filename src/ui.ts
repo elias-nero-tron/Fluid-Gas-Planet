@@ -1,3 +1,5 @@
+import { t } from './i18n';
+
 // Kleines Reglerpanel ohne Abhängigkeiten. Jeder Regler hat einen Erklärtext, der im
 // Kasten "Was passiert hier?" erscheint, sobald man den Regler berührt.
 
@@ -19,7 +21,7 @@ export class Panel {
     this.help = document.createElement('p');
     this.help.className = 'help';
     this.help.id = 'help';
-    this.help.textContent = 'Tippe oder fahre über einen Regler, um zu sehen, was er in der Simulation verändert.';
+    this.help.textContent = t('Tippe oder fahre über einen Regler, um zu sehen, was er in der Simulation verändert.', 'Tap or hover a control to see what it changes in the simulation.');
     this.body = document.createElement('div');
     this.body.className = 'controls';
     root.append(this.help, this.body);
