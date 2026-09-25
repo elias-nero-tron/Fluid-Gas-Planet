@@ -39,9 +39,10 @@ src/
   shaders/render.wgsl  Ellipsoid, Licht, Relief, Dunstsaum, Ringe, Debug-Ansichten
 ```
 
-Alle Felder liegen als Cubemap (6 × N² Zellen). Wind wird als 3D-Tangentialvektor gespeichert;
-Nachbarwerte werden über kleine Schritte in der Tangentialebene abgetastet. So gibt es weder
-Pol-Singularität noch Nähte an den Würfelkanten.
+Alle Felder liegen als Cubemap (6 × N² Zellen). Wind wird als 3D-Tangentialvektor gespeichert,
+dadurch gibt es keine Pol-Singularität. Ableitungen nutzen die echten Nachbarzellen des Gitters.
+Über Würfelkanten hinweg wird von Hand abgetastet (`sampleCube`), weil das Hardware-Abtasten
+dort messbar ungenau ist (siehe [docs/STATUS.md](docs/STATUS.md)).
 
 `#offscreen` am Ende der URL rendert in eine Textur statt auf den Canvas (für Headless-Tests).
 
