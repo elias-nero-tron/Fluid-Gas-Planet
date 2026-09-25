@@ -7,7 +7,7 @@ authors:
 # Bei einem Umzug des Repos nur repository-code anpassen; der Autor bleibt.
 repository-code: "https://github.com/elias-nero-tron/Fluid-Gas-Planet"
 license: Apache-2.0
-version: 0.2.1-unverified
+version: 0.2.2-unverified
 date-released: 2026-09-25
 keywords:
   - webgpu

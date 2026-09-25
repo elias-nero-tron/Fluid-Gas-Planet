@@ -9,8 +9,8 @@
 // (direkte Nachbarn, wie in GPU Gems 38) und dämpft dadurch Zickzack-Moden in Gittergröße.
 
 @group(0) @binding(1) var samp: sampler;
-@group(0) @binding(2) var srcA: texture_2d_array<f32>;
-@group(0) @binding(3) var srcB: texture_2d_array<f32>;
+@group(0) @binding(2) var srcA: texture_cube<f32>;
+@group(0) @binding(3) var srcB: texture_cube<f32>;
 @group(0) @binding(4) var dst: texture_storage_2d_array<rgba16float, write>;
 // Breitenkreis-Mittel des Ostwinds: [2·i] = Summe, [2·i+1] = Gewicht, Festkomma.
 @group(0) @binding(5) var<storage, read_write> zonal: array<atomic<i32>>;
@@ -18,8 +18,10 @@
 const ZBINS = 128u;
 const ZSCALE = 10000.0;
 
-fn A(d: vec3f) -> vec4f { return sampleCube(srcA, samp, d); }
-fn B(d: vec3f) -> vec4f { return sampleCube(srcB, samp, d); }
+// Hardware-Cubemap-Abtastung (schnell). sampleCube() in common.wgsl ist die nahtlos exakte,
+// aber deutlich langsamere Variante (gemessen: Hauptursache des fps-Einbruchs in v0.2.0).
+fn A(d: vec3f) -> vec4f { return textureSampleLevel(srcA, samp, d, 0.0); }
+fn B(d: vec3f) -> vec4f { return textureSampleLevel(srcB, samp, d, 0.0); }
 
 fn outside(id: vec3u) -> bool { return f32(id.x) >= S.velN || f32(id.y) >= S.velN; }
 
@@ -132,16 +134,28 @@ fn zonalClear(@builtin(global_invocation_id) id: vec3u) {
 
 fn zbin(p: vec3f) -> u32 { return min(u32((latitude(p) / PI + 0.5) * f32(ZBINS)), ZBINS - 1u); }
 
+var<workgroup> wsum: array<atomic<i32>, 256>;
+
+// Erst je Arbeitsgruppe im schnellen Gruppenspeicher summieren, dann nur die belegten
+// Bänder in den globalen Puffer: ~64× weniger konkurrierende globale Atomics.
 @compute @workgroup_size(8, 8, 1)
-fn zonalSum(@builtin(global_invocation_id) id: vec3u) {
-  if (outside(id)) { return; }
-  let c = cell(id);
-  let u = A(c.p).xyz;
-  // Gewicht = Zellfläche, damit kleine Zellen an Würfelkanten nicht überzählen.
-  let w = c.size * c.size * S.velN * S.velN;
-  let b = zbin(c.p);
-  atomicAdd(&zonal[2u * b], i32(dot(u, east(c.p)) * w * ZSCALE));
-  atomicAdd(&zonal[2u * b + 1u], i32(w * 1000.0));
+fn zonalSum(@builtin(global_invocation_id) id: vec3u, @builtin(local_invocation_index) li: u32) {
+  for (var k = li; k < ZBINS * 2u; k += 64u) { atomicStore(&wsum[k], 0); }
+  workgroupBarrier();
+  if (!outside(id)) {
+    let c = cell(id);
+    let u = A(c.p).xyz;
+    // Gewicht = Zellfläche, damit kleine Zellen an Würfelkanten nicht überzählen.
+    let w = c.size * c.size * S.velN * S.velN;
+    let b = zbin(c.p);
+    atomicAdd(&wsum[2u * b], i32(dot(u, east(c.p)) * w * ZSCALE));
+    atomicAdd(&wsum[2u * b + 1u], i32(w * 1000.0));
+  }
+  workgroupBarrier();
+  for (var k = li; k < ZBINS * 2u; k += 64u) {
+    let v = atomicLoad(&wsum[k]);
+    if (v != 0) { atomicAdd(&zonal[k], v); }
+  }
 }
 
 fn zonalMean(p: vec3f) -> f32 {

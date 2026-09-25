@@ -42,6 +42,17 @@ but 10 fps while spinning up. Spin-up is now adaptive (keeps ~30 fps). Steady-st
    storms held, 12 s spin-up); the cleaner settings remain available as controls. Rule: changes to
    defaults must be compared visually against v0.1 on real hardware before they ship.
 
+8. **Frame rate (v0.2.2).** Author requirement: at least 60 fps; v0.2.1 ran at ~25 fps on an integrated
+   GPU (v0.1: ~60). `sampleCube()` (seam-exact sampling) carries its edge-case code into every one of the
+   dozens of samples per cell and was the main suspect; compute passes are back on hardware cube
+   sampling (the v0.1 path; scars stay invisible with band restoring 0.06). Also: fine-stripe noise is
+   skipped when the control is 0, the zonal sum reduces per workgroup first (~64× fewer global atomics),
+   default pixel density 1.25 instead of 1.75. New: **auto quality** measures GPU time per step while
+   loading and drops one resolution tier if a step exceeds 8 ms; afterwards the render scale adapts to
+   stay above 58 fps. New: **loading screen**: the simulation pre-runs hidden (≤ 5 s, up to 20 s of
+   simulated time) so the planet appears mid-flow instead of starting from stripes.
+   🔶 60 fps not yet confirmed on the author's hardware.
+
 ## Core finding: the model runs in the wrong regime
 
 Author’s objection (correct): “the maths behaves like a 10×10 cm object, not 1000×1000 km.”
