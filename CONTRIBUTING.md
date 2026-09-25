@@ -17,6 +17,8 @@ German version: [docs/de/CONTRIBUTING.md](docs/de/CONTRIBUTING.md).
 
 - **Measure, don't guess.** Back claims about bugs with a test. Tools: append `#offscreen` to the
   URL, then `window.gasPlanet.capture()` (image) and `window.gasPlanet.readRow()` (field values).
+- **Look first for defaults.** Changing a default must be compared visually against the v0.1 look on
+  real hardware. A cleaner measurement is not a reason to ship a worse-looking default.
 - **Label unverified work.** Say in the PR if something was only checked in a software renderer;
   for real-hardware checks, state the device and fps.
 - **No third-party code without a compatible license.** GPL projects (e.g. Gaseous Giganticus,
