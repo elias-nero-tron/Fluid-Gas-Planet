@@ -47,5 +47,7 @@ Pol-Singularität noch Nähte an den Würfelkanten.
 
 - [docs/RECHERCHE.md](docs/RECHERCHE.md): vorhandene Open-Source-Projekte, Lizenzen
 - [docs/PLAN.md](docs/PLAN.md): Architektur, Mathematik, nächste Phasen
+- [docs/STATUS.md](docs/STATUS.md): was getestet ist, was nicht, Befunde der Fehlersuche
+- [demos/coffee.html](demos/coffee.html): Sahne im Kaffee (Stable Fluids mit Quellen und Löffel, ungetestet)
 
 Lizenz: MIT
