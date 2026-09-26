@@ -13,7 +13,8 @@ Zufallsplaneten laufen mit derselben Technik.
 
 **▶ Sofort ausprobieren:** [Planeten-Simulator](https://raw.githack.com/elias-nero-tron/Fluid-Gas-Planet/main/demo/index.html) ·
 [Wolken über Gelände (Vorschau)](https://raw.githack.com/elias-nero-tron/Fluid-Gas-Planet/main/demo/terrain.html) ·
-[Sahne im Kaffee](https://raw.githack.com/elias-nero-tron/Fluid-Gas-Planet/main/demo/coffee.html)
+[Sahne im Kaffee](https://raw.githack.com/elias-nero-tron/Fluid-Gas-Planet/main/demo/coffee.html) ·
+[**Vulkanplanet**](https://raw.githack.com/elias-nero-tron/Fluid-Gas-Planet/main/demo/volcano.html)
 (Browser mit WebGPU nötig) · oder [`demo/index.html`](demo/index.html) herunterladen und lokal öffnen.
 
 Idee und Projektleitung: **elias-nero-tron** · Lizenz: Apache 2.0 · Zitieren: [CITATION.cff](CITATION.cff) · [English](README.md)
@@ -62,6 +63,15 @@ Simulator öffentlich unter der Pages-Adresse dieses Repos, die Kaffee-Demo unte
 - **Darstellung:** Ellipsoid, Minnaert-Randverdunkelung, Relief, Dunstsaum, Ringe mit Schatten.
 - **Wolken über Gelände** ([demos/terrain.html](demos/terrain.html)): Vorschau einer eigenen Schiene.
   Wolken entstehen, wo Wind Berge hinaufweht (w = u·∇h), auf einer echten Wolkenschicht mit Parallaxe und Schatten.
+- **Vulkanplanet** ([demos/volcano.html](demos/volcano.html)): hochaufgelöster Zufallsplanet (Seed in der
+  Adresse, `?seed=12567890`) mit Vulkanen und Supervulkanen, die Asche in eine echte 3D-Atmosphäre pumpen.
+  Säulenhöhe aus der Eruptionsrate (Mastin 2009), Aufweitung nach Morton, Taylor & Turner (1956),
+  Suzuki-Massenprofil, Schirmwolke als Schwerestrom (Woods & Kienle 1994), Transport auf einem globalen
+  3D-Gitter durch Zirkulationszellen, Scherung und frei drehbaren Wind; Raymarching mit Beer–Lambert,
+  Rayleigh/Mie und Ascheschatten. Größen in km im Verhältnis zum Planeten, Atmosphärendicke, fester Nebel.
+
+  <img src="docs/images/volcano-planet.png" alt="Vulkanplanet, Testbilder aus dem Software-Renderer" width="640">
+
 - **Kaffee-Demo** ([demos/coffee.html](demos/coffee.html)): Sahne gießen und umrühren. Prüfstein
   für drei Bausteine, die dem Planeten noch fehlen (Quellen, Hindernisse, scharfer Transport).
 

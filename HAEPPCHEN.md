@@ -73,10 +73,8 @@ Also bei jedem Häppchen: Quelle lesen, Verfahren übernehmen (Lizenz beachten),
 17. **Hineinzoomen ohne Pixel: Vektoren statt Pixel.** „Gute Formeln verwenden & Reinzoombarkeit haben, nicht
     mehr in Pixeln, sondern in Vektorisierung denken.“ Mitgeführte Texturkoordinaten (Neyret 2003, Perlin &
     Neyret 2001): feine Struktur pro Pixel aus Rauschen an der mitgeführten Herkunftsstelle, zwei Phasen überblenden.
-18. **Volumen-Wolken und aufsteigender Rauch.** „three.js volume fire, so cool als Vulkan! Deine Wolken sind
-    2D gezeichnet, hier ist aufsteigender Rauch.“ Quelle: [three.js webgpu_volume_fire](https://github.com/mrdoob/three.js/blob/dev/examples/webgpu_volume_fire.html)
-    (MIT): 3D-Strömung mit Auftrieb, Raymarching mit Beer–Lambert, Henyey–Greenstein, Powder-Term, Schatten.
-    Für Wolkentürme auf Häppchen 16 und für Neptun („bei Neptun könnte es Wolken simulieren“).
+18. **Volumen-Wolken für Wolkentürme und Neptun.** Der Vulkan-Teil ist erledigt (`demos/volcano.html`, siehe unten).
+    Offen: dieselbe 3D-Ascheschale mit Feuchte statt Asche für Wolkentürme auf Häppchen 16 und für Neptun.
 19. **Mächtigkeit: Stürme entstehen, wachsen, wandern, lösen sich auf.** „Die Mathematik wirkt für
     10×10-cm-Objekte … Stürme sehen aus wie zufällig ausgelöste Ereignisse, nicht wie aus der Mathematik.“
     Flachwasser-Gleichungen auf der Kugel mit Deformationsradius (Cho & Polvani 1996, Showman 2007: Stürme als
@@ -100,6 +98,12 @@ Also bei jedem Häppchen: Quelle lesen, Verfahren übernehmen (Lizenz beachten),
 ---
 
 ## Erledigt (damit nichts verloren geht)
+
+- **Vulkanplanet** (`demos/volcano.html`): hochaufgelöster Seed-Planet (Würfelkarte bis 4096², Domain Warping,
+  Erosions-fBm, Ridged Multifractal, Biome), Nebel und Sterne fest im Raum, Vulkane und Supervulkane mit
+  Reglern in km im Verhältnis zum Planeten, Atmosphärendicke, 3D-Asche auf einem globalen Gitter, vom Wind
+  in Schichten getragen (Mastin, Morton–Taylor–Turner, Suzuki, Woods & Kienle), Raymarching mit Schatten und Glut.
+  Häppchen 4 (Nebel fest im Raum) und 14 (Planet wie colordodge) sind dort als eigene Umsetzung enthalten.
 
 - Panel neu sortiert: Planet, Zufallsplanet, Verfahren, Zeit und Drehung, Wind, Stürme, Wolkenfarbe, Curl noise, Partikel, Licht, **Grafikkarte und Feinheit** (alles, was nur GPU kostet, getrennt von der Physik)
 - Rechenmodell (Stable Fluids / Curl-Noise) und Darstellung (Flüssigkeit / Partikel / Partikel rein) wieder frei kombinierbar

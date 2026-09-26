@@ -14,6 +14,9 @@ Einwände während der Entwicklung, unter anderem:
   Kennzahlen-Analyse Rossby/Reynolds, siehe [docs/STATUS.md](STATUS.md)),
 - „die Narben gab es vorher nicht“ (führte zur Messung des Kantenfehlers beim Cubemap-Abtasten),
 - das Bild „Sahne in Kaffee gießen“ als Prüfstein für Quellen, Hindernisse und scharfen Transport.
+- der Vulkanplanet: Vulkane und Supervulkane, die aufsteigenden 3D-Rauch in die Atmosphäre pumpen,
+  geschichtete Schirmwolken, die der Wind trägt, Größen in km im Verhältnis zum Planeten, Atmosphärendicke
+  und ein Nebel, der fest im Raum bleibt ([demos/volcano.html](../../demos/volcano.html)).
 
 Umsetzung mit Unterstützung von **Claude** (Anthropic) als KI-Programmierassistent.
 
@@ -27,6 +30,9 @@ Die Implementierung ist eigenständig. Wir danken den Autorinnen und Autoren:
 ### Verfahren und Artikel
 | Quelle | Was wir daraus gelernt haben |
 |---|---|
+| Morton, Taylor & Turner 1956; Mastin et al. 2009; Suzuki 1983; Woods & Kienle 1994; Costa et al. 2013 | Vulkanphysik in `demos/volcano.html`: Säulenradius, Säulenhöhe aus der Eruptionsrate, Massenprofil, Schirmwolke, Volumenstrom |
+| Quilez (Domain Warping, Erosions-fBm), Musgrave (Ridged Multifractal), Schüler 2012 (Chapman-Näherung), Wrenninge et al. 2013 (Mehrfachstreuung) | Gelände und Licht in `demos/volcano.html` |
+| colordodge ProceduralPlanet (WTFPL), three.js webgpu_volume_fire (MIT) | vom Urheber genannte Vorbilder für `demos/volcano.html`; **kein Code übernommen**, eigene Umsetzung |
 | Jos Stam, *Stable Fluids*, SIGGRAPH 1999 | Grundverfahren: Advektion, Druck-Projektion |
 | Mark J. Harris, *Fast Fluid Dynamics Simulation on the GPU*, GPU Gems Kap. 38 (2004) | GPU-Aufteilung in Pässe, kompakter Jacobi-Stern |
 | mofu, [*Stable Fluids with three.js*](https://mofu-dev.com/en/blog/stable-fluids/) (2022) | anschauliche Herleitung, BFECC-Advektion |

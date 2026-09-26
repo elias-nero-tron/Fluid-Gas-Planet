@@ -13,7 +13,8 @@ Saturn, Neptune, Uranus, a hot Jupiter and random planets run on the same engine
 
 **▶ Try it now:** [Planet simulator](https://raw.githack.com/elias-nero-tron/Fluid-Gas-Planet/main/demo/index.html) ·
 [Clouds over Terrain preview](https://raw.githack.com/elias-nero-tron/Fluid-Gas-Planet/main/demo/terrain.html) ·
-[Cream in Coffee demo](https://raw.githack.com/elias-nero-tron/Fluid-Gas-Planet/main/demo/coffee.html)
+[Cream in Coffee demo](https://raw.githack.com/elias-nero-tron/Fluid-Gas-Planet/main/demo/coffee.html) ·
+[**Volcano Planet**](https://raw.githack.com/elias-nero-tron/Fluid-Gas-Planet/main/demo/volcano.html)
 (needs a WebGPU browser: Chrome/Edge 113+, Safari 26+, Firefox 141+, Android Chrome 121+).
 Or download [`demo/index.html`](demo/index.html) and open it locally, no install needed.
 
@@ -54,6 +55,15 @@ Details, measured findings and open questions: [docs/STATUS.md](docs/STATUS.md).
 - **Rendering:** oblate ellipsoid, Minnaert limb darkening, cloud relief, haze rim, rings with shadows.
 - **Clouds over Terrain** ([demos/terrain.html](demos/terrain.html)): preview of a separate track,
   clouds forming where wind climbs mountains (w = u·∇h), on a real cloud layer with parallax and shadows.
+- **Volcano Planet** ([demos/volcano.html](demos/volcano.html)): a high-resolution random planet (seed in the
+  address, `?seed=12567890`) with volcanoes and supervolcanoes that pump ash into a real 3D atmosphere.
+  Plume height from the eruption rate (Mastin 2009), buoyant-plume widening (Morton, Taylor & Turner 1956),
+  Suzuki mass profile, umbrella cloud as a gravity current (Woods & Kienle 1994), transport on a global 3D
+  grid by circulation cells, shear and a free wind direction; ray-marched with Beer–Lambert, Rayleigh/Mie and
+  ash shadows. Sizes in km relative to the planet, atmosphere thickness, fixed nebula and stars.
+
+  <img src="docs/images/volcano-planet.png" alt="Volcano Planet, software-renderer test images" width="640">
+
 - **Cream in Coffee** ([demos/coffee.html](demos/coffee.html)): pour and stir. A test bench for three
   building blocks the planet still lacks: sources, moving obstacles and sharp transport.
 
