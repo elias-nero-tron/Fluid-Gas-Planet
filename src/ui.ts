@@ -8,6 +8,7 @@ type Settings = Record<string, number | string | boolean>;
 interface Binding { key: string; update: () => void; row: HTMLElement }
 
 export class Panel {
+  static heavy = new Set(['velRes', 'dyeRes', 'curlRes', 'particles']);
   private bindings: Binding[] = [];
   private body: HTMLElement;
   private help: HTMLElement;
@@ -86,7 +87,15 @@ export class Panel {
     input.step = String(step);
     row.append(input);
     const update = () => { input.value = String(this.s[key]); out.textContent = fmt(Number(this.s[key])); };
-    input.addEventListener('input', () => { this.s[key] = Number(input.value); out.textContent = fmt(Number(input.value)); this.onChange(key); });
+    // Teure Regler (Auflösungen, Partikelzahl): beim Ziehen nur die Zahl zeigen, erst beim Loslassen
+    // umbauen. Sonst legt jeder Zwischenwert neue GPU-Speicher an und es ruckelt massiv.
+    const heavy = Panel.heavy.has(key);
+    input.addEventListener('input', () => {
+      out.textContent = fmt(Number(input.value));
+      if (heavy) return;
+      this.s[key] = Number(input.value); this.onChange(key);
+    });
+    if (heavy) input.addEventListener('change', () => { this.s[key] = Number(input.value); this.onChange(key); });
     this.bindings.push({ key, update, row });
     update();
     return this;
