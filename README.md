@@ -42,7 +42,7 @@ Details, measured findings and open questions: [docs/STATUS.md](docs/STATUS.md).
 
 - **Separate tracks, not one mixed method.** *Fluid*: Stable Fluids (pressure, Coriolis, jets,
   vortices) with dye, the v0.1 look. *Particles*: curl noise and millions of particles fading to one
-  mean colour, as in jasper-r. *Hybrid*: the free v0.2 combination. See [docs/PROCESS.md](docs/PROCESS.md).
+  mean colour, as in jasper-r. *Hybrid*: the free v0.2 combination.
 - **Planets are numbers:** measured wind profiles, colour bands, storms, oblateness, axial tilt,
   rings. Plus “Colours from image”: measure band colours from any photo.
 - **Random planets and saving:** 🎲 rolls a truly random planet from five families (Jovian, Saturnian,
@@ -73,7 +73,7 @@ Details, measured findings and open questions: [docs/STATUS.md](docs/STATUS.md).
 
 Entry point for people and for new AI sessions, in this order:
 
-0. [CLAUDE.md](CLAUDE.md) and [docs/PROCESS.md](docs/PROCESS.md): how we work (tracks, film strips, protected defaults)
+0. [HAEPPCHEN.md](HAEPPCHEN.md): all open wishes as bite-sized tasks, easiest first
 1. [docs/STATUS.md](docs/STATUS.md): verified vs. unverified, measured findings
 2. [docs/ROADMAP.md](docs/ROADMAP.md): strengths, weaknesses, work items ranked by impact
 3. [docs/MATH.md](docs/MATH.md): formulas ↔ code; [docs/RESEARCH.md](docs/RESEARCH.md): sources to build on

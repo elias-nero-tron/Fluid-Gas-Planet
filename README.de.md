@@ -50,7 +50,7 @@ Simulator öffentlich unter der Pages-Adresse dieses Repos, die Kaffee-Demo unte
 
 - **Getrennte Schienen statt Mischverfahren.** *Flüssigkeit*: Stable Fluids mit Farbstoff (Look von v0.1).
   *Partikel*: Curl-Noise und Millionen Partikel, die zu einer Mittelfarbe verblassen, wie bei jasper-r.
-  *Mischform*: die freie Kombination aus v0.2. Siehe [Arbeitsweise](docs/de/PROZESS.md).
+  *Mischform*: die freie Kombination aus v0.2.
 - **Planeten sind Zahlen:** gemessene Windprofile, Farbbänder, Stürme, Abplattung, Achsneigung,
   Ringe. Dazu „Farben aus Bild“: Bandfarben aus einem Foto messen.
 - **Zufallsplaneten und Speichern:** 🎲 würfelt einen echten Zufallsplaneten aus fünf Familien (jupiter-,
@@ -83,7 +83,7 @@ Simulator öffentlich unter der Pages-Adresse dieses Repos, die Kaffee-Demo unte
 
 Einstieg für Menschen und für neue KI-Sitzungen, in dieser Reihenfolge:
 
-0. [CLAUDE.md](CLAUDE.md) und [Arbeitsweise](docs/de/PROZESS.md): Schienen, Filmstreifen, geschützte Standardwerte
+0. [HAEPPCHEN.md](HAEPPCHEN.md): alle offenen Wünsche als Häppchen, leichteste zuerst
 1. [docs/STATUS.md](docs/de/STATUS.md) (neueste Befunde 9–15 in [englisch](docs/STATUS.md)): geprüft vs. unverifiziert, Befunde der Fehlersuche
 2. [docs/ROADMAP.md](docs/de/ROADMAP.md): Stärken, Schwachpunkte, Baustellen nach Wirkung sortiert
 3. [docs/MATHEMATIK.md](docs/de/MATHEMATIK.md): Formeln ↔ Code

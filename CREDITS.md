@@ -20,7 +20,7 @@ evaluation on real hardware, and the decisive expert objections during developme
   particle track did not look like jasper-r because both methods were mixed (finding 12), the help-box
   jitter bug, retrograde rotation and hemisphere-dependent storm spin, clouds over continents (the
   terrain preview), 3D rings and moons as next steps, and the working rule “build new tracks instead
-  of making things worse” ([docs/PROCESS.md](docs/PROCESS.md)).
+  of making things worse”.
 
 Implemented with the help of **Claude** (Anthropic) as an AI programming assistant.
 
@@ -51,7 +51,6 @@ implementation is original. Thanks to the authors:
 | Krzysztof Narkowicz, *ACES Filmic Tone Mapping Curve* (2016) | tone mapping |
 | Max & Becker 1995; Perlin & Neyret 2001; Neyret 2003 | advected textures / flow noise (ROADMAP 1a; two-phase trick used for the clouds in `demos/terrain.html`) |
 | Showman 2007; Scott & Polvani 2007 | forced shallow-water turbulence: storms as mass pulses, jets and vortices emerge (ROADMAP 1c, see [docs/RESEARCH.md](docs/RESEARCH.md)) |
-| Anthropic, *Effective harnesses for long-running agents* | progress files and small verified steps for multi-session work ([docs/PROCESS.md](docs/PROCESS.md)) |
 
 ### Physics and measurements (for calibration only; no images in the project)
 | Source | Use |

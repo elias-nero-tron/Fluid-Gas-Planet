@@ -39,7 +39,7 @@ async function set(key, value) {
     if (!el) { window.gasPlanet.settings[k] = isNaN(Number(v)) ? v : Number(v); return; }
     if (el.type === 'checkbox') { el.checked = v === 'true' || v === true; el.dispatchEvent(new Event('change')); }
     else if (el.tagName === 'SELECT') { el.value = String(v); el.dispatchEvent(new Event('change')); }
-    else { el.value = String(v); el.dispatchEvent(new Event('input')); }
+    else { el.value = String(v); el.dispatchEvent(new Event('input')); el.dispatchEvent(new Event('change')); }
   }, [key, value]);
 }
 

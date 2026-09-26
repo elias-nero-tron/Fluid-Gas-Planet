@@ -44,13 +44,6 @@ field; everything fine is a function evaluated at render time, so zooming never 
 | EepyBerry, [Lagrange](https://github.com/EepyBerry/lagrange) (live: lagrange.eepyberry.me), suggested by the author | “I'm So Tired” licence 1.0: custom, with restrictions on who may use it; **not compatible with Apache-2.0 redistribution, ideas only** | Planet editor with water level, climate zones (temperature × humidity → biome), rings, displacement. Good model for the terrain track’s UI and parameters. |
 | Orographic lift, textbook meteorology: vertical velocity w ≈ u·∇h | – | The cloud source used in `demos/terrain.html`. |
 
-## E. Engineering: working with an AI assistant over many sessions
-
-Anthropic, [Effective harnesses for long-running agents](https://www.anthropic.com/engineering/effective-harnesses-for-long-running-agents):
-progress file and feature list in the repository, small committed steps, each session starts by
-reading them and checking what actually works. Applied here as `CLAUDE.md`, `docs/STATUS.md`,
-`docs/ROADMAP.md` and the film-strip tool (`scripts/eyes.mjs`). See [PROCESS.md](PROCESS.md).
-
 ## F. Author’s links, read at source level (v0.3 review, round 2)
 
 | Link | What is really inside (read in the code) | Licence | Use for us |

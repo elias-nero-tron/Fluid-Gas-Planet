@@ -1,4 +1,8 @@
-# Roadmap and open work
+# (Roadmap – parked)
+
+> Parked background notes, **not** a work order. The work order is [HAEPPCHEN.md](../HAEPPCHEN.md).
+
+# (Roadmap and open work)
 
 Ranked by impact. Each item can be started without knowledge of the original conversation.
 Background: [STATUS.md](STATUS.md), formulas: [MATH.md](MATH.md). German original: [de/ROADMAP.md](de/ROADMAP.md).
