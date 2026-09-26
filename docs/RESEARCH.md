@@ -40,6 +40,8 @@ field; everything fine is a function evaluated at render time, so zooming never 
 |---|---|---|
 | lisyarus, [webgpu-shallow-water](https://github.com/lisyarus/webgpu-shallow-water) | MIT | Virtual-pipes water on a height field in WebGPU: rivers and seas on continents. |
 | Sebastian Lague, [Solar-System](https://github.com/SebLague/Solar-System) (Coding Adventures: procedural planets, atmospheres) | check licence before reuse | Clear explanations of procedural terrain and atmosphere rendering. |
+| colordodge, [ProceduralPlanet](https://github.com/colordodge/ProceduralPlanet) (live: colordodge.com/ProceduralPlanet), suggested by the author | **WTFPL: code may be reused** | The “hammer” surface: height noise as a cube map, colour from a 2D **biome lookup** (height × second noise) painted with random gradient circles, water level with beach band, separate normal and roughness maps (shiny water), cloud map, atmosphere glow. Directly usable for the terrain track. |
+| EepyBerry, [Lagrange](https://github.com/EepyBerry/lagrange) (live: lagrange.eepyberry.me), suggested by the author | “I'm So Tired” licence 1.0: custom, with restrictions on who may use it; **not compatible with Apache-2.0 redistribution, ideas only** | Planet editor with water level, climate zones (temperature × humidity → biome), rings, displacement. Good model for the terrain track’s UI and parameters. |
 | Orographic lift, textbook meteorology: vertical velocity w ≈ u·∇h | – | The cloud source used in `demos/terrain.html`. |
 
 ## E. Engineering: working with an AI assistant over many sessions
