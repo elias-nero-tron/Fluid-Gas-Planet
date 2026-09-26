@@ -110,6 +110,18 @@ ideas only because of its licence). Then: moisture as an
 advected field instead of noise, lee-wave cloud stripes behind mountains, a day/night cycle driving
 convection, and later coupling to a shallow-water wind field.
 
+### 12. Climate planet track (large, replaces the terrain sketch)
+The author’s proposal: lay the fluid simulation over a continent planet; cloud opacity comes from the
+simulated fields (dense where vortices and convergence concentrate moisture, clear elsewhere).
+Plan, each step with film strips:
+1. Ground: ProceduralPlanet recipe (WTFPL): baked warped-noise height + moisture cube maps, biome LUT,
+   water level, normal and roughness maps.
+2. Atmosphere: the existing cube-sphere solver, upgraded to shallow water (1c), plus moisture q with
+   E − P and the precipitation threshold (moist-convective RSW, RESEARCH G1–G4).
+3. Forcing: Held–Suarez temperature relaxation and prescribed Hadley/Ferrel/polar convergence.
+4. Rendering: volumetric cloud shell (Beer–Lambert, HG phase, powder, shadows) after three.js volume fire (MIT).
+`demos/terrain.html` stays as the v0.3 sketch until step 4 replaces it.
+
 ### 7. Smaller wishes
 - ~~Random planet with more variety~~ done in v0.2.3; steerable (family, bands, storms, rings) in v0.3.
 - Random planet: derive band count from rotation and size (Rhines scale) instead of rolling it.
