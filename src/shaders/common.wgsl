@@ -18,7 +18,7 @@ struct Sim {
   cloud: vec4f,                 // Farbe aufsteigender Konvektionswolken (linear RGB)
   centre: vec4f,                // Partikel-Schiene: rgb Mittelfarbe, zu der die Textur verblasst; w Verblass-Rate (1/s)
   view: vec4f,                  // xyz Kamerarichtung in Körperkoordinaten, w Anteil der Partikel im Sichtfeld
-  mode: vec4f,                  // x 1 = reine Partikel-Schiene (jasper-r), yzw frei
+  mode: vec4f,                  // x 1 = reine Partikel (jasper-r), y Strudel-Antrieb (Geschwindigkeit), zw frei
   jets: array<vec4f, 16>,       // 64 Stützstellen, Breite −90°..+90°, Einheit rad/s bei jetStrength 1
   bands: array<vec4f, 64>,      // Bandfarbe (linear RGB) je Breite
   storms: array<vec4f, 16>,     // xyz Zentrum (Körperkoordinaten), w Radius in rad
