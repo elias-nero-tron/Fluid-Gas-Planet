@@ -85,9 +85,31 @@ Juno-like filaments appear below grid resolution. Largely covered by 1a.
 Multigrid instead of Jacobi; recompute the curl flow field only every n frames; automatic quality
 levels from measured fps.
 
+### 8. Rings as a 3D particle belt (medium)
+Today the ring is a plane with a density profile; its shadow is sharp and it looks the same from both
+sides (“a 2D disc from a 2004 game”). Next: optical depth τ(r) instead of opacity, transmission e^(−τ/|μ|)
+depending on the view and sun angle, lit side vs unlit side (unlit side glows by forward scattering,
+Henyey–Greenstein phase with g ≈ 0.5–0.7), soft shadow edge from the sun’s angular size and the ring
+thickness, and a planet shadow on the rings. Stays analytic in `render.wgsl`, no particles needed.
+
+### 9. Moons (small to medium)
+Moons as spheres on Kepler orbits: period T ∝ a^1.5 (Kepler’s third law, T² = 4π²a³/(GM)), shadow
+on the planet as a ray–sphere test toward the sun (eclipse spots like Io on Jupiter), and optionally
+their gravity as a tidal term in the flow (negligible physically, but an interesting control).
+
+### 10. Instant start (medium)
+The loading screen pre-computes up to 20 s of simulation. Better: store the settled state (wind, dye,
+particles) per preset and settings in IndexedDB after the first spin-up and restore it on the next
+visit in milliseconds. For a game: settle once at build time and ship the state as data.
+
+### 11. Terrain clouds (track, started in v0.3)
+`demos/terrain.html` shows orographic clouds (w = u·∇h) on a real cloud shell. Next: moisture as an
+advected field instead of noise, lee-wave cloud stripes behind mountains, a day/night cycle driving
+convection, and later coupling to a shallow-water wind field.
+
 ### 7. Smaller wishes
-- ~~Random planet with more variety~~ done in v0.2.3 (families, uneven bands, storm types, rings; save/undo).
+- ~~Random planet with more variety~~ done in v0.2.3; steerable (family, bands, storms, rings) in v0.3.
+- Random planet: derive band count from rotation and size (Rhines scale) instead of rolling it.
 - Equi-angular cube projection for more uniform cells.
 - Load/save presets as JSON.
-- “Continents under the atmosphere” (Earth weather): needs heating, water vapour with condensation
-  and topography. A separate follow-up project on the same foundation.
+- “Continents under the atmosphere”: see item 11.
