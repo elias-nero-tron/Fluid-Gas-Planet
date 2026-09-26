@@ -83,8 +83,14 @@ u ← u − ∇p
 - ✅ Finding: ε = 6 produces measurable grid-scale noise (≈ 0.1 rad/s² against 0.06 rad/s jets). It is still the default because it gives the lively v0.1 look the author confirmed; ≈ 0.5 is the physically cleaner setting.
 
 **Storms.** Profile v(d) = x·e^{−x²}·2.33 with x = d/r; spin from cyclone/anticyclone and hemisphere
-(northern cyclones counter-clockwise). Seeded as initial vortices (`initVel`), then free. Optionally
-held, or spawned as short convective kicks.
+(northern cyclones counter-clockwise; mirrored with “Retrograde spin”). Seeded as initial vortices
+(`initVel`), then free. Optionally held. New storms (v0.3): spin = sign of the background vorticity
+ζ ≈ −∂U/∂φ at the spawn latitude, so only vortices that co-rotate with the shear are started; drive
+weight w(t) = sin(π·t/T) for the “Kick duration” T, then free.
+
+**Time stepping (v0.3).** Fixed Δt = 1/60 s. Steps per real second = 60 × time lapse, independent of
+the frame rate, capped by the measured step cost (≤ 12 ms of GPU work per frame). The visible spin
+advances with simulated time. Retrograde: Ω → −Ω, U(φ) → −U(φ), storm spin → −spin (mirror image).
 - Code: `stormFlow()`, `stormMask()` in `common.wgsl`, `updateStorms()` in `main.ts`.
 
 ## 3. Noise and curl noise
@@ -113,9 +119,13 @@ latitude so stretching becomes visible.
 - ⚠️ Restoring and blur erase detail; with little restoring, detail survives but bands smear in the
   long run. The proper fix is sources instead of restoring, and advected texture coordinates (ROADMAP 1a).
 
-**Particles (jasper-r / Gaseous Giganticus).** Up to 4 M particles, RK2 step on the sphere:
+**Particles (jasper-r / Gaseous Giganticus).** Up to 32 M particles (device class), RK2 step on the sphere:
 `mid = normalize(p + v(p)·Δt/2)`, `p ← normalize(p + v(mid)·Δt)`. Each particle blends its colour
-with opacity α·sin(π·age/lifetime) into the texture; then blur and restoring.
+with opacity α·sin(π·age/lifetime) into the texture; then blur. Track “Particles” (v0.3, as in
+jasper-r): colour only from the birth latitude, texture fades to one area-weighted mean colour
+c ← mix(c, c̄, 1 − e^{−kΔt}) (`blurFade`). Track “Hybrid”: restores to band colours like the dye
+(`blurRelax`). “View focus” f: a fraction f of births is uniform on the cap of ~84° around the camera
+direction (in body coordinates), the rest uniform on the sphere.
 
 ## 5. Rendering (`render.wgsl`)
 
