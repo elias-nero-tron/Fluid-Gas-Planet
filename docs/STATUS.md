@@ -96,6 +96,16 @@ but 10 fps while spinning up. Spin-up is now adaptive (keeps ~30 fps). Steady-st
     no height, parallax or silhouette. Real height needs a height field (ROADMAP 4). The terrain preview
     places its clouds on a real shell above the ground, so they show parallax and offset shadows.
 
+16. **Author review of v0.3 (round 2), observations:**
+    - Neptune clouds with high relief “look real”: **keep** (protected look).
+    - Terrain preview clouds are 2D noise, not computed (“a joke next to Neptune”): correct. They are
+      noise × orographic lift on a flat shell. Plan: ROADMAP 12 (moist shallow water + volumetric shell).
+    - Coffee demo: cream fills ~99 % of the cup, coffee only a thin rim; stirring affects the rim, the centre
+      barely moves. Cause still to be measured (source size vs. cup, and the spoon only forces cells it
+      covers). Kept as an observation; the coffee demo is a test bench, not a product.
+    - In colordodge’s demo the nebula turns with the planet (wrong); a background must stay fixed in world
+      space and move only with the camera. Ours does.
+
 ## Core finding: the model runs in the wrong regime
 
 Author’s objection (correct): “the maths behaves like a 10×10 cm object, not 1000×1000 km.”
