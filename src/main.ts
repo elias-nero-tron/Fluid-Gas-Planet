@@ -68,7 +68,8 @@ const S = {
   convection: 0.8,
   storms: true,
   stormStrength: 1,
-  stormSize: 1,           // Größe der Stürme (Radius-Faktor), unabhängig vom Drehtempo
+  stormSize: 1,
+  eddyStrength: 1,        // Strudel-Stärke: Antrieb von Turbulenz, Stürmen und Wirbeln, getrennt von der Jet-Geschwindigkeit           // Größe der Stürme (Radius-Faktor), unabhängig vom Drehtempo
   stormTint: 0.6,
   stormHold: 1,
   stormSpawn: 0.3,
@@ -244,6 +245,7 @@ class App {
   private warmTotal = WARM_STEPS;
   private stepMs = 0;          // gemessene GPU-Zeit pro Simulationsschritt
   private warmStart = 0;
+  private manualSkip = false;  // Vorspulen per Knopf: volle Länge, keine Begrenzung der Ladezeit
   private calibrated = false;
   private downgrades = 0;
   private renderScale = 1;     // dynamische Render-Auflösung für ≥ 60 fps
@@ -640,21 +642,23 @@ class App {
   private writeSim(dt: number, init = false) {
     const d = this.simData;
     const js = S.jetStrength;
+    // Antrieb der Strudel (Turbulenz, Stürme, Curl-Noise, Wirbel): unabhängig von der Jet-Geschwindigkeit.
+    const eddy = 0.06 * S.eddyStrength;
     const list = this.activeStorms();
     d.set([
       dt, this.time, this.frame, S.velRes,
       S.dyeRes, this.flow.n, S.vortexStrength, S.omega * this.dir(),
-      js, S.jetRelax, S.turbulence * js * 0.05, S.turbScale,
+      js, S.jetRelax, S.turbulence * eddy * 0.05, S.turbScale,
       S.confinement, S.drag, S.fineStripes, S.bfecc ? 1 : 0,
-      S.bandRelax, S.convection, js * S.stormStrength, list.length,
-      S.curlStrength * js, S.curlFreq, S.curlSpeed, S.curlOctaves,
+      S.bandRelax, S.convection, eddy * S.stormStrength, list.length,
+      S.curlStrength * eddy, S.curlFreq, S.curlSpeed, S.curlOctaves,
       S.particles, S.lifetime, S.opacity, S.blur,
       // Shader-Rauschen: Planeten-Seed plus Lauf-Seed ("Neu starten" würfelt nur den Lauf neu).
       (S.seed + this.runSeed) % 100000, S.bandWobble, S.stormTint, S.vortexCount,
     ], 0);
     d.set([...this.centre, S.fade], OFF_CENTRE);
     d.set([...this.camBody(), this.lookMode() === 'dye' ? 0 : S.viewFocus], OFF_VIEW);
-    d.set([this.lookMode() === 'pure' ? 1 : 0, 0, 0, 0], OFF_MODE);
+    d.set([this.lookMode() === 'pure' ? 1 : 0, eddy, 0, 0], OFF_MODE);
     list.forEach((s, i) => {
       const la = (s.lat * Math.PI) / 180, lo = (s.lon * Math.PI) / 180;
       d.set([Math.cos(la) * Math.cos(lo), Math.sin(la), Math.cos(la) * Math.sin(lo), (s.radius * S.stormSize * Math.PI) / 180], OFF_STORMS + i * 4);
@@ -1030,6 +1034,7 @@ class App {
     this.warm = this.needsInit ? this.warmSteps : Math.max(this.warm, Math.min(300, this.warmSteps));
     this.warmTotal = this.warm;
     this.warmStart = performance.now();
+    this.manualSkip = false;
     this.needsInit = false;
     this.needsDye = false;
     showLoading(true);
@@ -1043,17 +1048,17 @@ class App {
     await this.device.queue.onSubmittedWorkDone();
     const ms = (performance.now() - t0) / Math.max(n, 1);
     this.stepMs = this.stepMs > 0 ? this.stepMs * 0.7 + ms * 0.3 : ms;
-    this.warmRate = Math.min(128, Math.max(1, Math.round(40 / this.stepMs)));
+    this.warmRate = Math.min(1024, Math.max(1, Math.round(40 / this.stepMs)));
     const done = this.warmTotal - this.warm;
     if (S.autoQuality && !this.calibrated && done >= 90) this.calibrate();
     // Ladezeit begrenzen: nicht länger als ~5 s vorrechnen, auch auf langsamen GPUs.
-    if (done >= 90 && !this.offscreen) {
+    if (done >= 90 && !this.offscreen && !this.manualSkip) {
       const left = Math.max(0, Math.floor((MAX_LOAD_MS - (performance.now() - this.warmStart)) / this.stepMs));
       if (this.warm > left) { this.warm = left; this.warmTotal = done + left; }
     }
     loadBar.style.width = `${Math.round((100 * (this.warmTotal - this.warm)) / Math.max(this.warmTotal, 1))}%`;
     fpsEl.textContent = '– fps';
-    if (this.warm === 0) showLoading(false);
+    if (this.warm === 0) { showLoading(false); this.manualSkip = false; }
   }
 
   /** Einmal pro Start: passt ein Simulationsschritt nicht ins Budget, eine Stufe herunter. */
@@ -1299,9 +1304,12 @@ class App {
           'Spins planet and physics the other way (like Venus). Then northern cyclones turn clockwise, and all jets and storms are mirrored. Normal (off): counter-clockwise seen from the north, northern cyclones counter-clockwise, southern ones clockwise. (For toilets Coriolis is far too weak: Ro ≈ 1000.)') + fx(t('Ω → −Ω,  U(φ) → −U(φ),  Drehsinn → −Drehsinn', 'Ω → −Ω,  U(φ) → −U(φ),  spin → −spin')))
       .section(t('Wind', 'Wind'), t('Jet-Stärke wirkt in beiden Rechenmodellen, die übrigen Regler bei Stable Fluids. Die Gleichung (2D, inkompressibel, auf der Kugel):', 'Jet strength applies to both maths models, the other controls to Stable Fluids. The equation (2D, incompressible, on the sphere):'), true)
       .custom(this.formulaNote(t('∂u/∂t + (u·∇)u = −∇p − f k̂×u + F<sub>Jet</sub> + F<sub>Sturm</sub> + ε·F<sub>Wirbel</sub> − r·u,   ∇·u = 0', '∂u/∂t + (u·∇)u = −∇p − f k̂×u + F<sub>jet</sub> + F<sub>storm</sub> + ε·F<sub>vortex</sub> − r·u,   ∇·u = 0')))
-      .range('jetStrength', t('Jet-Stärke', 'Jet strength'), 0, 0.5, 0.002,
-        t('Spitzengeschwindigkeit der Ost-West-Winde in Planetenradien pro Sekunde. Skaliert auch Stürme und Turbulenz. Bestimmt Form und Größe der Wirbel; wie schnell alles abläuft, regelt „Tempo“.',
-          'Peak east–west wind speed in planet radii per second. Also scales storms and turbulence. Sets the shape and size of the vortices; how fast it all runs is set by “Tempo”.') + fx(t('U(φ) = U<sub>max</sub> · Profil(φ)', 'U(φ) = U<sub>max</sub> · profile(φ)')), f3)
+      .range('jetStrength', t('Jet-Geschwindigkeit', 'Jet speed'), 0, 0.5, 0.002,
+        t('Wie schnell die Ost-West-Bänder strömen (Planetenradien pro Sekunde). Nur die Bänder: wie kräftig die Strudel angetrieben werden, stellst du getrennt unter „Strudel-Stärke“ ein, wie schnell alles abläuft unter „Tempo“.',
+          'How fast the east–west bands flow (planet radii per second). Bands only: how strongly eddies are driven is set separately under “Eddy strength”, how fast everything runs under “Tempo”.') + fx(t('U(φ) = U<sub>max</sub> · Profil(φ)', 'U(φ) = U<sub>max</sub> · profile(φ)')), f3)
+      .range('eddyStrength', t('Strudel-Stärke', 'Eddy strength'), 0, 10, 0.05,
+        t('Antrieb aller Strudel: Turbulenz, Stürme, Curl-Noise und Wirbel. Unabhängig von der Jet-Geschwindigkeit, so kannst du ruhige Bänder mit kräftigen Strudeln kombinieren oder umgekehrt. 1 = wie bisher bei Jet-Geschwindigkeit 0,06.',
+          'Drive of all eddies: turbulence, storms, curl noise and vortices. Independent of jet speed, so calm bands can go with strong eddies or the other way round. 1 = as before at jet speed 0.06.') + fx(t('Antrieb = 0,06 · Strudel-Stärke', 'drive = 0.06 · eddy strength')), (v) => `${v.toFixed(2)}×`)
       .range('jetRelax', t('Jet-Rückstellung', 'Jet restoring'), 0, 5, 0.01,
         t('Zieht nur das Breitenkreis-Mittel des Ostwinds zum Windprofil zurück; Wirbel bleiben frei. 0 = die Bänder zerfallen mit der Zeit.',
           'Pulls only the latitude-circle mean of the east wind back to the profile; vortices stay free. 0 = bands decay over time.') + fx('u += ê<sub>E</sub> · (U(φ) − ⟨u·ê<sub>E</sub>⟩<sub>φ</sub>) · k·Δt'), f2)
@@ -1364,8 +1372,8 @@ class App {
       .range('opacity', t('Deckkraft', 'Opacity'), 0.01, 1, 0.01, t('α: wie stark ein Partikel seine Farbe in die Textur schreibt.', 'α: how strongly a particle writes its colour into the texture.'), pct)
       .range('blur', t('Weichzeichnen', 'Blur'), 0, 1, 0.01, t('Verwischt die Textur jedes Bild ein wenig, damit aus Punkten Wolken werden.', 'Blurs the texture slightly every frame so points become clouds.') + fx(t('c ← mix(c, Mittel der 4 Nachbarn, b)', 'c ← mix(c, mean of 4 neighbours, b)')), pct)
       .range('fade', t('Verblassen', 'Fade'), 0, 1, 0.005,
-        t('Nur Schiene „Partikel“: wie schnell die Textur zu einer einzigen Mittelfarbe verblasst (jasper-r). Die Bänder entstehen dann allein aus den Partikeln.',
-          'Track “Particles” only: how fast the texture fades to one mean colour (jasper-r). Bands then come from the particles alone.') + fx(t('c ← mix(c, c<sub>Mittel</sub>, 1 − e<sup>−k·Δt</sup>)', 'c ← mix(c, c<sub>mean</sub>, 1 − e<sup>−k·Δt</sup>)')), f3)
+        t('Nur Darstellung „Partikel rein“: wie schnell die Textur zu einer einzigen Mittelfarbe verblasst (jasper-r). Die Bänder entstehen dann allein aus den Partikeln.',
+          '“Pure particles” look only: how fast the texture fades to one mean colour (jasper-r). Bands then come from the particles alone.') + fx(t('c ← mix(c, c<sub>Mittel</sub>, 1 − e<sup>−k·Δt</sup>)', 'c ← mix(c, c<sub>mean</sub>, 1 − e<sup>−k·Δt</sup>)')), f3)
       .range('viewFocus', t('Sichtfeld-Anteil', 'View focus'), 0, 0.95, 0.05,
         t('Anteil der Partikel, die auf der sichtbaren Seite geboren werden. Bei 0,8 landen 80 % der Rechenarbeit dort, wo du hinschaust: schärfer beim Heranzoomen, gleiche Kosten. Die Rückseite verblasst dann langsamer als sie bemalt wird; zu hoch gewählt wirkt sie beim Drehen blasser.',
           'Share of particles born on the visible side. At 0.8, 80 % of the work lands where you look: sharper when zooming in, same cost. The far side then gets painted less; set too high it looks paler when it turns into view.'), pct)
@@ -1513,6 +1521,15 @@ class App {
     }
   }
 
+  /** Vorspulen: Sekunden Simulationszeit ohne Bild vorausrechnen, ohne Ladezeit-Grenze. */
+  private skip(seconds: number) {
+    const steps = Math.round(seconds / DT);
+    this.warm = steps; this.warmTotal = steps;
+    this.warmStart = performance.now();
+    this.manualSkip = true;
+    showLoading(true);
+  }
+
   /** Immer sichtbare Knopfleiste oben im Panel. */
   private buildToolbar() {
     const bar = document.getElementById('toolbar');
@@ -1526,7 +1543,9 @@ class App {
       return b;
     };
     mk('btn-warm', t('⏩ 20 s', '⏩ 20 s'), t('20 Sekunden Simulationszeit vorspulen: sofort den eingeschwungenen Zustand sehen.', 'Skip 20 seconds of simulation time: see the settled state right away.'),
-      () => { this.warm = WARM_STEPS; this.warmTotal = WARM_STEPS; showLoading(true); });
+      () => this.skip(20));
+    mk('btn-warm60', t('⏩ 60 s', '⏩ 60 s'), t('60 Sekunden Simulationszeit vorspulen.', 'Skip 60 seconds of simulation time.'), () => this.skip(60));
+    mk('btn-warm600', t('⏩ 600 s', '⏩ 600 s'), t('10 Minuten Simulationszeit vorspulen. Dauert je nach Grafikkarte einige Sekunden.', 'Skip 10 minutes of simulation time. Takes a few seconds depending on the GPU.'), () => this.skip(600));
     const pause = mk('btn-pause', S.paused ? t('▶ Weiter', '▶ Resume') : t('⏸ Pause', '⏸ Pause'), t('Simulation anhalten oder weiterlaufen lassen.', 'Pause or resume the simulation.'), () => {
       S.paused = !S.paused;
       pause.textContent = S.paused ? t('▶ Weiter', '▶ Resume') : t('⏸ Pause', '⏸ Pause');
