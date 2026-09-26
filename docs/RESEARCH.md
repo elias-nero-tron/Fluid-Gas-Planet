@@ -50,3 +50,48 @@ Anthropic, [Effective harnesses for long-running agents](https://www.anthropic.c
 progress file and feature list in the repository, small committed steps, each session starts by
 reading them and checking what actually works. Applied here as `CLAUDE.md`, `docs/STATUS.md`,
 `docs/ROADMAP.md` and the film-strip tool (`scripts/eyes.mjs`). See [PROCESS.md](PROCESS.md).
+
+## F. Author’s links, read at source level (v0.3 review, round 2)
+
+| Link | What is really inside (read in the code) | Licence | Use for us |
+|---|---|---|---|
+| [colordodge/ProceduralPlanet](https://github.com/colordodge/ProceduralPlanet) | No physics. 16–32 octaves of 4D simplex noise baked once into 6 cube-map faces (256–4096² selectable), with **domain warping** (`p + 1.8·n₃`), mixing of normal/ridged/“cloud” (sin-folded) noise, a 2D **biome lookup** (height × moisture), water level, and separate normal and roughness maps. The “endless zoom” comes from the high bake resolution plus the normal map. | WTFPL (reuse allowed) | Ground layer of a climate planet: height + moisture maps, biome LUT, roughness (shiny water). |
+| [EepyBerry/lagrange](https://github.com/EepyBerry/lagrange) | three.js WebGPU/TSL. Climate zones = `smoothstep(latitude) × fbm` for temperature and humidity, then a (humidity, temperature) biome texture (Whittaker-diagram idea). Water level = step(height). Clouds = warped fbm on a shell. Also noise, not physics. | “I’m So Tired” 1.0 (restrictive, not Apache-compatible) | Ideas only: parameter set and UI. |
+| [three.js webgpu_volume_fire](https://github.com/mrdoob/three.js/blob/dev/examples/webgpu_volume_fire.html) | A real **3D Stable Fluids** solver on 100×100×200 voxels (rgba16float 3D storage textures): semi-Lagrangian advection, buoyancy F = (β·T − w·ρ)·ŷ, curl-noise turbulence decaying with age, 2 Jacobi iterations; rendering by ray marching with **Beer–Lambert** transmittance e^(−τ), **Henyey–Greenstein** phase, a “powder” term 1 − e^(−2τ), a cheap multiple-scattering term and volumetric shadows. | MIT | This is the maths for rising cloud towers and the lighting for volumetric clouds. Directly portable to WGSL. |
+| [matsuoka-601/WaterBall](https://github.com/matsuoka-601/WaterBall) | Real particle fluid on a sphere: **MLS-MPM** (Moving Least Squares Material Point Method, after nialltl’s article) plus screen-space fluid rendering (GDC 2010). | MIT | Real water physics; the right reference for close-up water (splashes, waves), not for planet-wide oceans. Planet oceans are a thin layer, so they belong to shallow-water equations. |
+| Reddit r/Unity3D “procedural Earth-sized planet” | Could not be opened from the build environment (reddit blocked). | – | Needs a title or video from the author. |
+
+**Verdict:** the planet generators everyone admires (ProceduralPlanet, Lagrange) are *noise*, not *computed weather*.
+They look strong because of high-octave warped noise, a biome lookup and good normal and roughness maps.
+The “computed” part the author asks for has to come from atmospheric physics, and published models exist for
+exactly this at real-time cost:
+
+## G. Higher maths for a climate planet (formulas, all published)
+
+1. **Moist-convective rotating shallow water** (Bouchut, Lambaerts, Lapeyre & Zeitlin 2009, Phys. Fluids 21, 116604;
+   improved by Rostami & Zeitlin 2018, QJRMS; [overview slides](https://team.inria.fr/ange/files/2017/11/zeitlin.pdf)):
+   ```
+   ∂u/∂t + (u·∇)u + f k̂×u = −g∇h
+   ∂h/∂t + ∇·(h u) = −β·P               (condensation lifts air out of the layer = convection)
+   ∂q/∂t + ∇·(q u) = E − P               (moisture: evaporation E, precipitation P)
+   P = (q − q_s)/τ  if q > q_s, else 0   (precipitation threshold)
+   ```
+   This is the same shallow-water core as ROADMAP 1c, plus one scalar q. It produces fronts, moist vortices
+   and hurricane-like structures by itself. Clouds are where P > 0 or q is close to q_s.
+2. **Clausius–Clapeyron** for saturation: q_s(T) ≈ q₀·exp(−L/(R_v·T)), about +7 % per kelvin. Warm oceans
+   evaporate, cold mountain tops and poles condense.
+3. **Temperature** without a 3D model: T(φ, h) = T_eq(φ) − Γ·h, relaxed like **Held–Suarez 1994**
+   (Newtonian relaxation toward an equilibrium profile T_eq(φ) plus Rayleigh friction near the ground, the
+   standard benchmark for GCM dynamical cores; [DCPAM notes](https://www.gfd-dennou.org/library/dcpam/sample/held-suarez-1994.htm)).
+   The equator-to-pole contrast then drives jets (thermal wind), with Γ ≈ 6.5 K/km the lapse rate.
+4. **Orographic lift**: w = u·∇h (already in the terrain sketch) as an extra condensation source.
+5. **Global circulation** (Hadley, Ferrel and polar cells, ITCZ, trade winds, westerlies; the author’s Grok list:
+   Met Office, Wikipedia “Hadley cell”, LibreTexts 12.4). A one-layer model cannot produce the overturning
+   cells itself; they enter as a prescribed meridional convergence pattern (rising at the ITCZ and 60°,
+   sinking at 30° and the poles) that feeds the moisture equation, which is how many teaching models do it.
+6. **Volumetric rendering** of the condensate as a shell 0–15 km thick: Beer–Lambert, Henyey–Greenstein,
+   powder term, shadow march toward the sun (three.js volume fire, MIT). Towers: the local P and convergence
+   set the cloud top height. Only there does a 3D look come from computed numbers.
+7. **Why a cube-sphere is right**: research dynamical cores for planetary atmospheres use it too
+   (e.g. ExoCubed, [arXiv 2403.06844](https://arxiv.org/pdf/2403.06844), with halo cells at face edges).
+   Our seam fix (“Exact edges”) is the cheap version of their halos.
