@@ -12,6 +12,7 @@ Zufallsplaneten laufen mit derselben Technik.
 </p>
 
 **▶ Sofort ausprobieren:** [Planeten-Simulator](https://raw.githack.com/elias-nero-tron/Fluid-Gas-Planet/main/demo/index.html) ·
+[Wolken über Gelände (Vorschau)](https://raw.githack.com/elias-nero-tron/Fluid-Gas-Planet/main/demo/terrain.html) ·
 [Sahne im Kaffee](https://raw.githack.com/elias-nero-tron/Fluid-Gas-Planet/main/demo/coffee.html)
 (Browser mit WebGPU nötig) · oder [`demo/index.html`](demo/index.html) herunterladen und lokal öffnen.
 
@@ -28,7 +29,8 @@ Idee und Projektleitung: **elias-nero-tron** · Lizenz: Apache 2.0 · Zitieren: 
 | Version | Inhalt | Geprüft |
 |---|---|---|
 | **v0.1.0** (Branch `release/v0.1.0`) | Prototyp: Stable Fluids und Partikel, 5 Planeten, Regler mit Erklärtexten | ✅ auf echter Hardware (iGPU, ~60 fps nach Augenmaß). Urteil: aus der Ferne überzeugend, aus der Nähe zu grob |
-| **v0.2.3** (Vorabversion, `main`; v0.1-Look, Ladebild, 60-fps-Automatik, Zufallsplaneten, Speichern/Rückgängig) | Kanten-Fix, freie Stürme, Einschwingen, Gaseous-Giganticus-Rezept, Kaffee-Demo | 🔶 nur im Software-Renderer, Bestätigung auf Hardware offen |
+| **v0.2.3** (v0.1-Look, Ladebild, 60-fps-Automatik, Zufallsplaneten, Speichern/Rückgängig) | Kanten-Fix, freie Stürme, Kaffee-Demo | ✅ vom Urheber auf RTX 5080 getestet: ~240 fps, „echt gut“; fehlt: Mächtigkeit |
+| **v0.3.0** (Vorabversion, `main`) | Getrennte Schienen (Flüssigkeit / Partikel wie jasper-r / Mischform), Simulationstempo unabhängig von der Bildrate, Zeitraffer ohne Physikänderung, rückläufige Drehung, Sturm-Drehsinn aus der Scherung, Geräteklassen bis 32 Mio. Partikel, Formel zu jedem Regler, Filmstreifen und Kanten-Selbsttest, steuerbarer Zufallsplanet, Vorschau „Wolken über Gelände“ | 🔶 nur im Software-Renderer |
 
 Was funktioniert, was nicht, und die gemessenen Befunde stehen in [docs/STATUS.md](docs/de/STATUS.md).
 
@@ -46,17 +48,20 @@ Simulator öffentlich unter der Pages-Adresse dieses Repos, die Kaffee-Demo unte
 
 ## Was drin ist
 
-- **Zwei Verfahren, frei kombinierbar.** Strömung: *Stable Fluids* (Druck, Coriolis, Jets,
-  Wirbel) oder *Curl-Noise* nach dem Rezept von Gaseous Giganticus. Darstellung: *Farbstoff*
-  (Farbtextur wird mitgeführt) oder *Partikel* (bis 4 Mio.).
+- **Getrennte Schienen statt Mischverfahren.** *Flüssigkeit*: Stable Fluids mit Farbstoff (Look von v0.1).
+  *Partikel*: Curl-Noise und Millionen Partikel, die zu einer Mittelfarbe verblassen, wie bei jasper-r.
+  *Mischform*: die freie Kombination aus v0.2. Siehe [Arbeitsweise](docs/de/PROZESS.md).
 - **Planeten sind Zahlen:** gemessene Windprofile, Farbbänder, Stürme, Abplattung, Achsneigung,
   Ringe. Dazu „Farben aus Bild“: Bandfarben aus einem Foto messen.
 - **Zufallsplaneten und Speichern:** 🎲 würfelt einen echten Zufallsplaneten aus fünf Familien (jupiter-,
   saturnartig, Eisriese, heißer Jupiter, exotisch). Rückgängig/Wiederholen (Strg+Z/Y), Doppelklick auf einen
   Reglernamen setzt ihn zurück, benannte Speicherplätze und ein Planeten-Code zum Weitergeben.
-- **Rund 40 Regler**, jeder erklärt, was er physikalisch verändert. Debug-Ansichten für Wind,
-  Wirbelstärke und Druck, Kartenansicht der ganzen Kugel.
+- **Rund 50 Regler**, jeder erklärt, was er physikalisch verändert, mit Formel. Geräteklassen vom
+  Smartphone bis zur High-End-GPU. Debug-Ansichten, Kartenansicht, **Filmstreifen-Aufnahme** (8 Bilder
+  in einem PNG, für Rückmeldungen) und Kanten-Selbsttest.
 - **Darstellung:** Ellipsoid, Minnaert-Randverdunkelung, Relief, Dunstsaum, Ringe mit Schatten.
+- **Wolken über Gelände** ([demos/terrain.html](demos/terrain.html)): Vorschau einer eigenen Schiene.
+  Wolken entstehen, wo Wind Berge hinaufweht (w = u·∇h), auf einer echten Wolkenschicht mit Parallaxe und Schatten.
 - **Kaffee-Demo** ([demos/coffee.html](demos/coffee.html)): Sahne gießen und umrühren. Prüfstein
   für drei Bausteine, die dem Planeten noch fehlen (Quellen, Hindernisse, scharfer Transport).
 
@@ -78,7 +83,8 @@ Simulator öffentlich unter der Pages-Adresse dieses Repos, die Kaffee-Demo unte
 
 Einstieg für Menschen und für neue KI-Sitzungen, in dieser Reihenfolge:
 
-1. [docs/STATUS.md](docs/de/STATUS.md): geprüft vs. unverifiziert, Befunde der Fehlersuche
+0. [CLAUDE.md](CLAUDE.md) und [Arbeitsweise](docs/de/PROZESS.md): Schienen, Filmstreifen, geschützte Standardwerte
+1. [docs/STATUS.md](docs/de/STATUS.md) (neueste Befunde 9–15 in [englisch](docs/STATUS.md)): geprüft vs. unverifiziert, Befunde der Fehlersuche
 2. [docs/ROADMAP.md](docs/de/ROADMAP.md): Stärken, Schwachpunkte, Baustellen nach Wirkung sortiert
 3. [docs/MATHEMATIK.md](docs/de/MATHEMATIK.md): Formeln ↔ Code
 4. [CONTRIBUTING.md](docs/de/CONTRIBUTING.md): Regeln fürs Mitmachen
