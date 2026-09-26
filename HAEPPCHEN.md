@@ -108,8 +108,8 @@ Also bei jedem Häppchen: Quelle lesen, Verfahren übernehmen (Lizenz beachten),
 - Zeitraffer ändert die Physik nicht mehr (Simulation war an die Bildrate gekoppelt)
 - Drehrichtung im oder gegen den Uhrzeigersinn; Sturm-Drehsinn je nach Halbkugel; Drehgeschwindigkeit
 - „Neuer Lauf“ statt sinnlosem Neustart; Filmstreifen statt Einzelfotos
-- Hilfebox springt nicht mehr, HUD springt nicht mehr
-- Erklärung und Formel unter jedem Regler
+- Hilfebox oben entfernt (nichts springt mehr), HUD springt nicht mehr; ausgeblendete Regler sind wirklich ausgeblendet
+- Neben jedem Regler ⓘ: Erklärfenster unten links mit allen Details und Formel; beim Drüberfahren eine kurze Blase
 - 5080 ans Limit: alle Regler bis 32 Mio. Partikel, 2048² Farbe, 384² Gitter, Render-Auflösung bis 3× (Supersampling)
 - Auflösungsregler bauen erst beim Loslassen um (keine Lags mehr beim Ziehen)
 - Partikel-Verfahren vom Flüssigkeits-Verfahren getrennt (eigene Schiene)
