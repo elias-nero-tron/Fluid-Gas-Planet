@@ -11,6 +11,8 @@ import { t, lang, setLang } from './i18n';
 // Einstellungen (alles, was ein Regler verändern kann)
 // ---------------------------------------------------------------------------
 
+declare const __VERSION__: string;
+
 const isPhone = matchMedia('(pointer: coarse)').matches && Math.min(screen.width, screen.height) < 820;
 
 const S = {
@@ -1451,6 +1453,8 @@ class App {
 
   /** Feste Texte der Seite in der aktuellen Sprache. */
   private applyStaticText() {
+    const ver = document.getElementById('version');
+    if (ver) ver.textContent = __VERSION__;
     const set = (id: string, text: string) => { const el = document.getElementById(id); if (el) el.textContent = text; };
     set('hint', t('ziehen zum Drehen, Mausrad oder zwei Finger zum Zoomen', 'drag to rotate, scroll or pinch to zoom'));
     set('load-title', t('Atmosphäre wird eingeschwungen', 'Spinning up the atmosphere'));
