@@ -68,6 +68,11 @@ export class Panel {
     row.addEventListener('focusin', show);
     row.addEventListener('pointerdown', show);
     (this.current ?? this.body).append(row);
+    // Erklärung und Formel direkt unter dem Regler (ausblendbar über ⓘ im Kopf des Panels).
+    const note = document.createElement('div');
+    note.className = 'row-hint';
+    note.innerHTML = hint;
+    queueMicrotask(() => row.append(note));
     return { row, lab, out };
   }
 
