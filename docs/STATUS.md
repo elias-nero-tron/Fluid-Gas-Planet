@@ -86,7 +86,10 @@ but 10 fps while spinning up. Spin-up is now adaptive (keeps ~30 fps). Steady-st
     finding 1 (measured in SwiftShader) may not apply. Second candidate: anisotropic numerical
     diffusion; grid lines kink at face edges, so smearing along a jet differs on both sides. v0.3 adds a
     **self-test** (Diagnostics) that measures seam error on the user’s GPU and switches on exact edge
-    sampling if needed. Real fix candidates: equi-angular cube + halo texels, and ROADMAP 1a.
+    sampling if needed. **Measured in v0.3 (software renderer, film strips in `docs/eyes/`):** with
+    hardware sampling the fluid track shows clear cube seams; with “Exact edges” on, they are gone
+    completely ([before](eyes/v030-fluid-hardware-sampling.png), [after](eyes/v030-fluid-exact-edges.png)).
+    The fix works; whether a given GPU needs it is what the self-test answers. Real fix candidates: equi-angular cube + halo texels, and ROADMAP 1a.
     Why a cube at all: a sphere cannot be covered by one regular grid without singular points (the
     poles of a latitude/longitude grid). The cube-sphere is what NASA’s FV3 weather model uses too.
 15. **Relief is a lighting trick, not depth.** The normal is tilted by the brightness gradient; there is
