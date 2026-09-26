@@ -28,6 +28,21 @@ export interface Preset {
   rings: null | { inner: number; outer: number; color: string; opacity: number };
   // Startwerte für Regler, die je Planet sinnvoll anders sind
   tune: { turbulence: number; convection: number; bandWobble: number; stormTint: number; relief: number };
+  facts?: Facts;
+}
+
+/** Steckbrief für die Anzeige oben links (echte Werte bei den Vorlagen, plausible beim Zufallsplaneten). */
+export interface Facts {
+  diameterKm: number;
+  distanceAU: number;
+  yearDays: number;
+  tempC: number;               // an der Wolkenobergrenze
+  gravity: number;             // m/s²
+  moons: number;
+  windMs: number;              // stärkste Winde
+  clouds: [string, string];    // [deutsch, englisch]
+  locked?: boolean;            // gebundene Rotation (Tag = Jahr)
+  note?: [string, string];
 }
 
 export const presets: Preset[] = [
@@ -62,6 +77,7 @@ export const presets: Preset[] = [
     atmosphere: '#8fb2e0',
     atmosphereStrength: 0.35,
     rings: null,
+    facts: { diameterKm: 142984, distanceAU: 5.2, yearDays: 4333, tempC: -108, gravity: 24.8, moons: 95, windMs: 150, clouds: ['Ammoniak-Eis, Ammoniumhydrogensulfid, Wasser', 'ammonia ice, ammonium hydrosulfide, water'] },
     tune: { turbulence: 0.4, convection: 0.8, bandWobble: 0.6, stormTint: 1.6, relief: 0.35 },
   },
   {
@@ -87,6 +103,7 @@ export const presets: Preset[] = [
     atmosphere: '#d9c8a0',
     atmosphereStrength: 0.25,
     rings: { inner: 1.24, outer: 2.27, color: '#d8c7a4', opacity: 0.9 },
+    facts: { diameterKm: 120536, distanceAU: 9.58, yearDays: 10759, tempC: -139, gravity: 10.4, moons: 274, windMs: 500, clouds: ['Ammoniak-Eis', 'ammonia ice'] },
     tune: { turbulence: 0.35, convection: 0.25, bandWobble: 0.6, stormTint: 0.4, relief: 0.1 },
   },
   {
@@ -112,6 +129,7 @@ export const presets: Preset[] = [
     atmosphere: '#7fb0ff',
     atmosphereStrength: 0.5,
     rings: null,
+    facts: { diameterKm: 49528, distanceAU: 30.07, yearDays: 60190, tempC: -201, gravity: 11.2, moons: 16, windMs: 580, clouds: ['Methan-Eis', 'methane ice'] },
     tune: { turbulence: 0.5, convection: 1.6, bandWobble: 0.7, stormTint: 0.8, relief: 0.6 },
   },
   {
@@ -133,6 +151,7 @@ export const presets: Preset[] = [
     atmosphere: '#bff0ff',
     atmosphereStrength: 0.45,
     rings: { inner: 1.64, outer: 2.0, color: '#6d7478', opacity: 0.25 },
+    facts: { diameterKm: 51118, distanceAU: 19.19, yearDays: 30687, tempC: -195, gravity: 8.7, moons: 29, windMs: 250, clouds: ['Methan-Eis', 'methane ice'], note: ['liegt auf der Seite (98° Neigung), dreht rückläufig', 'lies on its side (98° tilt), spins retrograde'] },
     tune: { turbulence: 0.2, convection: 0.6, bandWobble: 0.4, stormTint: 0.4, relief: 0.4 },
   },
   {
@@ -154,6 +173,7 @@ export const presets: Preset[] = [
     atmosphere: '#ff9a5a',
     atmosphereStrength: 0.4,
     rings: null,
+    facts: { diameterKm: 163000, distanceAU: 0.031, yearDays: 2.2, tempC: 1200, gravity: 21, moons: 0, windMs: 2400, clouds: ['Silikate (Glasregen)', 'silicates (glass rain)'], locked: true, note: ['Werte wie HD 189733 b', 'values like HD 189733 b'] },
     tune: { turbulence: 0.8, convection: 0.2, bandWobble: 1.2, stormTint: 0.5, relief: 0.15 },
   },
 ];
@@ -366,12 +386,26 @@ export function randomPreset(seed: number, opts: RandomOptions = {}): Preset {
     ? (() => { const inner = range(1.2, 1.7); return { inner, outer: inner + range(0.25, 1.3), color: hsl(hue + range(-30, 30), range(0.05, 0.3), range(0.4, 0.8)), opacity: range(0.15, 0.9) }; })()
     : null;
 
+  const oblateness = range(0.005, 0.12), rotationHours = range(7, 30);
+  const cloud = hsl(hue + range(-20, 20), 0.2, range(0.88, 0.97));
+  const atmosphere = hsl(fam.name === 'hot' ? range(10, 30) : hue + range(150, 210), fam.atmoSat, 0.7), atmosphereStrength = range(0.2, 0.6);
+  const tune = { turbulence: range(0.2, 0.8), convection: range(0, 1.5), bandWobble: range(0.3, 1.2), stormTint: range(0.6, 2), relief: range(0.1, 0.5) };
+  // Steckbrief: plausible Werte für einen Stern wie die Sonne (Gleichgewichtstemperatur ~ 255 K/√a).
+  const dia: Record<string, [number, number]> = { jovian: [110000, 160000], saturnian: [95000, 130000], ice: [40000, 60000], hot: [120000, 220000], exotic: [30000, 220000] };
+  const au = fam.name === 'hot' ? range(0.02, 0.08) : fam.name === 'ice' ? range(12, 45) : range(2, 15);
+  const diameterKm = Math.round(range(dia[fam.name][0], dia[fam.name][1]) / 100) * 100;
+  const tempC = Math.round(255 / Math.sqrt(au) - 273 + range(-20, 20) + (fam.name === 'hot' ? 300 : 0));
+  const clouds: [string, string] = tempC > 700 ? ['Silikate, Eisen', 'silicates, iron'] : tempC > 0 ? ['Wasser, Salze', 'water, salts']
+    : tempC > -150 ? ['Ammoniak-Eis', 'ammonia ice'] : ['Methan-Eis', 'methane ice'];
+  const facts: Facts = {
+    diameterKm, distanceAU: +au.toFixed(au < 1 ? 3 : 2), yearDays: +(365.25 * Math.pow(au, 1.5)).toFixed(1), tempC,
+    gravity: +(24.8 * (diameterKm / 142984) * range(0.6, 1.4)).toFixed(1),
+    moons: fam.name === 'hot' ? 0 : Math.floor(range(0, 120)), windMs: Math.round(range(fam.jet[0], fam.jet[1]) * 2),
+    clouds, locked: fam.name === 'hot',
+  };
   return {
     name: `Zufall #${seed.toString(16).padStart(8, '0')}`, wind, bands, storms,
-    oblateness: range(0.005, 0.12), tilt, rotationHours: range(7, 30),
-    cloud: hsl(hue + range(-20, 20), 0.2, range(0.88, 0.97)),
-    atmosphere: hsl(fam.name === 'hot' ? range(10, 30) : hue + range(150, 210), fam.atmoSat, 0.7), atmosphereStrength: range(0.2, 0.6),
-    rings,
-    tune: { turbulence: range(0.2, 0.8), convection: range(0, 1.5), bandWobble: range(0.3, 1.2), stormTint: range(0.6, 2), relief: range(0.1, 0.5) },
+    oblateness, tilt, rotationHours: fam.name === 'hot' ? facts.yearDays * 24 : rotationHours, facts,
+    cloud, atmosphere, atmosphereStrength, rings, tune,
   };
 }

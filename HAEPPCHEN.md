@@ -101,6 +101,13 @@ Also bei jedem Häppchen: Quelle lesen, Verfahren übernehmen (Lizenz beachten),
 
 ## Erledigt (damit nichts verloren geht)
 
+- Panel neu sortiert: Planet, Zufallsplanet, Verfahren, Zeit und Drehung, Wind, Stürme, Wolkenfarbe, Curl noise, Partikel, Licht, **Grafikkarte und Feinheit** (alles, was nur GPU kostet, getrennt von der Physik)
+- Rechenmodell (Stable Fluids / Curl-Noise) und Darstellung (Flüssigkeit / Partikel / Partikel rein) wieder frei kombinierbar
+- „Tempo“ getrennt von „Jet-Stärke“: Stärke bestimmt Form und Größe, Tempo nur die Geschwindigkeit; eigener Regler „Sturm-Größe“ neben „Sturm-Drehtempo“
+- Knopfleiste (⏩ 20 s, Pause, Neuer Lauf) immer sichtbar; Regler-Bereiche stark erweitert; Auflösungen bis 8192² (Farbe), 4096² (Strömungsfeld), 1024² (Gitter), 64 Mio. Partikel, Render-Auflösung bis 4×
+- Steckbrief oben links: Durchmesser, Abstand, Jahr, Tag, Temperatur, Schwerkraft, Winde, Wolkenstoff, Monde (echte Werte, beim Zufallsplaneten plausibel geschätzt)
+- Drehgeschwindigkeit Standard 0,5; schöneres ⓘ-Symbol
+
 - Gasriesen in WebGPU ohne Bilddateien, mehrere Planeten, Jupiter als Maßstab; Regler zum Testen
 - Veröffentlicht auf GitHub, Klick-Link, Englisch und Deutsch, professionelles Open Source mit Credits und Zitierung, Umzug auf anderes Konto möglich
 - Mindestens 60 fps (Automatik), Start mitten im Geschehen (Ladebild mit Vorrechnen)
