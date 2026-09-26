@@ -47,7 +47,12 @@
     text-wrap: balance;
   }
   .hud .meta { font: 12px/1.4 var(--mono); color: var(--muted); font-variant-numeric: tabular-nums; }
-  #fps { color: var(--accent); }
+  /* Feste Breite: wechselnde Ziffern verschieben nichts (HUD-Springen, v0.3-Rückmeldung). */
+  #fps { color: var(--accent); display: inline-block; min-width: 26ch; white-space: nowrap; }
+  .row-hint { grid-column: 1 / -1; margin: 1px 0 2px; font-size: 11.5px; line-height: 1.4; color: var(--muted); }
+  .row-hint .fx { margin-top: 3px; font-size: 11px; }
+  body.hints-off .row-hint { display: none; }
+  #hints { font: 600 12px var(--mono); padding: 5px 9px; }
 
   /* Ladebild: dahinter rechnet die Simulation im Schnelldurchlauf vor. */
   #loading {
@@ -165,7 +170,8 @@
     <div class="hud">
       <h1>Fluid Gas Planet</h1>
       <div class="meta" id="planet-info">Jupiter</div>
-      <div class="meta"><span id="fps">– fps</span> · <span id="hint">drag to rotate, scroll or pinch to zoom</span></div>
+      <div class="meta"><span id="fps">– fps</span></div>
+      <div class="meta" id="hint">drag to rotate, scroll or pinch to zoom</div>
     </div>
     <div id="loading" role="status" aria-live="polite">
       <div class="load-box">
@@ -177,7 +183,7 @@
     <div id="status" hidden></div>
   </div>
   <aside id="panel">
-    <div class="panel-head"><button id="panel-toggle" type="button" aria-expanded="false" aria-controls="panel-body"><span id="panel-title">Controls</span> <span aria-hidden="true">▴</span></button><button id="lang" type="button">DE</button></div>
+    <div class="panel-head"><button id="panel-toggle" type="button" aria-expanded="false" aria-controls="panel-body"><span id="panel-title">Controls</span> <span aria-hidden="true">▴</span></button><button id="hints" type="button" aria-pressed="true">ⓘ</button><button id="lang" type="button">DE</button></div>
     <div id="panel-body"></div>
     <p class="credits" id="credits"></p>
   </aside>

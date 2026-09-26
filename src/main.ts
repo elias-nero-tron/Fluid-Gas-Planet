@@ -142,6 +142,17 @@ async function start() {
     filmstrip: (o) => app.filmstrip(o), selftest: () => app.selftest(), frame: () => app.frameCount(),
   };
   document.getElementById('lang')?.addEventListener('click', () => app.toggleLang());
+  // ⓘ: Erklärungen unter den Reglern zeigen oder verbergen (gemerkt im Browser).
+  const hintsBtn = document.getElementById('hints');
+  const setHints = (on: boolean) => {
+    document.body.classList.toggle('hints-off', !on);
+    hintsBtn?.setAttribute('aria-pressed', String(on));
+    try { localStorage.setItem('fgp-hints', on ? '1' : '0'); } catch { /* gesperrt */ }
+  };
+  let hintsOn = true;
+  try { hintsOn = localStorage.getItem('fgp-hints') !== '0'; } catch { /* gesperrt */ }
+  setHints(hintsOn);
+  hintsBtn?.addEventListener('click', () => { hintsOn = !hintsOn; setHints(hintsOn); });
   window.addEventListener('keydown', (e) => {
     const tag = (e.target as HTMLElement)?.tagName;
     if (tag === 'INPUT' && (e.target as HTMLInputElement).type === 'text') return;
@@ -1023,6 +1034,15 @@ class App {
   /** Einmal pro Start: passt ein Simulationsschritt nicht ins Budget, eine Stufe herunter. */
   private calibrate() {
     this.calibrated = true;
+    // Schnelle GPU erkannt (Schritt < 2 ms bei Laptop/Desktop-Stufe): Reglergrenzen der
+    // High-End-Klasse freischalten, ohne die aktuellen Werte (und damit den Look) zu ändern.
+    if (!isPhone && !this.offscreen && this.stepMs < 2 && (S.quality === 'standard' || S.quality === 'high')) {
+      S.quality = 'ultra';
+      this.dpr = QUALITY.ultra.dpr;
+      this.buildUI();
+      loadNote.textContent = t('Schnelle Grafikkarte erkannt: High-End-Grenzen freigeschaltet (bis 32 Mio. Partikel).', 'Fast GPU detected: high-end limits unlocked (up to 32 M particles).');
+      return;
+    }
     if (this.stepMs <= STEP_BUDGET_MS || this.downgrades >= 3) return;
     const idx = AUTO_TIERS.findIndex(([, dye]) => dye < S.dyeRes);
     if (idx < 0) return;
