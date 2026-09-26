@@ -103,7 +103,10 @@ particles) per preset and settings in IndexedDB after the first spin-up and rest
 visit in milliseconds. For a game: settle once at build time and ship the state as data.
 
 ### 11. Terrain clouds (track, started in v0.3)
-`demos/terrain.html` shows orographic clouds (w = u·∇h) on a real cloud shell. Next: moisture as an
+`demos/terrain.html` shows orographic clouds (w = u·∇h) on a real cloud shell. **First next step:
+replace its hand-made ground colours with the biome-lookup surface of colordodge/ProceduralPlanet
+(WTFPL, code reusable; see RESEARCH D)**, and climate zones like Lagrange (temperature × humidity,
+ideas only because of its licence). Then: moisture as an
 advected field instead of noise, lee-wave cloud stripes behind mountains, a day/night cycle driving
 convection, and later coupling to a shallow-water wind field.
 
