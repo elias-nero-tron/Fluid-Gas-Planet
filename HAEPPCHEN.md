@@ -107,6 +107,9 @@ Also bei jedem Häppchen: Quelle lesen, Verfahren übernehmen (Lizenz beachten),
 - Knopfleiste (⏩ 20 s, Pause, Neuer Lauf) immer sichtbar; Regler-Bereiche stark erweitert; Auflösungen bis 8192² (Farbe), 4096² (Strömungsfeld), 1024² (Gitter), 64 Mio. Partikel, Render-Auflösung bis 4×
 - Steckbrief oben links: Durchmesser, Abstand, Jahr, Tag, Temperatur, Schwerkraft, Winde, Wolkenstoff, Monde (echte Werte, beim Zufallsplaneten plausibel geschätzt)
 - Drehgeschwindigkeit Standard 0,5; schöneres ⓘ-Symbol
+- Vorspulen 20 s / 60 s / 600 s, ohne die 5-Sekunden-Grenze des Ladebilds (daran lag „Vorlauf geht nicht immer richtig“)
+- „Jet-Geschwindigkeit“ (nur die Bänder) getrennt von „Strudel-Stärke“ (Antrieb von Turbulenz, Stürmen, Curl-Noise, Wirbeln)
+- Version und Build-Zeit im HUD (alte Kopie im Cache sofort erkennbar)
 
 - Gasriesen in WebGPU ohne Bilddateien, mehrere Planeten, Jupiter als Maßstab; Regler zum Testen
 - Veröffentlicht auf GitHub, Klick-Link, Englisch und Deutsch, professionelles Open Source mit Credits und Zitierung, Umzug auf anderes Konto möglich

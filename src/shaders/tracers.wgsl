@@ -106,7 +106,8 @@ fn curlVortices(p: vec3f) -> vec3f {
     // Hintergrund-Wirbelstärke ζ ≈ −∂U/∂φ: Wirbel mit gleichem Vorzeichen überleben in der Scherung.
     let shear = jetAt(lat + 0.01) - jetAt(lat - 0.01);
     let sgn = select(1.0, -1.0, shear > 0.0);
-    let omega = sin(PI * d / rad) * S.vortexStrength * peak / rad * (0.6 + 0.8 * r4.w);
+    // Drehtempo aus der Strudel-Stärke (S.mode.y), nicht aus der Jet-Geschwindigkeit
+    let omega = sin(PI * d / rad) * S.vortexStrength * S.mode.y / rad * (0.6 + 0.8 * r4.w);
     v += cross(c, p) / max(sin(d), 1e-4) * omega * d * sgn;
   }
   return v;
