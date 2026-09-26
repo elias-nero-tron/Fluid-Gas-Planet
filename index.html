@@ -47,10 +47,22 @@
     text-wrap: balance;
   }
   .hud .meta { font: 12px/1.4 var(--mono); color: var(--muted); font-variant-numeric: tabular-nums; }
-  /* Feste Breite: wechselnde Ziffern verschieben nichts (HUD-Springen, v0.3-Rückmeldung). */
+  /* Steckbrief des Planeten oben links */
+  .facts-name { font: 13px/1.4 var(--mono); color: var(--text); margin-top: 2px; }
+  .facts-name span { color: var(--muted); }
+  .facts {
+    display: grid; grid-template-columns: max-content max-content; gap: 1px 12px; margin: 4px 0 6px; padding: 7px 10px;
+    font: 11.5px/1.4 var(--mono); background: rgba(10, 12, 16, 0.55); border: 1px solid var(--line); border-radius: 6px;
+    width: max-content; max-width: 100%;
+  }
+  .facts dt { color: #8fa6c4; }
+  .facts dd { margin: 0; color: var(--text); font-variant-numeric: tabular-nums; }
+  @media (max-width: 760px) { .facts { display: none; } }
+    /* Feste Breite: wechselnde Ziffern verschieben nichts (HUD-Springen, v0.3-Rückmeldung). */
   #fps { color: var(--accent); display: inline-block; min-width: 26ch; white-space: nowrap; }
   /* ⓘ neben jedem Regler, Blase beim Drüberfahren, Erklärfenster unten links über dem Planeten */
-  .row .info { padding: 0 4px; border: 0; background: none; color: var(--muted); font-size: 14px; line-height: 1; cursor: pointer; justify-self: start; }
+  .row .info { display: inline-grid; place-items: center; width: 18px; height: 18px; padding: 0; border: 0; border-radius: 50%; background: none; color: #7f8aa0; cursor: pointer; justify-self: start; }
+  .row .info svg { width: 16px; height: 16px; }
   .row .info:hover, .row .info:focus-visible { color: var(--accent); }
   .tip {
     position: fixed; z-index: 20; max-width: 280px; padding: 7px 10px; pointer-events: none;
@@ -93,7 +105,13 @@
     backdrop-filter: blur(8px);
   }
   #panel-toggle { display: none; }
-  .panel-head { display: flex; justify-content: flex-end; align-items: center; gap: 8px; margin-bottom: 8px; }
+  .panel-head {
+    display: flex; justify-content: flex-end; align-items: center; gap: 8px;
+    position: sticky; top: calc(-12px - env(safe-area-inset-top, 0px)); z-index: 3;
+    margin: -12px -16px 8px; padding: 10px 16px; background: var(--panel); border-bottom: 1px solid var(--line);
+  }
+  #toolbar { display: flex; gap: 6px; flex: 1; flex-wrap: wrap; }
+  #toolbar button { padding: 5px 8px; font-size: 12.5px; white-space: nowrap; }
   #lang { font: 600 12px var(--mono); letter-spacing: 0.08em; padding: 5px 9px; }
   .fx { display: block; margin-top: 6px; font: 11.5px/1.45 var(--mono); color: #d9c7a6; white-space: normal; }
   .note.formula { margin-top: 0; }
@@ -153,7 +171,7 @@
       padding-block: 0 calc(24px + env(safe-area-inset-bottom, 0px));
     }
     aside.open { transform: none; }
-    .panel-head { position: sticky; top: 0; z-index: 3; background: var(--panel); margin-bottom: 8px; }
+    .panel-head { top: 0; margin: 0 -16px 8px; padding: 0 16px 8px; flex-wrap: wrap; }
     .detail { top: 16px; bottom: auto; max-height: 40vh; }
     #panel-toggle {
       display: flex; flex: 1; justify-content: space-between; align-items: center;
@@ -173,7 +191,7 @@
     <canvas id="view" aria-label="Real-time gas giant simulation"></canvas>
     <div class="hud">
       <h1>Fluid Gas Planet</h1>
-      <div class="meta" id="planet-info">Jupiter</div>
+      <div id="planet-info">Jupiter</div>
       <div class="meta"><span id="fps">– fps</span></div>
       <div class="meta" id="hint">drag to rotate, scroll or pinch to zoom</div>
     </div>
@@ -187,7 +205,7 @@
     <div id="status" hidden></div>
   </div>
   <aside id="panel">
-    <div class="panel-head"><button id="panel-toggle" type="button" aria-expanded="false" aria-controls="panel-body"><span id="panel-title">Controls</span> <span aria-hidden="true">▴</span></button><button id="lang" type="button">DE</button></div>
+    <div class="panel-head"><button id="panel-toggle" type="button" aria-expanded="false" aria-controls="panel-body"><span id="panel-title">Controls</span> <span aria-hidden="true">▴</span></button><div id="toolbar"></div><button id="lang" type="button">DE</button></div>
     <div id="panel-body"></div>
     <p class="credits" id="credits"></p>
   </aside>
