@@ -28,6 +28,7 @@ const S = {
   seamless: false,        // nahtlos exakte Abtastung an Würfelkanten (für GPUs ohne nahtlose Cubemaps)
   paused: false,
   autoQuality: true,       // hält ≥ 60 fps: misst beim Laden, passt Auflösung an
+  pixelDensity: isPhone ? 1 : 1.25,  // Render-Pixel pro CSS-Pixel (über 1 = Supersampling)
   // Fluid
   velRes: 128,
   iterations: 24,
@@ -94,7 +95,7 @@ const QUALITY: Record<string, { velRes: number; dyeRes: number; curlRes: number;
     max: { velRes: 192, dyeRes: 1024, curlRes: 768, particles: 4194304 } },
   high: { velRes: 192, dyeRes: 1024, curlRes: 768, particles: 4194304, dpr: 1.75,
     max: { velRes: 256, dyeRes: 1536, curlRes: 1024, particles: 8388608 } },
-  ultra: { velRes: 256, dyeRes: 1536, curlRes: 1024, particles: 8388608, dpr: 3,
+  ultra: { velRes: 256, dyeRes: 1536, curlRes: 1024, particles: 8388608, dpr: 2,
     max: { velRes: 384, dyeRes: 2048, curlRes: 2048, particles: 33554432 } },
 };
 
@@ -341,7 +342,8 @@ class App {
   private applyQuality(fromUI: boolean) {
     const q = QUALITY[S.quality];
     if (fromUI && q) { S.velRes = q.velRes; S.dyeRes = q.dyeRes; S.curlRes = q.curlRes; S.particles = q.particles; }
-    this.dpr = q ? q.dpr : 1.5;
+    if (fromUI && q) S.pixelDensity = Math.min(q.dpr, 2);
+    this.dpr = S.pixelDensity;
     this.allocVel();
     this.allocDye();
     this.allocParticles();
@@ -371,8 +373,18 @@ class App {
     S.particles = want;
     if (want <= this.partCapacity) return;
     this.parts?.destroy();
+    this.device.pushErrorScope('out-of-memory');
     this.parts = this.device.createBuffer({ size: want * 32, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST });
     this.partCapacity = want;
+    // Zu wenig Grafikspeicher: halbieren statt abzustürzen, und im Regler anzeigen.
+    this.device.popErrorScope().then((err) => {
+      if (!err || want <= 16384) return;
+      this.partCapacity = 0;
+      S.particles = Math.max(16384, Math.floor(want / 2 / 16384) * 16384);
+      this.allocParticles();
+      this.panel?.refresh();
+      loadNote.textContent = t(`Nicht genug Grafikspeicher: ${S.particles} Partikel`, `Not enough GPU memory: ${S.particles} particles`);
+    });
   }
 
   /** Strömung und Darstellung, die die gewählte Schiene tatsächlich benutzt. */
@@ -452,6 +464,7 @@ class App {
     const compat: Partial<typeof S> = 'track' in snap.s ? {} : { track: 'hybrid' };
     Object.assign(S, snap.s, compat, { paused: prev.paused });
     this.buildPipes(S.seamless);
+    this.dpr = S.pixelDensity;
     if (prev.retro !== S.retro) this.spin = -this.spin;
     this.usePreset(snap.preset);
     if (prev.velRes !== S.velRes || prev.curlRes !== S.curlRes) this.allocVel();
@@ -1034,15 +1047,6 @@ class App {
   /** Einmal pro Start: passt ein Simulationsschritt nicht ins Budget, eine Stufe herunter. */
   private calibrate() {
     this.calibrated = true;
-    // Schnelle GPU erkannt (Schritt < 2 ms bei Laptop/Desktop-Stufe): Reglergrenzen der
-    // High-End-Klasse freischalten, ohne die aktuellen Werte (und damit den Look) zu ändern.
-    if (!isPhone && !this.offscreen && this.stepMs < 2 && (S.quality === 'standard' || S.quality === 'high')) {
-      S.quality = 'ultra';
-      this.dpr = QUALITY.ultra.dpr;
-      this.buildUI();
-      loadNote.textContent = t('Schnelle Grafikkarte erkannt: High-End-Grenzen freigeschaltet (bis 32 Mio. Partikel).', 'Fast GPU detected: high-end limits unlocked (up to 32 M particles).');
-      return;
-    }
     if (this.stepMs <= STEP_BUDGET_MS || this.downgrades >= 3) return;
     const idx = AUTO_TIERS.findIndex(([, dye]) => dye < S.dyeRes);
     if (idx < 0) return;
@@ -1176,7 +1180,8 @@ class App {
   }
 
   private resize() {
-    const dpr = Math.min(devicePixelRatio || 1, this.dpr) * (S.autoQuality ? this.renderScale : 1);
+    // Pixeldichte direkt aus dem Regler: über der Bildschirmdichte = Supersampling (schärfer, teurer).
+    const dpr = this.dpr * (S.autoQuality ? this.renderScale : 1);
     const w = Math.max(1, Math.round(canvas.clientWidth * dpr));
     const h = Math.max(1, Math.round(canvas.clientHeight * dpr));
     if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; }
@@ -1222,7 +1227,8 @@ class App {
     // Formel unter dem Erklärtext: was im Code wirklich gerechnet wird.
     const fx = (f: string) => `<code class="fx">${f}</code>`;
     const presetName = (name: string) => ({ Neptun: t('Neptun', 'Neptune'), 'Heißer Jupiter': t('Heißer Jupiter', 'Hot Jupiter') } as Record<string, string>)[name] ?? name;
-    const lim = (QUALITY[S.quality] ?? QUALITY.standard).max;
+    // Alle Regler gehen immer bis zum Maximum; "Gerät" setzt nur die Startwerte.
+    const lim = QUALITY.ultra.max;
 
     this.panel = new Panel(root, S as unknown as Record<string, number | string | boolean>, on, DEFAULTS as unknown as Record<string, number | string | boolean>);
     this.panel
@@ -1236,8 +1242,11 @@ class App {
         ['high', t('Desktop-GPU', 'Desktop GPU')],
         ['ultra', t('High-End-GPU (z. B. RTX 4080/5080)', 'High-end GPU (e.g. RTX 4080/5080)')],
       ],
-        t('Setzt Gitter, Farbauflösung, Partikelzahl und Pixeldichte passend zum Gerät und legt fest, wie weit die Regler gehen. „High-End“ schaltet bis 32 Mio. Partikel, 2048² Farbauflösung und volle Bildschirmauflösung frei.',
-          'Sets grid, colour resolution, particle count and pixel density for the device, and how far the controls go. “High-end” unlocks up to 32 M particles, 2048² colour resolution and full screen resolution.'))
+        t('Setzt Startwerte für Gitter, Farbauflösung, Partikelzahl und Render-Auflösung. Die Regler selbst gehen immer bis zum Maximum (32 Mio. Partikel, 2048² Farbe, 384² Gitter), egal welches Gerät gewählt ist.',
+          'Sets starting values for grid, colour resolution, particle count and render resolution. The controls always go to the maximum (32 M particles, 2048² colour, 384² grid), whatever device is chosen.'))
+      .range('pixelDensity', t('Render-Auflösung', 'Render resolution'), 0.5, 3, 0.05,
+        t('Pixel pro Bildschirmpunkt. 1 = Bildschirmauflösung, 2–3 = Supersampling: deutlich schärfere Kanten und Filamente, kostet quadratisch mehr GPU. Für eine RTX 4080/5080 ruhig 2 bis 3.',
+          'Pixels per screen point. 1 = screen resolution, 2–3 = supersampling: much sharper edges and filaments, costs quadratically more GPU. On an RTX 4080/5080 use 2 to 3.'), (v) => `${v.toFixed(2)}×`)
       .toggle('autoQuality', t('60 fps halten', 'Hold 60 fps'),
         t('Misst beim Laden, wie schnell deine Grafikkarte einen Simulationsschritt rechnet, und senkt bei Bedarf die Auflösung. Danach passt sich die Render-Auflösung laufend an, damit die Bildrate über 58 fps bleibt.',
           'Measures during loading how fast your GPU computes a simulation step and lowers the resolution if needed. Afterwards the render resolution adapts continuously to keep the frame rate above 58 fps.'))
@@ -1518,6 +1527,7 @@ class App {
       case 'seamless': this.buildPipes(S.seamless); break;
       case 'map': canvas.classList.toggle('map', S.map); break;
       case 'autoQuality': this.renderScale = 1; break;
+      case 'pixelDensity': this.dpr = S.pixelDensity; break;
     }
   }
 }
