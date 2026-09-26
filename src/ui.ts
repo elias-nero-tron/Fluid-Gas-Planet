@@ -96,7 +96,8 @@ export class Panel {
     const info = document.createElement('button');
     info.type = 'button';
     info.className = 'info';
-    info.textContent = 'ⓘ';
+    // Kreis mit „i“ als Vektor-Symbol, folgt der Textfarbe
+    info.innerHTML = '<svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="7" fill="none" stroke="currentColor" stroke-width="1.3"/><circle cx="8" cy="4.8" r="1" fill="currentColor"/><path d="M8 7.2v4.6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>';
     info.setAttribute('aria-label', `${t('Erklärung', 'Explanation')}: ${label}`);
     info.addEventListener('click', (e) => { e.preventDefault(); this.openDetail(label, `${hint}<p class="reset-hint">${reset}</p>`); });
     lab.after(info);
