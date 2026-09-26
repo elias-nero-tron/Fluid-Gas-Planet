@@ -143,17 +143,6 @@ async function start() {
     filmstrip: (o) => app.filmstrip(o), selftest: () => app.selftest(), frame: () => app.frameCount(),
   };
   document.getElementById('lang')?.addEventListener('click', () => app.toggleLang());
-  // ⓘ: Erklärungen unter den Reglern zeigen oder verbergen (gemerkt im Browser).
-  const hintsBtn = document.getElementById('hints');
-  const setHints = (on: boolean) => {
-    document.body.classList.toggle('hints-off', !on);
-    hintsBtn?.setAttribute('aria-pressed', String(on));
-    try { localStorage.setItem('fgp-hints', on ? '1' : '0'); } catch { /* gesperrt */ }
-  };
-  let hintsOn = true;
-  try { hintsOn = localStorage.getItem('fgp-hints') !== '0'; } catch { /* gesperrt */ }
-  setHints(hintsOn);
-  hintsBtn?.addEventListener('click', () => { hintsOn = !hintsOn; setHints(hintsOn); });
   window.addEventListener('keydown', (e) => {
     const tag = (e.target as HTMLElement)?.tagName;
     if (tag === 'INPUT' && (e.target as HTMLInputElement).type === 'text') return;

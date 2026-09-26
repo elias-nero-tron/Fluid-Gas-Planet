@@ -49,10 +49,23 @@
   .hud .meta { font: 12px/1.4 var(--mono); color: var(--muted); font-variant-numeric: tabular-nums; }
   /* Feste Breite: wechselnde Ziffern verschieben nichts (HUD-Springen, v0.3-Rückmeldung). */
   #fps { color: var(--accent); display: inline-block; min-width: 26ch; white-space: nowrap; }
-  .row-hint { grid-column: 1 / -1; margin: 1px 0 2px; font-size: 11.5px; line-height: 1.4; color: var(--muted); }
-  .row-hint .fx { margin-top: 3px; font-size: 11px; }
-  body.hints-off .row-hint { display: none; }
-  #hints { font: 600 12px var(--mono); padding: 5px 9px; }
+  /* ⓘ neben jedem Regler, Blase beim Drüberfahren, Erklärfenster unten links über dem Planeten */
+  .row .info { padding: 0 4px; border: 0; background: none; color: var(--muted); font-size: 14px; line-height: 1; cursor: pointer; justify-self: start; }
+  .row .info:hover, .row .info:focus-visible { color: var(--accent); }
+  .tip {
+    position: fixed; z-index: 20; max-width: 280px; padding: 7px 10px; pointer-events: none;
+    background: #0d0e12; border: 1px solid var(--line); border-radius: 6px;
+    color: var(--text); font-size: 12.5px; line-height: 1.4; box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+  }
+  .detail {
+    position: fixed; z-index: 15; left: 16px; bottom: 16px; width: min(420px, calc(100vw - 32px));
+    max-height: 45vh; overflow-y: auto; padding: 12px 14px; box-sizing: border-box;
+    background: rgba(13, 14, 18, 0.95); border: 1px solid var(--line); border-radius: 8px;
+    color: var(--muted); font-size: 13px; line-height: 1.5;
+  }
+  .detail h3 { margin: 0 24px 6px 0; font: 600 15px var(--display); letter-spacing: 0.06em; text-transform: uppercase; color: var(--text); }
+  .detail .detail-close { position: absolute; top: 8px; right: 8px; padding: 2px 7px; }
+  .detail .reset-hint { margin: 8px 0 0; font-size: 12px; }
 
   /* Ladebild: dahinter rechnet die Simulation im Schnelldurchlauf vor. */
   #loading {
@@ -82,18 +95,8 @@
   #panel-toggle { display: none; }
   .panel-head { display: flex; justify-content: flex-end; align-items: center; gap: 8px; margin-bottom: 8px; }
   #lang { font: 600 12px var(--mono); letter-spacing: 0.08em; padding: 5px 9px; }
-  /* Feste Höhe und oben angeheftet: Wechselt der Text, verschiebt sich darunter nichts.
-     (Mit wachsender Höhe rutschten die Regler unter der Maus weg, der nächste Text sprang
-     zurück – eine Endlosschleife, gemeldet vom Urheber in v0.2.3.) */
-  .help {
-    position: sticky; top: 0; z-index: 2;
-    margin: 0 0 12px; padding: 10px 12px; height: 11.5em; overflow-y: auto; box-sizing: border-box;
-    border: 1px solid var(--line); border-radius: 6px; background: #0d0e12;
-    color: var(--muted); font-size: 12.5px;
-  }
   .fx { display: block; margin-top: 6px; font: 11.5px/1.45 var(--mono); color: #d9c7a6; white-space: normal; }
   .note.formula { margin-top: 0; }
-  .help b { color: var(--text); font-weight: 500; }
   details { border-top: 1px solid var(--line); padding-block: 8px 10px; }
   summary {
     cursor: pointer; list-style: none; display: flex; justify-content: space-between; align-items: center;
@@ -105,12 +108,13 @@
   details[open] > summary::after { content: '–'; }
   .note { margin: 2px 0 8px; font-size: 12px; color: var(--muted); }
   .row {
-    display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 2px 8px; padding-block: 5px;
+    display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 2px 8px; padding-block: 5px;
   }
+  .row[hidden] { display: none; }
   .row label { font-size: 13px; }
   .row output { font: 12px var(--mono); color: var(--accent); font-variant-numeric: tabular-nums; }
   .row input[type=range] { grid-column: 1 / -1; width: 100%; margin: 0; accent-color: var(--accent); height: 22px; }
-  .row-select { grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr); }
+  .row-select { grid-template-columns: minmax(0, max-content) auto minmax(0, 1.3fr); }
   select, button {
     font: 13px var(--body); color: var(--text); background: #1b1c22; border: 1px solid var(--line);
     border-radius: 5px; padding: 6px 8px; min-width: 0;
@@ -150,7 +154,7 @@
     }
     aside.open { transform: none; }
     .panel-head { position: sticky; top: 0; z-index: 3; background: var(--panel); margin-bottom: 8px; }
-    .help { top: 48px; height: 9em; }
+    .detail { top: 16px; bottom: auto; max-height: 40vh; }
     #panel-toggle {
       display: flex; flex: 1; justify-content: space-between; align-items: center;
       position: sticky; top: 0; z-index: 1; margin-bottom: 8px; padding: 14px 2px;
@@ -183,7 +187,7 @@
     <div id="status" hidden></div>
   </div>
   <aside id="panel">
-    <div class="panel-head"><button id="panel-toggle" type="button" aria-expanded="false" aria-controls="panel-body"><span id="panel-title">Controls</span> <span aria-hidden="true">▴</span></button><button id="hints" type="button" aria-pressed="true">ⓘ</button><button id="lang" type="button">DE</button></div>
+    <div class="panel-head"><button id="panel-toggle" type="button" aria-expanded="false" aria-controls="panel-body"><span id="panel-title">Controls</span> <span aria-hidden="true">▴</span></button><button id="lang" type="button">DE</button></div>
     <div id="panel-body"></div>
     <p class="credits" id="credits"></p>
   </aside>
