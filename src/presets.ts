@@ -262,7 +262,14 @@ export function newSeed(): number {
  * Erst wird eine Familie gewürfelt (jupiter-, saturnartig, Eisriese, heißer Jupiter, exotisch),
  * dann Bänder mit ungleichen Breiten, Jets an den Bandgrenzen, Stürme, Ringe und Stimmung.
  */
-export function randomPreset(seed: number): Preset {
+export interface RandomOptions {
+  family?: string;                  // '' = würfeln, sonst jovian | saturnian | ice | hot | exotic
+  bands?: number;                   // 0 = würfeln, sonst Anzahl Bänder
+  storms?: 'auto' | 'none' | 'few' | 'many';
+  rings?: 'auto' | 'yes' | 'no';
+}
+
+export function randomPreset(seed: number, opts: RandomOptions = {}): Preset {
   // mulberry32: kleiner, guter Pseudozufall
   let st = seed >>> 0;
   const rnd = () => {
@@ -294,12 +301,16 @@ export function randomPreset(seed: number): Preset {
     { name: 'hot', hue: [0, 30], sat: [0.55, 0.85], zoneL: [0.45, 0.65], beltL: [0.15, 0.3], bands: [5, 10], eq: 6, jet: [100, 400], contrast: 1.2, atmoSat: 0.8 },
     { name: 'exotic', hue: [0, 360], sat: [0.3, 0.7], zoneL: [0.6, 0.85], beltL: [0.25, 0.5], bands: [6, 20], eq: 0, jet: [30, 200], contrast: 1, atmoSat: 0.6 },
   ];
-  const fam = pick(families);
+  // Erst würfeln, dann Vorgaben anwenden: so bleibt der Zufallsstrom gleich, und derselbe Seed
+  // ergibt ohne Vorgaben denselben Planeten wie in v0.2.3.
+  const rolled = pick(families);
+  const fam = families.find((f) => f.name === opts.family) ?? rolled;
   const hue = range(fam.hue[0], fam.hue[1]);
   const accentHue = hue + pick([30, 60, 150, 180, 210, -40]);
 
   // Bandgrenzen mit ungleichen Breiten (Summe = 180°)
-  const nb = Math.round(range(fam.bands[0], fam.bands[1]));
+  const nbRolled = Math.round(range(fam.bands[0], fam.bands[1]));
+  const nb = opts.bands && opts.bands >= 2 ? Math.round(opts.bands) : nbRolled;
   const widths = Array.from({ length: nb }, () => range(0.4, 1.6));
   const total = widths.reduce((x, y) => x + y, 0);
   const edges: number[] = [-90];
@@ -334,12 +345,14 @@ export function randomPreset(seed: number): Preset {
 
   // Stürme: ein großer Hauptsturm (manchmal), Ovale, Barken
   const storms: Storm[] = [];
-  if (rnd() < 0.6) {
+  const stormMode = opts.storms ?? 'auto';
+  if (stormMode !== 'none' && (rnd() < 0.6 || stormMode === 'many')) {
     const lat = range(-35, 35);
     storms.push({ name: 'Großer Fleck', lat, lon: range(0, 360), radius: range(5, 11), kind: 'anticyclone',
       color: pick([hsl(accentHue, 0.6, 0.45), hsl(hue - 20, 0.7, 0.4), hsl(hue, 0.15, 0.9), hsl(hue + 200, 0.5, 0.25)]), strength: range(0.6, 1) });
   }
-  const small = Math.floor(range(0, 9));
+  const smallRolled = Math.floor(range(0, 9));
+  const small = stormMode === 'none' ? 0 : stormMode === 'few' ? Math.min(smallRolled, 3) : stormMode === 'many' ? smallRolled + 8 : smallRolled;
   for (let i = 0; i < small; i++) {
     const anti = rnd() < 0.7;
     storms.push({ name: anti ? 'Oval' : 'Barke', lat: range(-70, 70), lon: range(0, 360), radius: range(1.5, 4.5),
@@ -347,7 +360,9 @@ export function randomPreset(seed: number): Preset {
   }
 
   const tilt = rnd() < 0.08 ? range(60, 100) : range(0, 35);
-  const rings = rnd() < 0.4
+  const ringRoll = rnd();
+  const wantRings = opts.rings === 'yes' || (opts.rings !== 'no' && ringRoll < 0.4);
+  const rings = wantRings
     ? (() => { const inner = range(1.2, 1.7); return { inner, outer: inner + range(0.25, 1.3), color: hsl(hue + range(-30, 30), range(0.05, 0.3), range(0.4, 0.8)), opacity: range(0.15, 0.9) }; })()
     : null;
 

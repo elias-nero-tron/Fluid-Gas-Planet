@@ -77,11 +77,17 @@
   #panel-toggle { display: none; }
   .panel-head { display: flex; justify-content: flex-end; align-items: center; gap: 8px; margin-bottom: 8px; }
   #lang { font: 600 12px var(--mono); letter-spacing: 0.08em; padding: 5px 9px; }
+  /* Feste Höhe und oben angeheftet: Wechselt der Text, verschiebt sich darunter nichts.
+     (Mit wachsender Höhe rutschten die Regler unter der Maus weg, der nächste Text sprang
+     zurück – eine Endlosschleife, gemeldet vom Urheber in v0.2.3.) */
   .help {
-    margin: 0 0 12px; padding: 10px 12px; min-height: 5.8em;
-    border: 1px solid var(--line); border-radius: 6px; background: rgba(0, 0, 0, 0.35);
+    position: sticky; top: 0; z-index: 2;
+    margin: 0 0 12px; padding: 10px 12px; height: 11.5em; overflow-y: auto; box-sizing: border-box;
+    border: 1px solid var(--line); border-radius: 6px; background: #0d0e12;
     color: var(--muted); font-size: 12.5px;
   }
+  .fx { display: block; margin-top: 6px; font: 11.5px/1.45 var(--mono); color: #d9c7a6; white-space: normal; }
+  .note.formula { margin-top: 0; }
   .help b { color: var(--text); font-weight: 500; }
   details { border-top: 1px solid var(--line); padding-block: 8px 10px; }
   summary {
@@ -138,7 +144,8 @@
       padding-block: 0 calc(24px + env(safe-area-inset-bottom, 0px));
     }
     aside.open { transform: none; }
-    .panel-head { position: sticky; top: 0; z-index: 1; background: var(--panel); margin-bottom: 8px; }
+    .panel-head { position: sticky; top: 0; z-index: 3; background: var(--panel); margin-bottom: 8px; }
+    .help { top: 48px; height: 9em; }
     #panel-toggle {
       display: flex; flex: 1; justify-content: space-between; align-items: center;
       position: sticky; top: 0; z-index: 1; margin-bottom: 8px; padding: 14px 2px;
