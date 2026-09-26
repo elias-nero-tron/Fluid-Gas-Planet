@@ -18,10 +18,21 @@
 const ZBINS = 128u;
 const ZSCALE = 10000.0;
 
-// Hardware-Cubemap-Abtastung (schnell). sampleCube() in common.wgsl ist die nahtlos exakte,
-// aber deutlich langsamere Variante (gemessen: Hauptursache des fps-Einbruchs in v0.2.0).
-fn A(d: vec3f) -> vec4f { return textureSampleLevel(srcA, samp, d, 0.0); }
-fn B(d: vec3f) -> vec4f { return textureSampleLevel(srcB, samp, d, 0.0); }
+// Gleiche Felder als 2D-Array, für die nahtlos exakte Abtastung.
+@group(0) @binding(6) var arrA: texture_2d_array<f32>;
+@group(0) @binding(7) var arrB: texture_2d_array<f32>;
+// SEAMLESS = true: an Würfelkanten die vier Nachbartexel einzeln holen (sampleCube in common.wgsl).
+// Nötig nur auf Grafikkarten, deren Cubemap-Abtastung nicht nahtlos filtert; der Selbsttest
+// im Abschnitt „Diagnose“ misst das. Sonst schnelle Hardware-Abtastung.
+override SEAMLESS: bool = false;
+fn A(d: vec3f) -> vec4f {
+  if (SEAMLESS) { return sampleCube(arrA, samp, d); }
+  return textureSampleLevel(srcA, samp, d, 0.0);
+}
+fn B(d: vec3f) -> vec4f {
+  if (SEAMLESS) { return sampleCube(arrB, samp, d); }
+  return textureSampleLevel(srcB, samp, d, 0.0);
+}
 
 fn outside(id: vec3u) -> bool { return f32(id.x) >= S.velN || f32(id.y) >= S.velN; }
 

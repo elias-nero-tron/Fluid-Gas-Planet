@@ -126,7 +126,7 @@ export class Panel {
     return this;
   }
 
-  buttons(items: [string, string, () => void][]): this {
+  buttons(items: [string, string, () => void][], hints: Record<string, string> = {}): this {
     const row = document.createElement('div');
     row.className = 'row row-buttons';
     for (const [id, text, fn] of items) {
@@ -135,6 +135,11 @@ export class Panel {
       b.id = id;
       b.textContent = text;
       b.addEventListener('click', fn);
+      if (hints[id]) {
+        const show = () => { this.help.innerHTML = `<b>${text}.</b> ${hints[id]}`; };
+        b.addEventListener('pointerenter', show);
+        b.addEventListener('focus', show);
+      }
       row.append(b);
     }
     (this.current ?? this.body).append(row);

@@ -11,10 +11,21 @@ struct Particle {
 };
 @group(0) @binding(5) var<storage, read_write> parts: array<Particle>;
 
-// Hardware-Cubemap-Abtastung (schnell). sampleCube() in common.wgsl ist die nahtlos exakte,
-// aber deutlich langsamere Variante (gemessen: Hauptursache des fps-Einbruchs in v0.2.0).
-fn A(d: vec3f) -> vec4f { return textureSampleLevel(srcA, samp, d, 0.0); }
-fn B(d: vec3f) -> vec4f { return textureSampleLevel(srcB, samp, d, 0.0); }
+// Gleiche Felder als 2D-Array, für die nahtlos exakte Abtastung.
+@group(0) @binding(6) var arrA: texture_2d_array<f32>;
+@group(0) @binding(7) var arrB: texture_2d_array<f32>;
+// SEAMLESS = true: an Würfelkanten die vier Nachbartexel einzeln holen (sampleCube in common.wgsl).
+// Nötig nur auf Grafikkarten, deren Cubemap-Abtastung nicht nahtlos filtert; der Selbsttest
+// im Abschnitt „Diagnose“ misst das. Sonst schnelle Hardware-Abtastung.
+override SEAMLESS: bool = false;
+fn A(d: vec3f) -> vec4f {
+  if (SEAMLESS) { return sampleCube(arrA, samp, d); }
+  return textureSampleLevel(srcA, samp, d, 0.0);
+}
+fn B(d: vec3f) -> vec4f {
+  if (SEAMLESS) { return sampleCube(arrB, samp, d); }
+  return textureSampleLevel(srcB, samp, d, 0.0);
+}
 
 fn texDir(id: vec3u, n: f32) -> vec3f { return faceDir(id.z, (vec2f(id.xy) + 0.5) / n); }
 
@@ -49,6 +60,7 @@ fn relaxColor(p: vec3f, c0: vec3f) -> vec3f {
 fn initDye(@builtin(global_invocation_id) id: vec3u) {
   if (f32(id.x) >= S.dyeN || f32(id.y) >= S.dyeN) { return; }
   let p = texDir(id, S.dyeN);
+  if (S.mode.x > 0.5) { textureStore(dst, id.xy, id.z, vec4f(bandTarget(p), 1.0)); return; }
   let sm = stormMask(p, 0.55);
   textureStore(dst, id.xy, id.z, vec4f(mix(bandTarget(p), sm.rgb, sm.w), 1.0));
 }
@@ -112,16 +124,34 @@ fn flowField(@builtin(global_invocation_id) id: vec3u) {
   textureStore(dst, id.xy, id.z, vec4f(tangent(p, v), 0.0));
 }
 
-fn spawn(i: u32, stagger: bool) -> Particle {
-  let r = rand4(i, u32(S.frame) * 747796405u + u32(S.seed * 1000.0));
-  let z = r.x * 2.0 - 1.0;
+// Geburtsort: gleichverteilt auf der Kugel, oder (Anteil S.view.w) in der Kappe um die
+// Blickrichtung. So landet die Rechenarbeit dort, wo die Kamera hinschaut.
+fn spawnPos(r: vec4f) -> vec3f {
+  let inView = fract(r.w * 57.3) < S.view.w;
+  let cmin = select(-1.0, 0.1, inView);           // Kappe bis ~84° um die Blickrichtung
+  let z = 1.0 - r.x * (1.0 - cmin);
   let phi = r.y * 2.0 * PI;
   let s = sqrt(max(0.0, 1.0 - z * z));
-  let p = vec3f(s * cos(phi), z, s * sin(phi));
-  var col = bandTarget(p) * (0.9 + 0.2 * r.w);
-  let sm = stormMask(p, 0.55);
-  col = mix(col, sm.rgb, sm.w * clamp(S.stormTint * 0.5, 0.0, 1.0));
-  if (fract(r.w * 97.0) < S.convection * 0.003) { col = S.cloud.rgb; }
+  if (!inView) { return vec3f(s * cos(phi), z, s * sin(phi)); }
+  let ax = normalize(S.view.xyz);
+  let tb = tangentBasis(ax);
+  return normalize(ax * z + (tb[0] * cos(phi) + tb[1] * sin(phi)) * s);
+}
+
+fn spawn(i: u32, stagger: bool) -> Particle {
+  let r = rand4(i, u32(S.frame) * 747796405u + u32(S.seed * 1000.0));
+  let p = spawnPos(r);
+  var col: vec3f;
+  if (S.mode.x > 0.5) {
+    // Partikel-Schiene (jasper-r): Farbe nur aus dem Breitenverlauf, keine Sturm- oder Konvektionsfarbe.
+    let w = noised(p * 4.0 + vec3f(S.seed, 0.0, 0.0)).x;
+    col = bandAt(latitude(p) + w * S.bandWobble * 0.04) * (0.9 + 0.2 * fract(r.w * 13.1));
+  } else {
+    col = bandTarget(p) * (0.9 + 0.2 * r.w);
+    let sm = stormMask(p, 0.55);
+    col = mix(col, sm.rgb, sm.w * clamp(S.stormTint * 0.5, 0.0, 1.0));
+    if (fract(r.w * 97.0) < S.convection * 0.003) { col = S.cloud.rgb; }
+  }
   let life = S.lifetime * (0.5 + r.z);
   var age = 0.0;
   if (stagger) { age = fract(r.z * 31.7) * life; }
@@ -172,4 +202,19 @@ fn blurRelax(@builtin(global_invocation_id) id: vec3u) {
            + A(stepOn(p, tb[1] * h)).rgb + A(stepOn(p, -tb[1] * h)).rgb) * 0.25;
   let blurred = mix(c, avg, S.blur);
   textureStore(dst, id.xy, id.z, vec4f(relaxColor(p, blurred), 1.0));
+}
+
+// Partikel-Schiene (jasper-r): weichzeichnen und langsam zu EINER Mittelfarbe verblassen.
+// Keine Rückstellung zur Bandfarbe, keine Sturmfarbe: alle Struktur kommt von den Partikeln.
+@compute @workgroup_size(8, 8, 1)
+fn blurFade(@builtin(global_invocation_id) id: vec3u) {
+  if (f32(id.x) >= S.dyeN || f32(id.y) >= S.dyeN) { return; }
+  let p = texDir(id, S.dyeN);
+  let tb = tangentBasis(p);
+  let h = 1.6 / S.dyeN;
+  let c = A(p).rgb;
+  let avg = (A(stepOn(p, tb[0] * h)).rgb + A(stepOn(p, -tb[0] * h)).rgb
+           + A(stepOn(p, tb[1] * h)).rgb + A(stepOn(p, -tb[1] * h)).rgb) * 0.25;
+  let blurred = mix(c, avg, S.blur);
+  textureStore(dst, id.xy, id.z, vec4f(mix(blurred, S.centre.rgb, 1.0 - exp(-S.centre.w * S.dt)), 1.0));
 }

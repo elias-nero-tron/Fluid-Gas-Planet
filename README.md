@@ -12,6 +12,7 @@ Saturn, Neptune, Uranus, a hot Jupiter and random planets run on the same engine
 </p>
 
 **▶ Try it now:** [Planet simulator](https://raw.githack.com/elias-nero-tron/Fluid-Gas-Planet/main/demo/index.html) ·
+[Clouds over Terrain preview](https://raw.githack.com/elias-nero-tron/Fluid-Gas-Planet/main/demo/terrain.html) ·
 [Cream in Coffee demo](https://raw.githack.com/elias-nero-tron/Fluid-Gas-Planet/main/demo/coffee.html)
 (needs a WebGPU browser: Chrome/Edge 113+, Safari 26+, Firefox 141+, Android Chrome 121+).
 Or download [`demo/index.html`](demo/index.html) and open it locally, no install needed.
@@ -32,23 +33,27 @@ Created by **elias-nero-tron** · Apache License 2.0 · [How to cite](CITATION.c
 | Version | What | Verified |
 |---|---|---|
 | **v0.1.0** (branch `release/v0.1.0`) | Prototype: Stable Fluids and particles, 5 planets, controls with explanations | ✅ on real hardware (integrated GPU, ~60 fps). Verdict: convincing from afar, too coarse up close |
-| **v0.2.3** (pre-release, `main`) | v0.1 look as defaults, loading screen (starts mid-flow), auto quality for 60 fps, random planets, save/undo, optional free-evolving storms, Gaseous Giganticus recipe, coffee demo, English UI | 🔶 software renderer only; hardware confirmation pending |
+| **v0.2.3** | v0.1 look as defaults, loading screen, auto quality, random planets, save/undo, coffee demo | ✅ author test on an RTX 5080: ~240 fps, “really good”; missing: grandeur |
+| **v0.3.0** (pre-release, `main`) | Separate tracks (Fluid / Particles as in jasper-r / Hybrid), simulation speed independent of frame rate, time lapse that keeps the physics, retrograde spin, storms whose spin follows the shear, device classes up to 32 M particles, formula for every control, film-strip recorder and seam self-test, steerable random planets, terrain-clouds preview | 🔶 software renderer only |
 
 Details, measured findings and open questions: [docs/STATUS.md](docs/STATUS.md).
 
 ## What it does
 
-- **Two methods, freely combined.** Flow: *Stable Fluids* (pressure, Coriolis, jets, vortices) or
-  *curl noise* following the Gaseous Giganticus recipe. Look: *dye* (the colour texture is carried
-  by the wind) or *particles* (up to 4 million).
+- **Separate tracks, not one mixed method.** *Fluid*: Stable Fluids (pressure, Coriolis, jets,
+  vortices) with dye, the v0.1 look. *Particles*: curl noise and millions of particles fading to one
+  mean colour, as in jasper-r. *Hybrid*: the free v0.2 combination. See [docs/PROCESS.md](docs/PROCESS.md).
 - **Planets are numbers:** measured wind profiles, colour bands, storms, oblateness, axial tilt,
   rings. Plus “Colours from image”: measure band colours from any photo.
 - **Random planets and saving:** 🎲 rolls a truly random planet from five families (Jovian, Saturnian,
   ice giant, hot Jupiter, exotic). Undo/redo (Ctrl+Z/Y), double-click a control name to reset it, named
   save slots and a planet code to share exactly the same planet.
-- **About 40 controls, each explaining what it changes physically.** Debug views for wind,
-  vorticity and pressure, plus a map view of the whole sphere. English and German UI.
+- **About 50 controls, each explaining what it changes physically and showing its formula.** Device
+  classes from smartphone to high-end GPU. Debug views for wind, vorticity and pressure, a map view,
+  a **film-strip recorder** (8 frames in one PNG, for bug reports) and a seam self-test.
 - **Rendering:** oblate ellipsoid, Minnaert limb darkening, cloud relief, haze rim, rings with shadows.
+- **Clouds over Terrain** ([demos/terrain.html](demos/terrain.html)): preview of a separate track,
+  clouds forming where wind climbs mountains (w = u·∇h), on a real cloud layer with parallax and shadows.
 - **Cream in Coffee** ([demos/coffee.html](demos/coffee.html)): pour and stir. A test bench for three
   building blocks the planet still lacks: sources, moving obstacles and sharp transport.
 
@@ -68,9 +73,10 @@ Details, measured findings and open questions: [docs/STATUS.md](docs/STATUS.md).
 
 Entry point for people and for new AI sessions, in this order:
 
+0. [CLAUDE.md](CLAUDE.md) and [docs/PROCESS.md](docs/PROCESS.md): how we work (tracks, film strips, protected defaults)
 1. [docs/STATUS.md](docs/STATUS.md): verified vs. unverified, measured findings
 2. [docs/ROADMAP.md](docs/ROADMAP.md): strengths, weaknesses, work items ranked by impact
-3. [docs/MATH.md](docs/MATH.md): formulas ↔ code
+3. [docs/MATH.md](docs/MATH.md): formulas ↔ code; [docs/RESEARCH.md](docs/RESEARCH.md): sources to build on
 4. [CONTRIBUTING.md](CONTRIBUTING.md)
 
 Next steps by impact: **advected texture coordinates** (item 1a: fine detail decoupled from the
