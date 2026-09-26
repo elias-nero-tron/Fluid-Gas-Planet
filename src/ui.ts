@@ -11,7 +11,8 @@ export class Panel {
   static heavy = new Set(['velRes', 'dyeRes', 'curlRes', 'particles']);
   private bindings: Binding[] = [];
   private body: HTMLElement;
-  private help: HTMLElement;
+  private tip: HTMLElement;        // kleine Blase beim Drüberfahren
+  private detail: HTMLElement;     // Erklärfenster in der Ecke (über ⓘ)
   private current: HTMLElement | null = null;
 
   constructor(
@@ -20,13 +21,49 @@ export class Panel {
     private onChange: (key: string) => void,
     private defaults?: Settings,
   ) {
-    this.help = document.createElement('p');
-    this.help.className = 'help';
-    this.help.id = 'help';
-    this.help.textContent = t('Tippe oder fahre über einen Regler, um zu sehen, was er in der Simulation verändert.', 'Tap or hover a control to see what it changes in the simulation.');
+    // Blase und Erklärfenster liegen fest über der Seite und verschieben nie die Regler.
+    document.getElementById('tip')?.remove();
+    document.getElementById('detail')?.remove();
+    this.tip = document.createElement('div');
+    this.tip.id = 'tip';
+    this.tip.className = 'tip';
+    this.tip.hidden = true;
+    this.detail = document.createElement('section');
+    this.detail.id = 'detail';
+    this.detail.className = 'detail';
+    this.detail.hidden = true;
+    this.detail.setAttribute('aria-live', 'polite');
+    document.body.append(this.tip, this.detail);
     this.body = document.createElement('div');
     this.body.className = 'controls';
-    root.append(this.help, this.body);
+    root.append(this.body);
+  }
+
+  /** Kurzfassung: erster Satz, ohne Formel. */
+  private short(hint: string): string {
+    const plain = hint.replace(/<code[\s\S]*?<\/code>/g, '').replace(/<[^>]+>/g, '');
+    const m = plain.match(/^.*?[.!?](\s|$)/);
+    return (m ? m[0] : plain).trim();
+  }
+
+  private showTip(anchor: HTMLElement, text: string) {
+    const r = anchor.getBoundingClientRect();
+    this.tip.textContent = text;
+    this.tip.hidden = false;
+    const w = this.tip.offsetWidth;
+    // links neben dem Panel, auf Höhe des Reglers; auf schmalen Bildschirmen darüber
+    let x = r.left - w - 10, y = r.top;
+    if (x < 8) { x = Math.max(8, r.left); y = r.top - this.tip.offsetHeight - 6; }
+    this.tip.style.left = `${x}px`;
+    this.tip.style.top = `${Math.max(8, y)}px`;
+  }
+
+  private hideTip() { this.tip.hidden = true; }
+
+  private openDetail(title: string, html: string) {
+    this.detail.innerHTML = `<button type="button" class="detail-close" aria-label="${t('Schließen', 'Close')}">✕</button><h3>${title}</h3><div>${html}</div>`;
+    this.detail.hidden = false;
+    (this.detail.querySelector('.detail-close') as HTMLButtonElement).addEventListener('click', () => { this.detail.hidden = true; });
   }
 
   section(title: string, note?: string, open = true): this {
@@ -56,7 +93,15 @@ export class Panel {
     out.htmlFor = `ctl-${key}`;
     row.append(lab, out);
     const reset = this.defaults && key in this.defaults ? t(' Doppelklick auf den Namen setzt nur diesen Regler zurück.', ' Double-click the name to reset just this control.') : '';
-    const show = () => { this.help.innerHTML = `<b>${label}.</b> ${hint}<span class="reset-hint">${reset}</span>`; };
+    const info = document.createElement('button');
+    info.type = 'button';
+    info.className = 'info';
+    info.textContent = 'ⓘ';
+    info.setAttribute('aria-label', `${t('Erklärung', 'Explanation')}: ${label}`);
+    info.addEventListener('click', (e) => { e.preventDefault(); this.openDetail(label, `${hint}<p class="reset-hint">${reset}</p>`); });
+    lab.after(info);
+    const short = this.short(hint);
+    const show = () => this.showTip(row, short);
     // Doppelklick auf den Namen: nur diesen Regler auf den Standard zurücksetzen
     lab.addEventListener('dblclick', (e) => {
       if (!this.defaults || !(key in this.defaults)) return;
@@ -65,15 +110,11 @@ export class Panel {
       this.refresh();
       this.onChange(key);
     });
-    row.addEventListener('pointerenter', show);
+    row.addEventListener('pointerenter', (e) => { if (e.pointerType === 'mouse') show(); });
+    row.addEventListener('pointerleave', () => this.hideTip());
     row.addEventListener('focusin', show);
-    row.addEventListener('pointerdown', show);
+    row.addEventListener('focusout', () => this.hideTip());
     (this.current ?? this.body).append(row);
-    // Erklärung und Formel direkt unter dem Regler (ausblendbar über ⓘ im Kopf des Panels).
-    const note = document.createElement('div');
-    note.className = 'row-hint';
-    note.innerHTML = hint;
-    queueMicrotask(() => row.append(note));
     return { row, lab, out };
   }
 
@@ -150,9 +191,10 @@ export class Panel {
       b.textContent = text;
       b.addEventListener('click', fn);
       if (hints[id]) {
-        const show = () => { this.help.innerHTML = `<b>${text}.</b> ${hints[id]}`; };
-        b.addEventListener('pointerenter', show);
-        b.addEventListener('focus', show);
+        b.addEventListener('pointerenter', (e) => { if (e.pointerType === 'mouse') this.showTip(b, this.short(hints[id])); });
+        b.addEventListener('pointerleave', () => this.hideTip());
+        b.addEventListener('focus', () => this.showTip(b, this.short(hints[id])));
+        b.addEventListener('blur', () => this.hideTip());
       }
       row.append(b);
     }
