@@ -177,7 +177,7 @@ const S = {
   sunAz: -58, sunEl: 12, cover: 0.5,
   nebula: 1.0, stars: 1.0, flare: 0.5,
   mwWidth: 1.0, mwCore: 1.0, mwDust: 1.0, mwHii: 1.0,
-  rotate: true, spin: 1.5, tilt: 23, fov: 36,
+  rotate: true, spin: 1.2, tilt: 23, fov: 36,
   view: 0, quality: 0,
 };
 // Wer reduzierte Bewegung eingestellt hat, bekommt einen stehenden Planeten (Drehen lässt sich einschalten)
@@ -185,8 +185,8 @@ if (matchMedia('(prefers-reduced-motion: reduce)').matches) S.rotate = false;
 const DEF = { ...S };
 const numQ = (k) => { const v = Q.get(k); if (v !== null && v !== '' && !isNaN(Number(v)) && k in S) S[k] = Number(v); };
 for (const k of Object.keys(S)) if (typeof S[k] === 'number' && k !== 'res') numQ(k);
-const cloudRes = Number(Q.get('cres')) || (coarse ? 512 : 1024);
-const nebRes = Number(Q.get('nres')) || (coarse ? 512 : 1024);
+const cloudRes = Number(Q.get('cres')) || (coarse ? 512 : 2048);
+const nebRes = Number(Q.get('nres')) || (coarse ? 512 : 2048);
 
 // ------------------------------------------------------------------ Zufall (seedString wie im Original)
 function xmur3(str) {
@@ -229,13 +229,13 @@ let PP = planetParams(S.seed);
 // ------------------------------------------------------------------ Oberfläche (Texte, Regler)
 const $ = (id) => document.getElementById(id);
 const help = $('help');
-const tag = (m) => (m === 'orig' ? ` <span class="tag">1:1</span>` : m === 'plus' ? ` <span class="tag">+20 %</span>` : '');
+const tag = (m) => (m === 'orig' ? ` <span class="tag">1:1</span>` : '');
 const pct = (v) => `${Math.round(v * 100)} %`;
 
 function controls() {
   return [
     { id: 'planet', title: t('Planet', 'Planet'), open: true, items: [
-      { k: 'res', type: 'select', label: t('Kartenauflösung', 'Map resolution'), opts: [[512, '512'], [1024, '1024'], [2048, '2048'], [4096, t('4096 (~1 GB Grafikspeicher)', '4096 (~1 GB GPU memory)')]], regen: true,
+      { k: 'res', type: 'select', label: t('Kartenauflösung', 'Map resolution'), opts: [[512, '512'], [1024, '1024'], [2048, '2048'], [4096, t('4096 (~1 GB Grafikspeicher)', '4096 (~1 GB GPU memory)')], [8192, t('8192 (~4,5 GB, starke Grafikkarte)', '8192 (~4.5 GB, strong GPU)')]], regen: true,
         help: t('Pixel pro Würfelseite für Höhe, Feuchte und Relief (im Original "resolution"). Sechs Seiten ergeben die Kugel; 2048 sind rund um den Äquator 8192 Pixel.', 'Pixels per cube face for height, moisture and relief (the original\'s "resolution"). Six faces make the sphere; 2048 is 8192 pixels around the equator.'),
         fx: t('Speicher: 6·N²·8 Byte (+⅓ Mipmaps)', 'Memory: 6·N²·8 bytes (+⅓ mipmaps)') },
       { k: 'palette', mode: 'plus', type: 'select', label: t('Farben', 'Colours'), opts: [['earth', t('Erdähnlich', 'Earth-like')], ['cd', t('Original-Biombild', 'Original biome image')]],
@@ -345,7 +345,7 @@ function controls() {
         fx: 'T = 360° / ω' },
       { k: 'tilt', min: 0, max: 90, step: 1, label: t('Achsneigung', 'Axial tilt'), fmt: (v) => `${Math.round(v)}°` },
       { k: 'fov', min: 15, max: 75, step: 1, label: t('Blickwinkel', 'Field of view'), fmt: (v) => `${Math.round(v)}°` },
-      { k: 'quality', type: 'select', label: t('Bildauflösung', 'Render resolution'), opts: [[0, t('Automatisch (flüssig)', 'Automatic (smooth)')], [1, '100 %'], [0.75, '75 %'], [0.5, '50 %']],
+      { k: 'quality', type: 'select', label: t('Bildauflösung', 'Render resolution'), opts: [[0, t('Automatisch (so scharf wie flüssig geht)', 'Automatic (as sharp as stays smooth)')], [2, t('200 % (Supersampling)', '200 % (supersampling)')], [1.5, '150 %'], [1, '100 %'], [0.75, '75 %'], [0.5, '50 %']],
         help: t('Automatisch senkt die Bildauflösung, wenn die Grafikkarte nicht hinterherkommt, und hebt sie wieder, sobald Luft ist.', 'Automatic lowers the render resolution when the GPU cannot keep up and raises it again when there is headroom.') },
     ] },
     { id: 'debug', title: 'Debug', items: [
@@ -1008,7 +1008,9 @@ fn cloudDensity(d: vec3f, lod: f32) -> f32 {
 `;
 
 // ---------------------------------------------------------------- Planet, Wolkenschale, Hintergrund
+const PATCH_G = 32;
 const SCENE = /* wgsl */`
+const PATCH_G = ${PATCH_G}.0;
 @group(1) @binding(0) var<uniform> D: vec4f;   // Radius, LOD im Vertex-Shader, Relief-Höhe (Verschiebung), Relief-Höhe (für Wolken)
 struct PV { @builtin(position) pos: vec4f, @location(0) obj: vec3f, @location(1) world: vec3f }
 @vertex fn vsPlanet(@location(0) aPos: vec3f) -> PV {
@@ -1016,6 +1018,22 @@ struct PV { @builtin(position) pos: vec4f, @location(0) obj: vec3f, @location(1)
   var disp = 0.0;
   if (D.z > 0.0) { disp = D.z * max(texDirLod(tHm, d, U.T.x, D.y).x - U.T.z, 0.0); }
   let p = d * (D.x + disp);
+  var o: PV;
+  o.obj = d;
+  o.world = modelM() * p;
+  o.pos = U.vp * vec4f(o.world, 1.0);
+  return o;
+}
+
+// Gelände-Kacheln (Quadtree wie CDLOD, Strugar 2009): pro Kachel ein Gitter, fein nahe der Kamera.
+// Rand-Schürzen (skirt) verdecken die Spalten zwischen Kacheln verschiedener Stufe.
+@vertex fn vsPatch(@location(0) g: vec3f, @location(1) inst: vec4f) -> PV {
+  let uv = inst.yz + g.xy * inst.w;
+  let d = faceDir(i32(inst.x), uv);
+  let lod = max(log2(U.T.x * inst.w / PATCH_G), 0.0);
+  var disp = 0.0;
+  if (D.z > 0.0) { disp = D.z * max(texDirLod(tHm, d, U.T.x, lod).x - U.T.z, 0.0); }
+  let p = d * (D.x + disp - g.z * (0.02 * inst.w + D.z * 0.3));
   var o: PV;
   o.obj = d;
   o.world = modelM() * p;
@@ -1259,7 +1277,8 @@ fn earthBiome(d: vec3f, h: f32, m: f32, slope: f32, nz: f32) -> vec4f {
     var f = 700.0;
     let sAmp = 0.05 * U.W.x;
     for (var i = 0; i < 4; i++) {
-      let fade = smoothstep(1.5, 4.0, 1.0 / (f * pix));
+      // Wellen erst ab ~3 Pixeln Größe einzeln zeigen, kleinere gehen in die Rauigkeit (kein Pixel-Flackern)
+      let fade = smoothstep(3.0, 8.0, 1.0 / (f * pix));
       if (fade > 0.0) {
         let gi = snoiseG(d * f + vec3f(tm * 0.21, tm * 0.13, -tm * 0.17) * (1.0 + f32(i) * 0.6) + f32(i) * 7.1).yzw;
         gw += (gi - d * dot(gi, d)) * (sAmp * fade * 0.6);
@@ -1269,7 +1288,7 @@ fn earthBiome(d: vec3f, h: f32, m: f32, slope: f32, nz: f32) -> vec4f {
     }
     let nW = normalize(d - gw);
     nOut = nW;
-    let alpha = sqrt(0.0025 + 0.003 * U.W.x + varSub * 2.0);
+    let alpha = sqrt(0.0064 + 0.003 * U.W.x + varSub * 2.0);
     let Nn = normalize(M * nW);
     let V = Vw;
     let L = sun;
@@ -1661,11 +1680,12 @@ function startPipelines() {
   const comp = (m, lay) => device.createComputePipelineAsync({ layout: pl(lay), compute: { module: m, entryPoint: 'main' } });
   const hdr = 'rgba16float';
   const vtx = [{ arrayStride: 12, attributes: [{ shaderLocation: 0, offset: 0, format: 'float32x3' }] }];
+  const vtxPatch = [vtx[0], { arrayStride: 16, stepMode: 'instance', attributes: [{ shaderLocation: 1, offset: 0, format: 'float32x4' }] }];
   const premul = { color: { srcFactor: 'one', dstFactor: 'one-minus-src-alpha' }, alpha: { srcFactor: 'one', dstFactor: 'one-minus-src-alpha' } };
   const add = { color: { srcFactor: 'one', dstFactor: 'one' }, alpha: { srcFactor: 'one', dstFactor: 'one' } };
   const rend = (m, vs, fs, layout, fmt, o = {}) => device.createRenderPipelineAsync({
     layout,
-    vertex: { module: m, entryPoint: vs, buffers: o.mesh ? vtx : [] },
+    vertex: { module: m, entryPoint: vs, buffers: o.mesh === 'patch' ? vtxPatch : o.mesh ? vtx : [] },
     fragment: { module: m, entryPoint: fs, targets: [{ format: fmt, ...(o.blend ? { blend: o.blend } : {}) }] },
     primitive: { topology: 'triangle-list', cullMode: o.mesh ? 'back' : 'none' },
     ...(o.depth ? { depthStencil: { format: 'depth24plus', depthWriteEnabled: o.depth === 'write', depthCompare: o.depth === 'always' ? 'always' : 'less' } } : {}),
@@ -1675,7 +1695,7 @@ function startPipelines() {
     gen: comp(M.gen, L.gen16), cloudGen: comp(M.cloudGen, L.gen8), nebGen: comp(M.nebGen, L.gen16), trans: comp(M.trans, L.trans),
     mip16: comp(M.mip16, L.mip16), mip8: comp(M.mip8, L.mip8),
     bg: rend(M.scene, 'vsFull', 'fsBg', scene, hdr, { depth: 'always' }),
-    planet: rend(M.scene, 'vsPlanet', 'fsPlanet', scene, hdr, { mesh: true, depth: 'write' }),
+    planet: rend(M.scene, 'vsPatch', 'fsPlanet', scene, hdr, { mesh: 'patch', depth: 'write' }),
     cloud: rend(M.scene, 'vsPlanet', 'fsCloud', scene, hdr, { mesh: true, depth: 'always', blend: premul }),
     comp: rend(M.post, 'vsFull', 'fsComp', post, hdr),
     down: rend(M.post, 'vsFull', 'fsDown', post, hdr),
@@ -1729,6 +1749,58 @@ function cubeSphere(G) {
   return { vb, ib, count: idx.length, G };
 }
 let meshPlanet, meshCloud;
+// Ein Kachel-Gitter (PATCH_G² Zellen) mit Schürze rundherum; z = 1 markiert Schürzen-Punkte
+function patchGrid(G) {
+  const W = G + 3, pos = new Float32Array(W * W * 3), idx = new Uint32Array((W - 1) * (W - 1) * 6);
+  let vi = 0, ii = 0;
+  for (let j = 0; j < W; j++) for (let i = 0; i < W; i++) {
+    const ci = Math.min(Math.max(i - 1, 0), G), cj = Math.min(Math.max(j - 1, 0), G);
+    pos[vi++] = ci / G; pos[vi++] = cj / G; pos[vi++] = (i === 0 || j === 0 || i === W - 1 || j === W - 1) ? 1 : 0;
+  }
+  for (let j = 0; j < W - 1; j++) for (let i = 0; i < W - 1; i++) {
+    const a = j * W + i, b = a + 1, c = a + W, d = c + 1;
+    idx[ii++] = a; idx[ii++] = b; idx[ii++] = d; idx[ii++] = a; idx[ii++] = d; idx[ii++] = c;
+  }
+  const vb = device.createBuffer({ size: pos.byteLength, usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST });
+  device.queue.writeBuffer(vb, 0, pos);
+  const ib = device.createBuffer({ size: idx.byteLength, usage: GPUBufferUsage.INDEX | GPUBufferUsage.COPY_DST });
+  device.queue.writeBuffer(ib, 0, idx);
+  const MAXI = 6144;
+  const inst = device.createBuffer({ size: MAXI * 16, usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST });
+  return { vb, ib, count: idx.length, G, inst, MAXI, data: new Float32Array(MAXI * 4), n: 0 };
+}
+const faceDirJS = (f, u, v) => {
+  const [ex, ey, em] = BASIS[f];
+  const s = Math.tan((u * 2 - 1) * Math.PI / 4), t = Math.tan((v * 2 - 1) * Math.PI / 4);
+  const x = em[0] + s * ex[0] + t * ey[0], y = em[1] + s * ex[1] + t * ey[1], z = em[2] + s * ex[2] + t * ey[2];
+  const l = Math.hypot(x, y, z); return [x / l, y / l, z / l];
+};
+// Quadtree je Würfelseite: teilen, solange die Kachel nah ist; hinter dem Horizont weglassen.
+// eo = Kamera im Planetenraum, pxK = Bildpunkte pro Bogenmaß im Abstand 1
+const SPLIT = coarse ? 3.5 : 6;
+function buildPatches(M, eo, maxDepth) {
+  const el = Math.hypot(eo[0], eo[1], eo[2]);
+  const horizon = 1 / el;
+  M.n = 0;
+  const visit = (f, u0, v0, sz, depth) => {
+    const c = faceDirJS(f, u0 + sz / 2, v0 + sz / 2);
+    const arc = sz * 1.1;   // halbe Diagonale grob in Bogenmaß
+    const cosV = (c[0] * eo[0] + c[1] * eo[1] + c[2] * eo[2]) / el;
+    if (cosV < horizon - arc - 0.03) return;
+    const dx = eo[0] - c[0], dy = eo[1] - c[1], dz = eo[2] - c[2];
+    const dist = Math.hypot(dx, dy, dz);
+    if (depth < maxDepth && dist < arc * SPLIT && M.n < M.MAXI - 4) {
+      const h = sz / 2;
+      visit(f, u0, v0, h, depth + 1); visit(f, u0 + h, v0, h, depth + 1);
+      visit(f, u0, v0 + h, h, depth + 1); visit(f, u0 + h, v0 + h, h, depth + 1);
+      return;
+    }
+    if (M.n >= M.MAXI) return;
+    M.data.set([f, u0, v0, sz], M.n * 4); M.n++;
+  };
+  for (let f = 0; f < 6; f++) visit(f, 0, 0, 1, 0);
+  device.queue.writeBuffer(M.inst, 0, M.data, 0, M.n * 4);
+}
 
 // ------------------------------------------------------------------ Ressourcen
 const RS = { nPrev: 128, nFull: 0, fullReady: false, cloudReady: false, nebReady: false, transKey: '', w: 0, h: 0 };
@@ -1751,7 +1823,7 @@ function initResources() {
   RS.bgDrawCloud = device.createBindGroup({ layout: L.draw, entries: [{ binding: 0, resource: { buffer: dCloud } }] });
   RS.views = { cloud: arrView(RS.cloud), neb: arrView(RS.neb), trans: RS.trans.createView(), biome: RS.biome.createView() };
   RS.shown = RS.hmPrev; RS.nShown = RS.nPrev;
-  meshPlanet = cubeSphere(coarse ? 112 : 192);
+  meshPlanet = patchGrid(PATCH_G);
   meshCloud = cubeSphere(coarse ? 48 : 72);
 }
 // Bindungen der Szene; neu, sobald die gezeigte Höhenkarte wechselt (Vorschau -> volle Auflösung)
@@ -2260,7 +2332,6 @@ function render(enc) {
   const model = planetMatrix(spin, S.tilt * Math.PI / 180);
   const sun = sunDir();
   const sunE = orig ? 1 : 3.2;
-  const lodV = Math.max(0, Math.log2(RS.nShown / meshPlanet.G) - 0.5);
   const cloudOn = RS.cloudReady && S.cover > 0;
   updateCyclones();
   const clU = [cloudOn ? S.cover : 0, simTime / CLOUD_PERIOD, S.wind * 0.35, orig ? 0 : S.cloudShadow];
@@ -2281,7 +2352,7 @@ function render(enc) {
     fl = [sx, sy, vis * onScreen * S.flare * (orig ? 0.9 : 0.5), aspect];
   }
   fillUniforms({ vp, ivp, model, eye, sun, sunE, A, orig, clU, clU2, bloomOn, fl });
-  device.queue.writeBuffer(dPlanet, 0, new Float32Array([1, lodV, orig ? 0 : S.relief, 0]));
+  device.queue.writeBuffer(dPlanet, 0, new Float32Array([1, 0, orig ? 0 : S.relief, 0]));
   device.queue.writeBuffer(dCloud, 0, new Float32Array([1 + clU2[0], 0, 0, orig ? 0 : S.relief]));
   const g0 = mainGroup();
 
@@ -2295,9 +2366,15 @@ function render(enc) {
   sp.setPipeline(P.bg);
   sp.draw(3);
   sp.setPipeline(P.planet);
+  {
+    // Kamera in den Planetenraum (Modellmatrix ist eine Drehung: transponiert = invers)
+    const eo = [0, 1, 2].map((c) => model[c * 3] * eye[0] + model[c * 3 + 1] * eye[1] + model[c * 3 + 2] * eye[2]);
+    buildPatches(meshPlanet, eo, Math.max(2, Math.round(Math.log2(RS.nShown / PATCH_G)) + 1));
+  }
   sp.setVertexBuffer(0, meshPlanet.vb);
+  sp.setVertexBuffer(1, meshPlanet.inst);
   sp.setIndexBuffer(meshPlanet.ib, 'uint32');
-  sp.drawIndexed(meshPlanet.count);
+  sp.drawIndexed(meshPlanet.count, meshPlanet.n);
   if (cloudOn && S.view === 0) {
     sp.setPipeline(P.cloud);
     sp.setBindGroup(1, RS.bgDrawCloud);
@@ -2345,7 +2422,8 @@ function resize() {
   else {
     dpr *= dynScale;
     const px = r.width * r.height * dpr * dpr;
-    if (px > 3.6e6) dpr *= Math.sqrt(3.6e6 / px);
+    const cap = coarse ? 3.6e6 : 17e6;
+    if (px > cap) dpr *= Math.sqrt(cap / px);
   }
   const w = Math.max(2, Math.round(r.width * dpr)), h = Math.max(2, Math.round(r.height * dpr));
   if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; }
@@ -2356,8 +2434,10 @@ function adaptScale(dt, now) {
   if (now - perfT < 1200) return;
   const ms = 1000 * perfAcc / Math.max(perfN, 1);
   perfAcc = 0; perfN = 0; perfT = now;
-  if (ms > 24 && dynScale > 0.45) dynScale = Math.max(0.45, dynScale * 0.85);
-  else if (ms < 14 && dynScale < 1) dynScale = Math.min(1, dynScale * 1.1);
+  // Starke Grafikkarten: über 100 % hinaus (Supersampling), bis die Bildrate gegen 60 fällt
+  const top = coarse ? 1 : 2;
+  if (ms > (coarse ? 24 : 17.5) && dynScale > 0.45) dynScale = Math.max(0.45, dynScale * 0.85);
+  else if (ms < (coarse ? 14 : 11) && dynScale < top) dynScale = Math.min(top, dynScale * 1.08);
 }
 function step(now) {
   const dt = Math.min(0.1, (now - last) / 1000);
