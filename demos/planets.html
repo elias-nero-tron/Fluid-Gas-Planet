@@ -747,7 +747,7 @@ void main() {
   float A = fbmS(p + w * 1.2, 8) * 0.75 + wa * 0.7 + fa * 0.2 - 0.07;
   float B = fbmS(p * 1.07 + w.zxy * 1.2 + 21.0, 8) * 0.75 + wb * 0.7 + fb * 0.2 - 0.07;
   float H = hisCloud(d, uSeed);
-  float Dt = 1.0 - abs(fbmS(d * vec3(22.0, 30.0, 22.0) + uSeed * 1.3, 5));
+  float Dt = fbmS(d * vec3(17.0, 26.0, 17.0) + w * 2.0 + uSeed * 1.3, 6) * 0.9 + 0.5;
   oC = vec4(A * 0.8 + 0.5, B * 0.8 + 0.5, H, Dt);
 }`;
 
@@ -902,10 +902,10 @@ float cloudDensity(vec3 d, float lod) {
   }
   c += climate(lat) * 0.3 + (det - 0.5) * 0.3 + boost;
   float lo = 1.0 - uCl.x;
-  float dn = smoothstep(lo, lo + 0.5, c);
+  float dn = smoothstep(lo, lo + 0.36, c);
   // dünne Schleier (Zirren) zwischen den dichten Feldern
   float veil = smoothstep(0.6, 0.95, det) * smoothstep(lo - 0.2, lo + 0.1, c) * 0.035;
-  return max(dn * dn * (0.55 + 0.45 * det), veil);
+  return max(dn * sqrt(dn), veil);
 }
 `;
 
@@ -1201,8 +1201,8 @@ void main() {
     vec3 body = (bed * Tz + deep * (1.0 - Tz)) * Esh * max(muS, 0.0) / PI;
     col = (1.0 - Fv) * body + Fv * sky + spec;
     // Brandung: Schaumlinien laufen auf den Strand
-    if (uW.z > 0.0) {
-      float zb = depth / 0.006;
+    float zb = depth / 0.006;
+    if (uW.z > 0.0 && zb < 1.0) {
       float band = 1.0 - smoothstep(0.0, 1.0, zb);
       float wv = 0.5 + 0.5 * sin(zb * 18.85 - uTime * 1.3 + snoise(d * 900.0) * 2.5);
       float foam = band * smoothstep(0.55, 0.95, wv) * 0.8 + (1.0 - smoothstep(0.0, 0.12, zb)) * 0.7;
@@ -1761,12 +1761,17 @@ function regenerate(full) {
   gl.activeTexture(gl.TEXTURE8);
   gl.bindTexture(gl.TEXTURE_2D_ARRAY, RS.hmPrev);
   gl.generateMipmap(gl.TEXTURE_2D_ARRAY);
-  const n = RS.nPrev, buf = new Float32Array(n * n * 4), hs = [], ms = [];
+  const n = RS.nPrev, buf = new Float32Array(n * n * 4), hbuf = new Uint16Array(n * n * 4), hs = [], ms = [];
+  const half = (x) => { const e = (x >> 10) & 31, m = x & 1023, sg = x & 32768 ? -1 : 1; return e === 0 ? sg * m * 5.960464477539063e-8 : e === 31 ? sg * 65504 : sg * (1 + m / 1024) * Math.pow(2, e - 15); };
   gl.bindFramebuffer(gl.FRAMEBUFFER, genFbo);
   for (let f = 0; f < 6; f++) {
     gl.framebufferTextureLayer(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, RS.hmPrev, 0, f);
     gl.readPixels(0, 0, n, n, gl.RGBA, gl.FLOAT, buf);
-    for (let i = 0; i < n * n; i += 3) { hs.push(buf[i * 4]); ms.push(buf[i * 4 + 1]); }
+    if (gl.getError() !== gl.NO_ERROR) {
+      // manche Mobil-GPUs lesen Halbfloat-Ziele nur als HALF_FLOAT
+      gl.readPixels(0, 0, n, n, gl.RGBA, gl.HALF_FLOAT, hbuf);
+      for (let i = 0; i < n * n; i += 3) { hs.push(half(hbuf[i * 4])); ms.push(half(hbuf[i * 4 + 1])); }
+    } else for (let i = 0; i < n * n; i += 3) { hs.push(buf[i * 4]); ms.push(buf[i * 4 + 1]); }
   }
   hs.sort((a, b) => a - b); ms.sort((a, b) => a - b);
   cdf = Float32Array.from(hs);
