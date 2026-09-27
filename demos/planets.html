@@ -188,10 +188,12 @@ function planetParams(seed) {
     m: field(),
     water: rr(0.3, 0.72),        // Wasseranteil (Original: zufälliger waterLevel ohne Regler)
     cloudSeed: rr(0, 400),
-    cloudCover: rr(0.35, 0.62),
+    cloudCover: rr(0.22, 0.42),
     nebSeed: rr(0, 400),
     nebHue: R(), nebHue2: R(), nebSat: rr(0.45, 0.9), nebBright: rr(0.5, 1.2),
     moistM: rr(0.8, 1.2),
+    mountains: rr(0.18, 0.34),
+    beltFreq: rr(1.1, 1.9),
   };
 }
 let PP = planetParams(S.seed);
@@ -519,6 +521,24 @@ float snoise(vec3 v, out vec3 grad) {
   return 105.0 * dot(m4, pdotx);
 }
 float snoise(vec3 v) { vec3 g; return snoise(v, g); }
+// Erosionsrinnen ("Gavoronoise" nach Clay John / Fewes, 3D): Streifen quer zu dir = r̂ × ∇h laufen hangabwärts.
+// Acht Zellecken mit glatter Teilung der Eins als Gewichten: stetig, und nur 8 statt 27 Zellen.
+vec4 gullies8(vec3 q, vec3 dir) {
+  vec3 ip = floor(q);
+  vec3 fp = q - ip;
+  vec3 u = fp * fp * fp * (fp * (fp * 6.0 - 15.0) + 10.0);
+  vec4 acc = vec4(0.0);
+  for (int k = 0; k < 8; k++) {
+    vec3 o = vec3(float(k & 1), float((k >> 1) & 1), float((k >> 2) & 1));
+    vec3 c = ip + o;
+    vec3 pp = q - c - (hash33(c) - 0.5) * 0.7;
+    vec3 wv = mix(1.0 - u, u, o);
+    float w = wv.x * wv.y * wv.z;
+    float ph = dot(pp, dir) * 6.2831853;
+    acc += vec4(cos(ph), -sin(ph) * 6.2831853 * dir) * w;
+  }
+  return acc;
+}
 float fbmS(vec3 p, int oct) {
   float n = 0.0, a = 0.5;
   for (int i = 0; i < 12; i++) { if (i >= oct) break; n += a * snoise(p); p = p * 2.02 + vec3(1.7, 9.2, 3.1); a *= 0.5; }
@@ -544,6 +564,7 @@ uniform vec4 uM; uniform vec2 uMx;   // Feuchte
 uniform vec4 uEro;          // Stärke, Kacheln, Hangfaktor, Verzweigung
 uniform float uEroOct;
 uniform float uSea;
+uniform vec4 uMt;           // Gebirge: Höhe, Gürtelfrequenz, Grat-Startfrequenz, fBm-Rest in Ebenen
 out vec4 oC;
 
 float simplex01(vec3 p, out vec3 g) { float n = snoise(p, g); g *= 0.5; return n * 0.5 + 0.5; }
@@ -571,14 +592,14 @@ float fbm(vec3 p, float frq, float seed, bool ridged, int oct, out vec3 g) {
   else { n = (n - 0.5) * 2.0 + 0.5; g *= 2.0; }
   return n;
 }
-float composite(vec3 p, vec4 prm, vec2 px, out vec3 g) {
+float composite(vec3 p, vec4 prm, vec2 px, int cap, out vec3 g) {
   float type = px.x, seed = px.y;
   bool r1 = type > 1.5;
   bool r2 = (type > 0.5 && type < 1.5) || type > 2.5;
   vec3 g1, g2, g3;
-  float s1 = fbm(p, prm.x, seed + 11.437, r1, octFor(prm.x), g1);
-  float s2 = fbm(p, prm.y, seed + 93.483, r2, octFor(prm.y), g2);
-  float s3 = fbm(p, prm.z, seed + 23.675, false, min(octFor(prm.z), 6), g3);
+  float s1 = fbm(p, prm.x, seed + 11.437, r1, min(octFor(prm.x), cap), g1);
+  float s2 = fbm(p, prm.y, seed + 93.483, r2, min(octFor(prm.y), cap), g2);
+  float s3 = fbm(p, prm.z, seed + 23.675, false, min(octFor(prm.z), min(cap, 6)), g3);
   float k = 1.0 + 3.0 * prm.w;
   float tm = (s3 - 0.5) * k + 0.5;
   float tt = clamp(tm, 0.0, 1.0);
@@ -610,6 +631,27 @@ vec4 gullies(vec3 q, vec3 dir) {
   }
   return va / max(wt, 1e-6);
 }
+// Grat-Multifraktal nach Musgrave (1994): scharfe Kämme, glatte Täler; jede Oktave gewichtet mit der vorigen
+float ridgedMF(vec3 p, float f0, float seed, out vec3 g) {
+  float r = 0.0, w = 1.0, f = f0, a = 1.0, norm = 0.0;
+  g = vec3(0.0);
+  for (int i = 0; i < 10; i++) {
+    if (f * 6.2832 > uN) break;
+    vec3 gi;
+    float n = snoise(p * f + octOff(seed, i), gi);
+    float s = 1.0 - abs(n);
+    vec3 gs = (n < 0.0 ? 1.0 : -1.0) * gi * f;
+    float s2 = s * s;
+    r += s2 * w * a;
+    g += 2.0 * s * gs * w * a;
+    norm += a;
+    w = clamp(s2 * 1.7, 0.0, 1.0);
+    f *= 2.03;
+    a *= 0.5;
+  }
+  g /= max(norm, 1e-3);
+  return r / max(norm, 1e-3);
+}
 void main() {
   vec2 uv = floor(gl_FragCoord.xy) / (uN - 1.0);
   vec3 ex, ey, em;
@@ -619,19 +661,46 @@ void main() {
   float il = inversesqrt(dot(P, P));
   vec3 d = P * il;
   vec3 gh, gm;
-  float h = composite(d, uH, uHx, gh);
-  float m = composite(d, uM, uMx, gm);
+  float h = composite(d, uH, uHx, 16, gh);
+  float m = composite(d, uM, uMx, 16, gm);
   gh -= d * dot(gh, d);
+  vec3 gDir = gh;
+  float belt = 0.0;
+  if (uMode == 1) {
+    // Kontinente wie im Original (untere Oktaven), Feinrauschen gedämpft, dafür Gebirgsgürtel + Erosion
+    vec3 gL;
+    float hL = composite(d, uH, uHx, 4, gL);
+    gL -= d * dot(gL, d);
+    vec3 gb;
+    float nb = snoise(d * uMt.y + vec3(uHx.y * 0.37, 5.1, 2.3), gb);
+    gb *= uMt.y;
+    float bl = 1.0 - abs(nb);
+    float tb = clamp((bl - 0.55) / 0.4, 0.0, 1.0);
+    belt = tb * tb * (3.0 - 2.0 * tb);
+    vec3 gBelt = (nb < 0.0 ? 1.0 : -1.0) * gb * (6.0 * tb * (1.0 - tb) / 0.4);
+    gBelt -= d * dot(gBelt, d);
+    vec3 gr;
+    float rm = ridgedMF(d, uMt.z, uHx.y + 51.0, gr);
+    gr -= d * dot(gr, d);
+    float landW = smoothstep(uSea - 0.1, uSea + 0.06, hL);
+    float keep = mix(uMt.w, 0.9, belt);
+    h = hL + (h - hL) * keep + landW * uMt.x * belt * (0.3 + 0.7 * rm);
+    gh = gL + (gh - gL) * keep + landW * uMt.x * (gBelt * (0.3 + 0.7 * rm) + belt * 0.7 * gr);
+    gDir = gL + landW * uMt.x * gBelt * 0.6;
+  }
   if (uMode == 1 && uEro.x > 0.0) {
-    vec3 dir0 = cross(d, gh) * uEro.z;
-    float a = smoothstep(uSea - 0.06, uSea + 0.12, h);
+    // Streifen pro Zelle wachsen mit dem Gefälle, aber gesättigt (sonst werden aus Rinnen Riffel)
+    vec3 cr = cross(d, gDir);
+    float sl = length(cr);
+    vec3 dir0 = sl > 1e-5 ? cr / sl * (1.4 * tanh(sl * uEro.z * 0.25)) : vec3(0.0);
+    float a = smoothstep(uSea - 0.06, uSea + 0.12, h) * (0.6 + 0.8 * belt);
     float f = 1.0, sumA = 0.0;
     vec4 acc = vec4(0.0);
     for (int o = 0; o < 8; o++) {
       if (float(o) >= uEroOct) break;
       vec3 dir = dir0 + cross(d, acc.yzw) * (uEro.w / (6.2831853 * uEro.y));
       mat3 R = octRot(o);
-      vec4 e = gullies(R * (d * (uEro.y * f)) + float(o) * 19.19, R * dir);
+      vec4 e = gullies8(R * (d * (uEro.y * f)) + float(o) * 19.19, R * dir);
       acc += vec4(e.x, transpose(R) * e.yzw * (uEro.y * f)) * a;
       sumA += a;
       a *= 0.5;
@@ -758,6 +827,8 @@ uniform sampler2DArray tCloud;
 uniform float uNc;
 uniform vec4 uCl;      // Bedeckung, Phase (Zeit/Periode), Wind, Schattenstärke
 uniform vec4 uCl2;     // Höhe, starre Drehung (Original), Dichte/Deckkraft, Modus
+uniform vec4 uCyc[6];  // Wirbel: Mittelpunkt (Planetenkoordinaten), Drehwinkel im Zentrum (Vorzeichen = Drehsinn)
+uniform vec4 uCycB[6]; // Radius, Lebensphase 0..1, Auge (tropischer Wirbelsturm), -
 // Zonalwind als Winkelgeschwindigkeit: Passat (Ost), Westwinde, polare Ostwinde
 float windOmega(float lat) {
   float a = abs(lat);
@@ -773,19 +844,46 @@ float cloudDensity(vec3 d, float lod) {
   if (uCl.x <= 0.0) return 0.0;
   if (uCl2.w < 0.5) {
     float c = texDirLod(tCloud, rotY(d, uCl2.y), uNc, lod).b;
-    return smoothstep(1.0 - uCl.x, 1.0 - uCl.x + 0.35, c);
+    return smoothstep(1.0 - uCl.x, 1.0 - uCl.x + 0.45, c);
   }
   float lat = asin(clamp(d.y, -1.0, 1.0));
+  // Wirbel: Tiefdruckgebiete drehen die Wolkenbänder zu Spiralen (innen stärker als außen)
+  vec3 q = d;
+  float boost = 0.0;
+  for (int i = 0; i < 6; i++) {
+    vec4 cy = uCyc[i];
+    if (cy.w == 0.0) continue;
+    float ca = dot(q, cy.xyz);
+    if (ca < 0.8) continue;
+    float ang = acos(min(ca, 1.0));
+    float r = uCycB[i].x;
+    float fall = exp(-(ang * ang) / (r * r));
+    float a = cy.w * fall;
+    q = q * cos(a) + cross(cy.xyz, q) * sin(a) + cy.xyz * dot(cy.xyz, q) * (1.0 - cos(a));
+    float env = sin(3.14159 * uCycB[i].y);
+    boost += env * (0.16 * exp(-(ang * ang) / (2.2 * r * r)) - uCycB[i].z * 0.9 * exp(-(ang * ang) / (0.012 * r * r)));
+  }
   float w = windOmega(lat) * uCl.z;
   float ph = fract(uCl.y), ph2 = fract(uCl.y + 0.5);
-  vec4 A = texDirLod(tCloud, rotY(d, w * ph), uNc, lod);
-  vec4 B = texDirLod(tCloud, rotY(d, w * ph2), uNc, lod);
+  vec4 A = texDirLod(tCloud, rotY(q, -w * ph), uNc, lod);
+  vec4 B = texDirLod(tCloud, rotY(q, -w * ph2), uNc, lod);
   float wa = 1.0 - abs(2.0 * ph - 1.0), wb = 1.0 - wa;
   // zwei Phasen überblenden, Varianz erhalten: Wolken entstehen und vergehen, statt zu pulsieren
   float c = ((A.r - 0.5) * wa + (B.g - 0.5) * wb) * inversesqrt(wa * wa + wb * wb) + 0.5;
   float det = A.a * wa + B.a * wb;
-  c += climate(lat) * 0.35 + (det - 0.5) * 0.14;
-  return smoothstep(1.0 - uCl.x, 1.0 - uCl.x + 0.3, c);
+  // feine Quellwolken-Struktur beim Heranzoomen (live, damit Wolken nicht verschmieren)
+  float pixC = exp2(lod) * 1.5708 / uNc;
+  float fq = 90.0;
+  for (int i = 0; i < 3; i++) {
+    float fade = smoothstep(2.5, 6.0, 1.0 / (fq * pixC));
+    if (fade <= 0.0) break;
+    det += (1.0 - abs(snoise(q * fq + float(i) * 3.3)) - 0.6) * 0.5 * fade * (0.6 - 0.15 * float(i));
+    fq *= 2.3;
+  }
+  c += climate(lat) * 0.3 + (det - 0.5) * 0.3 + boost;
+  float lo = 1.0 - uCl.x;
+  float dn = smoothstep(lo, lo + 0.42, c);
+  return dn * dn * (0.6 + 0.4 * det);
 }
 `;
 
@@ -822,6 +920,7 @@ uniform vec4 uW;      // Wasser: Wellen, Klarheit, Brandung, -
 uniform vec4 uL;      // Land: Relief-Schärfe, Glanz, Feindetail, Terrassen
 uniform vec4 uL2;     // Geländeschatten, Himmelslicht, -, -
 uniform vec2 uMq;     // Feuchte-Normierung
+uniform vec4 uEroRt;  // Erosion zur Laufzeit: Stärke, Startfrequenz
 in vec3 vObj;
 in vec3 vWorld;
 out vec4 oC;
@@ -845,8 +944,10 @@ vec4 detailNoise(vec3 d, float pix, float f0, float amp) {
     if (fade <= 0.0) break;
     vec3 g;
     float n = snoise(d * f + float(i) * 17.31, g);
+    float s = 1.0 - abs(n);                     // Grate statt Beulen
+    vec3 gs = (n < 0.0 ? 1.0 : -1.0) * g;
     float a = amp / f;
-    acc += vec4(n * a, g * (f * a)) * fade;
+    acc += vec4((s - 0.6) * a, gs * (f * a)) * fade;
     f *= 2.0;
   }
   return acc;
@@ -943,7 +1044,7 @@ void main() {
     vec2 dB = vec2(gx, gy) / (8.0 * stp);
     vec3 gB = dB.x * F.jx + dB.y * F.jy;
     bool water = h < uSea;
-    vec3 nO = water ? d : normalize(d - uO.x * 0.0042 * gB);
+    vec3 nO = water ? d : normalize(d - uO.x * 0.05 * gB);
     float rmap = water ? 0.25 : 0.85;                      // roughnessMap (dient auch als metalnessMap)
     float rough = clamp(uO.y * rmap, 0.04, 1.0);
     float metal = clamp(uO.z * rmap, 0.0, 1.0);
@@ -975,6 +1076,24 @@ void main() {
     g += det.yzw * rug;
   }
   g -= d * dot(g, d);
+  // Erosion geht beim Heranzoomen weiter: zwei weitere Rinnen-Oktaven entlang des örtlichen Gefälles
+  if (uEroRt.x > 0.0 && h > uSea) {
+    float f = uEroRt.y;
+    float a = uEroRt.x * smoothstep(uSea, uSea + 0.08, h);
+    for (int o = 0; o < 2; o++) {
+      float fade = smoothstep(3.0, 7.0, 1.0 / (f * pix));
+      if (fade <= 0.0) break;
+      vec3 cr = cross(d, g);
+      float sl = length(cr);
+      vec4 e = gullies8(d * f + float(o) * 7.77, sl > 1e-5 ? cr / sl * (1.4 * tanh(sl * 0.22)) : vec3(0.0));
+      float k = a * fade * 0.5 * 0.03;
+      h += (e.x - 1.0) * k;
+      vec3 ge = e.yzw * f * k;
+      g += ge - d * dot(ge, d);
+      a *= 0.5;
+      f *= 2.0;
+    }
+  }
   float depth = uSea - h;
   bool water = depth > 0.0;
   // Terrassen (Gesteinsschichten) auf dem Land
@@ -989,10 +1108,10 @@ void main() {
     h = mix(h, uSea + (fl + sm) * step, uL.w);
     g = mix(g, g * dsm, uL.w);
   }
-  float kN = uL.x * 0.045;                          // Überhöhung für Normalen und Schatten
+  float kN = uL.x * 0.06;                           // Überhöhung für Normalen und Schatten
   vec3 nL = normalize(d - kN * g);
   float slope = 1.0 - dot(nL, d);
-  float nz = T.y * 3.0 - floor(T.y * 3.0) - 0.5;
+  float nz = snoise(d * 23.0 + 3.7) * 0.6 + snoise(d * 97.0) * 0.25;
 
   // Licht an diesem Ort: Sonne durch die Luft, Wolken- und Geländeschatten
   vec3 E = sunTrans(uAt.x, muS) * uSunE;
@@ -1043,7 +1162,10 @@ void main() {
     float ru = clamp(dot(Rw, up), 0.0, 1.0);
     vec3 sky = mix(vec3(0.55, 0.65, 0.8), vec3(0.12, 0.28, 0.65), sqrt(ru)) * E * 0.05;
     // Wasserkörper: Beer–Lambert, Meeresboden scheint im Flachen durch
-    float z = depth * 6000.0;
+    // Schelf: in Küstennähe (geglättete Höhe nahe am Meeresspiegel) bleibt das Wasser flach und hell
+    float hB = 0.5 * (texFaceLod(tHm, F, uN, max(log2(uN / 96.0), 0.0)).x + texFaceLod(tHm, F, uN, max(log2(uN / 256.0), 0.0)).x);
+    float dEff = min(depth, max(uSea - hB, 0.0) * 0.7 + depth * 0.1);
+    float z = dEff * 2500.0;
     vec3 kap = vec3(0.45, 0.065, 0.021) / max(uW.y, 0.05);
     float muV = max(dot(nW, Mi * V), 0.05), muL = max(muS, 0.05);
     vec3 Tz = exp(-kap * z * (1.0 / muV + 1.0 / muL));
@@ -1077,7 +1199,10 @@ void main() {
       float rk = smoothstep(0.12, 0.3, slope);
       alb = mix(alb, alb * 0.7 + vec3(0.03), rk * 0.5);
     } else {
-      earthBiome(d, h, mN, slope, nz, alb, rough);
+      // Bewuchs und Fels nach der Hangneigung im Größeren, nicht nach jeder kleinen Rinne
+      vec4 Tb = texFaceLod(tHm, F, uN, lod + 2.0);
+      float slopeB = 1.0 - dot(normalize(d - kN * (Tb.z * F.jx + Tb.w * F.jy)), d);
+      earthBiome(d, h, mN, mix(slope, slopeB, 0.7), nz, alb, rough);
     }
     // Kavität: Täler dunkler, Grate heller (Differenz zu einer gröberen Mipmap)
     float hb = texFaceLod(tHm, F, uN, lod + 3.0).x;
@@ -1105,7 +1230,7 @@ void main() {
 }`;
 
 // ---------------------------------------------------------------- Wolkenschale
-const CLOUD_FS = HEAD + COMMON + ATMO + CLOUDF + `
+const CLOUD_FS = HEAD + COMMON + NOISE + ATMO + CLOUDF + `
 uniform mat3 uModel;
 uniform vec3 uCam, uSun;
 uniform float uSunE, uSunI;
@@ -1137,7 +1262,7 @@ void main() {
   float e = max(pix * 1.5, 1.0 / uNc);
   float dx = cloudDensity(normalize(d + t1 * e), lod) - dens;
   float dy = cloudDensity(normalize(d + t2 * e), lod) - dens;
-  vec3 nC = normalize(d - (t1 * dx + t2 * dy) * (0.006 / e));
+  vec3 nC = normalize(d - (t1 * dx + t2 * dy) * (0.0025 / e));
   vec3 E = sunTrans(uAt.x + uCl2.x, muS) * uSunE;
   float tau = dens * 9.0 * uCl2.z;
   float muV = max(dot(d, Mi * Vw), 0.03);
@@ -1148,7 +1273,7 @@ void main() {
   float g = 0.65;
   float hg = (1.0 - g * g) / pow(max(1.0 + g * g - 2.0 * g * cosT, 1e-4), 1.5) / (4.0 * PI);
   float thin = exp(-tau * 0.6);
-  vec3 col = E * (0.9 * diffuse / PI + hg * thin * 1.2);
+  vec3 col = E * (0.78 * diffuse / PI + hg * thin * 1.2);
   col += vec3(0.25, 0.35, 0.5) * 0.03 * uSunE * smoothstep(-0.2, 0.3, muS);
   oC = vec4(col * alpha, alpha);
 }`;
@@ -1170,12 +1295,12 @@ vec3 stars(vec3 d, float pix) {
     vec2 g = F.uv * cells;
     vec2 id = floor(g);
     vec3 h = hash33(vec3(id, float(F.f) * 17.0 + float(L) * 131.0));
-    float keep = L == 0 ? 0.42 : L == 1 ? 0.3 : 0.22;
+    float keep = L == 0 ? 0.3 : L == 1 ? 0.2 : 0.12;
     if (h.z > keep) continue;
     vec2 pos = id + 0.25 + 0.5 * h.xy;
     float r = length(g - pos) / cells * 1.5708;
     float b = hash13(vec3(id * 1.37, float(F.f) + float(L) * 7.0));
-    float flux = (pow(b, 16.0) * 5.0 + 0.03 * b * b) * (L == 0 ? 1.0 : L == 1 ? 0.55 : 0.3);
+    float flux = (pow(b, 16.0) * 5.0 + 0.018 * b * b) * (L == 0 ? 1.0 : L == 1 ? 0.55 : 0.3);
     float sig = pix * 0.55;
     float I = flux * exp(-r * r / (2.0 * sig * sig));
     float tc = hash13(vec3(id, 5.0 + float(L)));
@@ -1367,6 +1492,7 @@ function program(vs, fs) {
     v2(n, a, b) { gl.uniform2f(L(n), a, b); return o; },
     v3(n, a) { gl.uniform3f(L(n), a[0], a[1], a[2]); return o; },
     v4(n, a) { gl.uniform4f(L(n), a[0], a[1], a[2], a[3]); return o; },
+    v4a(n, a) { gl.uniform4fv(L(n), a); return o; },
     m3(n, m) { gl.uniformMatrix3fv(L(n), false, m); return o; },
     m4(n, m) { gl.uniformMatrix4fv(L(n), false, m); return o; },
   };
@@ -1566,13 +1692,16 @@ let cdf = null, moistQ = [0, 1];
 let seaH = 0.5;
 let lutDirty = false;
 
+// Erosions-Oktaven, die die Karte noch auflöst (Zelle ≥ 4 Texel); der Rest läuft live im Pixel
+const eroOct = (N) => clamp(Math.floor(Math.log2(N / 213)) + 1, 1, 6);
 function genUniforms(mode, N, erosion) {
   const pr = P.gen.use();
   const f = PP.h, m = PP.m;
   pr.f('uN', N).i('uMode', mode)
     .v4('uH', [f.res1, f.res2, f.resMix, f.mixScale]).v2('uHx', f.type, PP.noiseSeed)
     .v4('uM', [m.res1 * PP.moistM, m.res2, m.resMix, m.mixScale]).v2('uMx', m.type, PP.noiseSeed + 392.253)
-    .v4('uEro', [erosion, 34.0, 0.16, 1.0]).f('uEroOct', 5).f('uSea', seaH);
+    .v4('uEro', [erosion, 34.0, 0.9, 1.0]).f('uEroOct', eroOct(N)).f('uSea', seaH)
+    .v4('uMt', [PP.mountains, PP.beltFreq, 7.0, 0.35]);
 }
 function drawTile(pr, tx, face, x, y, w, h) {
   gl.bindFramebuffer(gl.FRAMEBUFFER, genFbo);
@@ -1641,6 +1770,7 @@ function regenerate(full) {
     });
   }
   // 3) Wolken und Nebel gehören zum Seed
+  if (RS.cloudSeed !== S.seed) initCyclones(S.seed);
   if (RS.cloudSeed !== S.seed || !RS.cloudReady) {
     RS.cloudSeed = S.seed; RS.cloudReady = false;
     if (!RS.cloud) RS.cloud = texArray(cloudRes, gl.RGBA8, mipLevels(cloudRes));
@@ -1852,6 +1982,43 @@ function newSeed(sd) {
 $('rnd').addEventListener('click', () => newSeed(randomSeed()));
 $('seed').addEventListener('change', (e) => newSeed(e.target.value));
 
+// ------------------------------------------------------------------ Wirbel (Tiefdruckgebiete, ein tropischer Wirbelsturm)
+// Sie entstehen, drehen sich auf, ziehen mit dem Wind ihrer Breite und lösen sich wieder auf.
+const CLOUD_PERIOD = 70;
+const cyclones = [];
+function windOmegaJS(lat) {
+  const a = Math.abs(lat);
+  const u = -0.9 * Math.sin(6 * a) + 0.35 * Math.exp(-(((a - 0.75) / 0.18) ** 2));
+  return u / Math.max(Math.cos(lat), 0.3);
+}
+function spawnCyclone(R, birth, tropical) {
+  const north = R() < 0.5;
+  const lat = (north ? 1 : -1) * (tropical ? 0.2 + R() * 0.2 : 0.55 + R() * 0.5);
+  return { R, tropical, lat, lon: R() * Math.PI * 2, birth, life: tropical ? 90 + R() * 60 : 55 + R() * 55,
+    s: (north ? -1 : 1) * (tropical ? 5.5 + R() * 2 : 2.2 + R() * 2.2), r: tropical ? 0.045 + R() * 0.025 : 0.1 + R() * 0.09 };
+}
+function initCyclones(seed) {
+  const R = rng(seed + '|cyclones');
+  cyclones.length = 0;
+  for (let i = 0; i < 6; i++) {
+    const c = spawnCyclone(R, 0, i === 0);
+    c.birth = simTime - R() * c.life;
+    cyclones.push(c);
+  }
+}
+const cycA = new Float32Array(24), cycB = new Float32Array(24);
+function updateCyclones() {
+  for (let i = 0; i < cyclones.length; i++) {
+    let c = cyclones[i];
+    let age = simTime - c.birth;
+    if (age > c.life || age < 0) { c = cyclones[i] = spawnCyclone(c.R, simTime, c.tropical); age = 0; }
+    const lon = c.lon + windOmegaJS(c.lat) * S.wind * 0.35 * age / CLOUD_PERIOD;
+    const env = Math.sin(Math.PI * age / c.life);
+    cycA.set([Math.cos(c.lat) * Math.sin(lon), Math.sin(c.lat), Math.cos(c.lat) * Math.cos(lon), c.s * env], i * 4);
+    cycB.set([c.r, age / c.life, c.tropical ? 1 : 0, 0], i * 4);
+  }
+}
+
 // ------------------------------------------------------------------ Zeichnen
 let spin = 0.6, simTime = 0;
 function sunDir() {
@@ -1900,8 +2067,8 @@ function render() {
   gl.enable(gl.CULL_FACE); gl.cullFace(gl.BACK);
   const lodV = Math.max(0, Math.log2(RS.nShown / meshPlanet.G) - 0.5);
   const cloudOn = RS.cloudReady && S.cover > 0;
-  const period = 70;
-  const clU = [cloudOn ? S.cover : 0, simTime / period, S.wind * 0.35, orig ? 0 : S.cloudShadow];
+  updateCyclones();
+  const clU = [cloudOn ? S.cover : 0, simTime / CLOUD_PERIOD, S.wind * 0.35, orig ? 0 : S.cloudShadow];
   const clU2 = [orig ? 0.006 : S.cloudH, spin * 0.12, orig ? S.cloudOpO : S.cloudOp, orig ? 0 : 1];
   P.planet.use().m4('uVP', vp).m3('uModel', model).f('uN', RS.nShown).f('uLodV', lodV)
     .f('uRelief', orig ? 0 : S.relief).f('uSea', seaUse).f('uRadius', 1)
@@ -1910,7 +2077,8 @@ function render() {
     .v4('uO', [S.nscale, S.rough, S.metal, S.ambient]).f('uSunI', S.sunI)
     .v4('uW', [S.waves, S.clarity, S.foam, 0]).v4('uL', [S.bump, S.gloss, S.detail, S.terrace])
     .v4('uL2', [S.shadows, S.ambientP, 0, 0]).v2('uMq', moistQ[0], moistQ[1])
-    .v4('uAt', [1, A.Rt, A.HR, A.HM]).f('uNc', cloudRes).v4('uCl', clU).v4('uCl2', clU2);
+    .v4('uEroRt', [S.erosion * Math.pow(0.5, eroOct(RS.nShown)), 34 * Math.pow(2, eroOct(RS.nShown)), 0, 0])
+    .v4('uAt', [1, A.Rt, A.HR, A.HM]).f('uNc', cloudRes).v4('uCl', clU).v4('uCl2', clU2).v4a('uCyc', cycA).v4a('uCycB', cycB);
   gl.bindVertexArray(meshPlanet.vao);
   gl.drawElements(gl.TRIANGLES, meshPlanet.count, gl.UNSIGNED_INT, 0);
 
@@ -1918,7 +2086,8 @@ function render() {
     gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA); gl.depthMask(false);
     P.cloud.use().m4('uVP', vp).m3('uModel', model).f('uN', RS.nShown).f('uLodV', 0).f('uRelief', 0).f('uSea', seaUse)
       .f('uRadius', 1 + clU2[0]).v3('uCam', eye).v3('uSun', sun).f('uSunE', sunE).f('uSunI', S.sunI)
-      .v4('uO', [S.nscale, S.rough, S.metal, S.ambient]).v4('uAt', [1, A.Rt, A.HR, A.HM]).f('uNc', cloudRes).v4('uCl', clU).v4('uCl2', clU2);
+      .v4('uO', [S.nscale, S.rough, S.metal, S.ambient]).v4('uAt', [1, A.Rt, A.HR, A.HM]).f('uNc', cloudRes).v4('uCl', clU).v4('uCl2', clU2)
+      .v4a('uCyc', cycA).v4a('uCycB', cycB);
     gl.bindVertexArray(meshCloud.vao);
     gl.drawElements(gl.TRIANGLES, meshCloud.count, gl.UNSIGNED_INT, 0);
     gl.depthMask(true); gl.disable(gl.BLEND);
