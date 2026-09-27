@@ -1535,24 +1535,32 @@ void main() {
 }`;
 
 // ------------------------------------------------------------------ GL-Hilfen
-function compile(type, src) {
-  const s = gl.createShader(type);
-  gl.shaderSource(s, src);
-  gl.compileShader(s);
-  if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) {
-    const log = gl.getShaderInfoLog(s);
-    console.error(log + '\n' + src.split('\n').map((l, i) => `${i + 1}: ${l}`).join('\n'));
-    throw new Error('Shader: ' + log);
-  }
-  return s;
-}
-const UNITS = { tHm: 0, tBiome: 1, tCloud: 2, tNeb: 3, tTrans: 4, tScene: 5, tSrc: 6, tBloom: 7, tHdr: 5 };
-function program(vs, fs) {
+// Shader werden parallel übersetzt (KHR_parallel_shader_compile), damit die Seite dabei nicht einfriert
+const parallel = gl.getExtension('KHR_parallel_shader_compile');
+function startProgram(vs, fs) {
   const p = gl.createProgram();
-  gl.attachShader(p, compile(gl.VERTEX_SHADER, vs));
-  gl.attachShader(p, compile(gl.FRAGMENT_SHADER, fs));
+  const sh = [[gl.VERTEX_SHADER, vs], [gl.FRAGMENT_SHADER, fs]].map(([type, src]) => {
+    const s = gl.createShader(type);
+    gl.shaderSource(s, src);
+    gl.compileShader(s);
+    gl.attachShader(p, s);
+    return { s, src };
+  });
   gl.linkProgram(p);
-  if (!gl.getProgramParameter(p, gl.LINK_STATUS)) throw new Error('Link: ' + gl.getProgramInfoLog(p));
+  return { p, sh };
+}
+const programDone = (pp) => !parallel || gl.getProgramParameter(pp.p, parallel.COMPLETION_STATUS_KHR);
+const UNITS = { tHm: 0, tBiome: 1, tCloud: 2, tNeb: 3, tTrans: 4, tScene: 5, tSrc: 6, tBloom: 7, tHdr: 5 };
+function program(pp) {
+  const p = pp.p;
+  if (!gl.getProgramParameter(p, gl.LINK_STATUS)) {
+    for (const { s, src } of pp.sh) if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) {
+      const log = gl.getShaderInfoLog(s);
+      console.error(log + '\n' + src.split('\n').map((l, i) => `${i + 1}: ${l}`).join('\n'));
+      throw new Error('Shader: ' + log);
+    }
+    throw new Error('Link: ' + gl.getProgramInfoLog(p));
+  }
   const loc = new Map();
   const L = (n) => { if (!loc.has(n)) loc.set(n, gl.getUniformLocation(p, n)); return loc.get(n); };
   const o = {
@@ -1604,21 +1612,19 @@ function fbo(tx, depthRb) {
 const mipLevels = (n) => Math.floor(Math.log2(n)) + 1;
 
 let P;
-try {
-  P = {
-    gen: program(FULL_VS, GEN_FS),
-    cloudGen: program(FULL_VS, CLOUDGEN_FS),
-    nebGen: program(FULL_VS, NEBGEN_FS),
-    trans: program(FULL_VS, TRANS_FS),
-    bg: program(FULL_VS, BG_FS),
-    planet: program(PLANET_VS, PLANET_FS),
-    cloud: program(PLANET_VS, CLOUD_FS),
-    comp: program(FULL_VS, COMP_FS),
-    down: program(FULL_VS, DOWN_FS),
-    up: program(FULL_VS, UP_FS),
-    fin: program(FULL_VS, FINAL_FS),
-  };
-} catch (e) { fail(String(e.message || e)); }
+const pendingPrograms = {
+  gen: startProgram(FULL_VS, GEN_FS),
+  cloudGen: startProgram(FULL_VS, CLOUDGEN_FS),
+  nebGen: startProgram(FULL_VS, NEBGEN_FS),
+  trans: startProgram(FULL_VS, TRANS_FS),
+  bg: startProgram(FULL_VS, BG_FS),
+  planet: startProgram(PLANET_VS, PLANET_FS),
+  cloud: startProgram(PLANET_VS, CLOUD_FS),
+  comp: startProgram(FULL_VS, COMP_FS),
+  down: startProgram(FULL_VS, DOWN_FS),
+  up: startProgram(FULL_VS, UP_FS),
+  fin: startProgram(FULL_VS, FINAL_FS),
+};
 
 const emptyVao = gl.createVertexArray();
 const genFbo = gl.createFramebuffer();
@@ -2281,7 +2287,7 @@ function step(now) {
 }
 
 // Schnittstelle für Tests und Bildschirmfotos
-window.planets = {
+const planetsApi = {
   S, get busy() { return jobs.length > 0; },
   set(k, v) { S[k] = v; if (k === 'style') { buildUI(); regenerate(); } else if (k === 'seed') newSeed(v); else changed({ k }); buildUI(); },
   finish() { while (jobs.length) { const j = jobs.shift(); j.run(); jobDone += j.cost; } },
@@ -2300,8 +2306,26 @@ window.planets = {
 S.sea = S.sea < 0 ? PP.water : S.sea;
 if (!Q.get('cover')) S.cover = PP.cloudCover;
 buildUI();
-regenerate();
-requestAnimationFrame(step);
+// Start, sobald alle Shader übersetzt sind
+function boot() {
+  const list = Object.values(pendingPrograms);
+  const done = list.filter(programDone).length;
+  if (done < list.length) {
+    $('genbar').hidden = false;
+    $('gen-text').textContent = `${t('Übersetze Shader', 'Compiling shaders')} ${done}/${list.length}`;
+    $('gen-fill').style.width = `${100 * done / list.length}%`;
+    requestAnimationFrame(boot);
+    return;
+  }
+  try {
+    P = {};
+    for (const [k, pp] of Object.entries(pendingPrograms)) P[k] = program(pp);
+  } catch (e) { fail(String(e.message || e)); }
+  window.planets = planetsApi;
+  regenerate();
+  requestAnimationFrame(step);
+}
+boot();
 </script>
 
 </html>
