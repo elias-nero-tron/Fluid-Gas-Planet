@@ -1009,7 +1009,7 @@ fn cloudDensity(d: vec3f, lod: f32) -> f32 {
 
 // ---------------------------------------------------------------- Planet, Wolkenschale, Hintergrund
 const SCENE = /* wgsl */`
-@group(1) @binding(0) var<uniform> D: vec4f;   // Radius, LOD im Vertex-Shader, Relief-Höhe, -
+@group(1) @binding(0) var<uniform> D: vec4f;   // Radius, LOD im Vertex-Shader, Relief-Höhe (Verschiebung), Relief-Höhe (für Wolken)
 struct PV { @builtin(position) pos: vec4f, @location(0) obj: vec3f, @location(1) world: vec3f }
 @vertex fn vsPlanet(@location(0) aPos: vec3f) -> PV {
   let d = normalize(aPos);
@@ -1386,7 +1386,12 @@ fn earthBiome(d: vec3f, h: f32, m: f32, slope: f32, nz: f32) -> vec4f {
   let pix = max(max(length(dpdx(d)), length(dpdy(d))), 1e-6);
   let Nc = U.T.y;
   let lod = log2(max(pix * Nc / 1.5708, 1.0));
-  let dens = cloudDensity(d, lod);
+  var dens = cloudDensity(d, lod);
+  // Berge, die über die Wolkenschicht ragen: Wolke dort weich ausblenden (statt harter Dreieckskanten im Tiefentest)
+  if (D.w > 0.0) {
+    let top = D.w * max(texDirLod(tHm, d, U.T.x, lod + log2(U.T.x / Nc)).x - U.T.z, 0.0);
+    dens *= 1.0 - smoothstep(0.6 * U.Cl2.x, U.Cl2.x, top);
+  }
   if (dens <= 0.003) { discard; }
   let Mi = transpose(modelM());
   let sun = U.sun.xyz;
@@ -1671,7 +1676,7 @@ function startPipelines() {
     mip16: comp(M.mip16, L.mip16), mip8: comp(M.mip8, L.mip8),
     bg: rend(M.scene, 'vsFull', 'fsBg', scene, hdr, { depth: 'always' }),
     planet: rend(M.scene, 'vsPlanet', 'fsPlanet', scene, hdr, { mesh: true, depth: 'write' }),
-    cloud: rend(M.scene, 'vsPlanet', 'fsCloud', scene, hdr, { mesh: true, depth: 'test', blend: premul }),
+    cloud: rend(M.scene, 'vsPlanet', 'fsCloud', scene, hdr, { mesh: true, depth: 'always', blend: premul }),
     comp: rend(M.post, 'vsFull', 'fsComp', post, hdr),
     down: rend(M.post, 'vsFull', 'fsDown', post, hdr),
     up: rend(M.post, 'vsFull', 'fsUp', post, hdr, { blend: add }),
@@ -2277,7 +2282,7 @@ function render(enc) {
   }
   fillUniforms({ vp, ivp, model, eye, sun, sunE, A, orig, clU, clU2, bloomOn, fl });
   device.queue.writeBuffer(dPlanet, 0, new Float32Array([1, lodV, orig ? 0 : S.relief, 0]));
-  device.queue.writeBuffer(dCloud, 0, new Float32Array([1 + clU2[0], 0, 0, 0]));
+  device.queue.writeBuffer(dCloud, 0, new Float32Array([1 + clU2[0], 0, 0, orig ? 0 : S.relief]));
   const g0 = mainGroup();
 
   // Hintergrund, Planet, Wolken
