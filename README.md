@@ -58,9 +58,10 @@ Details, measured findings and open questions: [docs/STATUS.md](docs/STATUS.md).
 - **Volcano Planet** ([demos/volcano.html](demos/volcano.html)): a high-resolution random planet (seed in the
   address, `?seed=12567890`) with volcanoes and supervolcanoes that pump ash into a real 3D atmosphere.
   Plume height from the eruption rate (Mastin 2009), buoyant-plume widening (Morton, Taylor & Turner 1956),
-  Suzuki mass profile, umbrella cloud as a gravity current (Woods & Kienle 1994), transport on a global 3D
-  grid by circulation cells, shear and a free wind direction; ray-marched with Beer–Lambert, Rayleigh/Mie and
-  ash shadows. Sizes in km relative to the planet, atmosphere thickness, fixed nebula and stars.
+  umbrella cloud as a gravity current (Woods & Kienle 1994). The smoke is up to 32 M GPU particles (soft lit
+  puffs) carried by circulation cells, shear and a free wind direction, with self-shadowing and shadows on the
+  ground. Colours, sea level, climate and gloss (roughness per material) are computed every frame, so those
+  controls are instant. Sizes in km relative to the planet, atmosphere thickness, fixed nebula and stars.
 
   <img src="docs/images/volcano-planet.png" alt="Volcano Planet, software-renderer test images" width="640">
 

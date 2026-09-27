@@ -30,8 +30,8 @@ Die Implementierung ist eigenständig. Wir danken den Autorinnen und Autoren:
 ### Verfahren und Artikel
 | Quelle | Was wir daraus gelernt haben |
 |---|---|
-| Morton, Taylor & Turner 1956; Mastin et al. 2009; Suzuki 1983; Woods & Kienle 1994; Costa et al. 2013 | Vulkanphysik in `demos/volcano.html`: Säulenradius, Säulenhöhe aus der Eruptionsrate, Massenprofil, Schirmwolke, Volumenstrom |
-| Quilez (Domain Warping, Erosions-fBm), Musgrave (Ridged Multifractal), Schüler 2012 (Chapman-Näherung), Wrenninge et al. 2013 (Mehrfachstreuung) | Gelände und Licht in `demos/volcano.html` |
+| Morton, Taylor & Turner 1956; Mastin et al. 2009; Woods & Kienle 1994; Costa et al. 2013 | Vulkanphysik in `demos/volcano.html`: Säulenradius, Säulenhöhe aus der Eruptionsrate, Schirmwolke, Volumenstrom |
+| Quilez (Domain Warping, Erosions-fBm), Musgrave (Ridged Multifractal), Schüler 2012 (Chapman-Näherung), McGuire & Bavoil 2013 (reihenfolgeunabhängige Transparenz) | Gelände und Licht in `demos/volcano.html` |
 | colordodge ProceduralPlanet (WTFPL), three.js webgpu_volume_fire (MIT) | vom Urheber genannte Vorbilder für `demos/volcano.html`; **kein Code übernommen**, eigene Umsetzung |
 | Jos Stam, *Stable Fluids*, SIGGRAPH 1999 | Grundverfahren: Advektion, Druck-Projektion |
 | Mark J. Harris, *Fast Fluid Dynamics Simulation on the GPU*, GPU Gems Kap. 38 (2004) | GPU-Aufteilung in Pässe, kompakter Jacobi-Stern |

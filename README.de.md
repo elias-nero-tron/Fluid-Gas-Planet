@@ -66,9 +66,10 @@ Simulator öffentlich unter der Pages-Adresse dieses Repos, die Kaffee-Demo unte
 - **Vulkanplanet** ([demos/volcano.html](demos/volcano.html)): hochaufgelöster Zufallsplanet (Seed in der
   Adresse, `?seed=12567890`) mit Vulkanen und Supervulkanen, die Asche in eine echte 3D-Atmosphäre pumpen.
   Säulenhöhe aus der Eruptionsrate (Mastin 2009), Aufweitung nach Morton, Taylor & Turner (1956),
-  Suzuki-Massenprofil, Schirmwolke als Schwerestrom (Woods & Kienle 1994), Transport auf einem globalen
-  3D-Gitter durch Zirkulationszellen, Scherung und frei drehbaren Wind; Raymarching mit Beer–Lambert,
-  Rayleigh/Mie und Ascheschatten. Größen in km im Verhältnis zum Planeten, Atmosphärendicke, fester Nebel.
+  Schirmwolke als Schwerestrom (Woods & Kienle 1994). Der Rauch sind bis zu 32 Mio. GPU-Partikel (weiche,
+  beleuchtete Ballen), getragen von Zirkulationszellen, Scherung und frei drehbarem Wind, mit Selbstschatten und
+  Schatten am Boden. Farben, Meeresspiegel, Klima und Glanz (Rauheit pro Material) rechnet jedes Bild neu:
+  diese Regler wirken sofort. Größen in km im Verhältnis zum Planeten, Atmosphärendicke, fester Nebel.
 
   <img src="docs/images/volcano-planet.png" alt="Vulkanplanet, Testbilder aus dem Software-Renderer" width="640">
 

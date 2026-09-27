@@ -2,7 +2,7 @@
 // Bilder aus festgelegten Blickwinkeln nebeneinander in einem PNG.
 //
 //   npx http-server -p 5198 -c-1 .     (in einem zweiten Terminal; oder npm run dev und --url anpassen)
-//   node scripts/volcano-eyes.mjs --set res=512,grid=1,warm=12 --out /tmp/volcano
+//   node scripts/volcano-eyes.mjs --set res=1024,warm=8 --out /tmp/volcano
 //
 // Optionen: --url (Standard http://localhost:5198/demo/volcano.html), --set key=value,... (Regler, wie #key=value),
 // --views JSON-Liste mit {look: Vulkan-Index, alt: km, dpitch, dyaw, sunRel: Grad, set: {...}, adv: Stunden},
@@ -27,7 +27,7 @@ const errors = [];
 page.on('pageerror', (e) => errors.push(e.message));
 page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
 
-const hash = String(args.set || 'res=512,grid=0,warm=12').split(',').filter(Boolean).join('&');
+const hash = String(args.set || 'res=1024,warm=8').split(',').filter(Boolean).join('&');
 await page.goto(`${args.url || 'http://localhost:5198/demo/volcano.html'}#offscreen&${hash}`);
 await page.waitForFunction(() => window.volcanoPlanet?.ready || !document.getElementById('status').hidden, null, { timeout: 30 * 60000, polling: 1000 });
 const status = await page.evaluate(() => (document.getElementById('status').hidden ? '' : document.getElementById('status').innerText));

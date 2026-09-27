@@ -57,7 +57,7 @@ implementation is original. Thanks to the authors:
 | Inigo Quilez, articles on domain warping and on erosion-like fBm from noise derivatives | terrain of `demos/volcano.html` |
 | F. Kenton Musgrave, *Texturing & Modeling: A Procedural Approach* (ridged multifractal) | mountain ranges in `demos/volcano.html` |
 | Christian Schüler, *An Approximation to the Chapman Grazing-Incidence Function*, GPU Pro 3 (2012) | sunlight through the atmosphere in `demos/volcano.html` |
-| Magnus Wrenninge et al., *Oz: The Great and Volumetric*, SIGGRAPH 2013 talk | multiple-scattering approximation for ash |
+| Morgan McGuire & Louis Bavoil, *Weighted Blended Order-Independent Transparency*, JCGT 2013 | transparency of millions of smoke puffs without sorting |
 | colordodge, [ProceduralPlanet](https://github.com/colordodge/ProceduralPlanet) (WTFPL), and three.js [webgpu_volume_fire](https://threejs.org/examples/#webgpu_volume_fire) (MIT) | visual targets named by the author for `demos/volcano.html`; **no code taken**, the page is an original implementation |
 
 ### Volcanology (formulas used in `demos/volcano.html`)
@@ -65,7 +65,6 @@ implementation is original. Thanks to the authors:
 |---|---|
 | Morton, Taylor & Turner 1956, *Proc. R. Soc. A* 234, 1 | buoyant plume: radius b = b₀ + 6/5·α·z, height ∝ N^(−3/4) |
 | Mastin et al. 2009, *J. Volcanol. Geotherm. Res.* 186, 10 | plume height H = 2.00·V^0.241 km from the eruption rate |
-| Suzuki 1983, in *Arc Volcanism: Physics and Tectonics* | vertical mass distribution of the eruption column |
 | Woods & Kienle 1994, *J. Volcanol. Geotherm. Res.* 62, 273 | umbrella cloud spreading R(t) ∝ t^(2/3) |
 | Costa, Folch & Macedonio 2013, *Geophys. Res. Lett.* 40, 4999 | volume flux into the umbrella cloud |
 | Holasek, Self & Woods 1996 (Pinatubo 1991) | calibration: ~10⁹ kg/s, ~35–40 km plume, westward stratospheric drift |

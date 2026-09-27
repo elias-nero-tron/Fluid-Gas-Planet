@@ -100,11 +100,11 @@ Also bei jedem Häppchen: Quelle lesen, Verfahren übernehmen (Lizenz beachten),
 ## Erledigt (damit nichts verloren geht)
 
 - **Vulkanplanet** (`demos/volcano.html`): hochaufgelöster Seed-Planet (Würfelkarte bis 4096², Domain Warping,
-  Erosions-fBm, Ridged Multifractal, Biome), Nebel und Sterne fest im Raum, Vulkane und Supervulkane mit
-  Reglern in km im Verhältnis zum Planeten, Atmosphärendicke, 3D-Asche auf einem globalen Gitter, vom Wind
-  in Schichten getragen (Mastin, Morton–Taylor–Turner, Suzuki, Woods & Kienle), Raymarching mit Schatten und Glut.
+  Erosions-fBm, Ridged Multifractal), Farben/Meeresspiegel/Klima/Glanz beim Zeichnen (Regler sofort), Nebel und
+  Sterne fest im Raum, Vulkane und Supervulkane mit Reglern in km, Atmosphärendicke. Rauch als bis zu 32 Mio.
+  Partikel (Mastin, Morton–Taylor–Turner, Woods & Kienle), Selbstschatten über eine Tiefenkarte in Sonnenrichtung,
+  Rauchschatten am Boden. Erste Fassung mit 3D-Gitter + Raymarching war zu grob („Minecraft-Matsch“) und verworfen.
   Häppchen 4 (Nebel fest im Raum) und 14 (Planet wie colordodge) sind dort als eigene Umsetzung enthalten.
-
 - Panel neu sortiert: Planet, Zufallsplanet, Verfahren, Zeit und Drehung, Wind, Stürme, Wolkenfarbe, Curl noise, Partikel, Licht, **Grafikkarte und Feinheit** (alles, was nur GPU kostet, getrennt von der Physik)
 - Rechenmodell (Stable Fluids / Curl-Noise) und Darstellung (Flüssigkeit / Partikel / Partikel rein) wieder frei kombinierbar
 - „Tempo“ getrennt von „Jet-Stärke“: Stärke bestimmt Form und Größe, Tempo nur die Geschwindigkeit; eigener Regler „Sturm-Größe“ neben „Sturm-Drehtempo“

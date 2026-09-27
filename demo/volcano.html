@@ -67,7 +67,7 @@
 
 <div id="app">
   <div id="stage">
-    <canvas id="view" aria-label="Real-time view: procedural planet with volcanoes pumping ash into a 3D atmosphere"></canvas>
+    <canvas id="view" aria-label="Real-time view: procedural planet with volcanoes whose smoke rises as millions of particles"></canvas>
     <div class="hud">
       <h1 id="t-title">Volcano Planet</h1>
       <p><span id="fps">– fps</span> · <span id="facts"></span></p>
@@ -86,25 +86,22 @@
 
 <script type="module">
 // ---------------------------------------------------------------------------
-// Vulkanplanet: hochaufgelöster Zufallsplanet + Vulkane, die Asche in eine echte 3D-Atmosphäre pumpen.
+// Vulkanplanet: hochaufgelöster Zufallsplanet + Vulkane, deren Rauch als Millionen Partikel aufsteigt.
 // Idee und Vorgaben: elias-nero-tron. Eigene Schiene, teilt keinen Code mit dem Gasplaneten.
 //
 // Was hier gerechnet wird (alles WebGPU, keine Bilddateien):
-//  1. Gelände: 3D-Gradientenrauschen mit analytischen Ableitungen, Domain Warping, Erosions-fBm
-//     (Oktaven gedämpft durch den aufsummierten Gradienten), Ridged Multifractal (Musgrave) für Gebirge.
-//     Einmal in eine Würfelkarte gebacken (bis 4096² pro Seite, mit Mipmaps), Biome aus Temperatur × Feuchte.
-//  2. Vulkane: analytisch beim Zeichnen (Kegel, Krater, Caldera), dadurch scharf bei jedem Zoom.
-//  3. Eruptionssäule: Mastin (2009) H = 2,00·V^0,241 km, Auftriebsstrahl-Theorie (Morton, Taylor & Turner 1956)
-//     b = b₀ + 6/5·α·z, vertikale Massenverteilung nach Suzuki (1983), vom Wind geneigt (bent-over plume).
-//  4. Schirmwolke: Schwerestrom auf der Höhe neutralen Auftriebs, R(t) ∝ t^(2/3) (Woods & Kienle 1994),
-//     Volumenstrom nach Costa et al. (2013). Daraus eine radiale Ausbreitungsgeschwindigkeit.
-//  5. Transport: 3D-Gitter (Länge × Breite × Höhe) über der ganzen Kugel, semi-Lagrange-Advektion mit
-//     Wind aus Zirkulationszellen, thermischem Wind (Scherung bis zur Tropopause), Stratosphären-Ostwind,
-//     divergenzfreien Wirbeln (Curl einer Stromfunktion) und einem frei drehbaren Grundwind.
-//     Grobe Asche sinkt schnell, feine Asche/Sulfat bleibt lange: Schichten entstehen durch Scherung.
-//  6. Licht: Raymarching mit Beer–Lambert, Rayleigh + Mie (Chapman-Näherung nach Schüler 2012 für den
-//     Sonnenweg), Henyey–Greenstein, Powder-Term, Mehrfachstreuung nach Wrenninge (2013), Ascheschatten,
-//     Glut von unten. Feinstruktur über zweiphasiges Fließrauschen (Neyret 2003).
+//  1. Gelände: 3D-Gradientenrauschen mit analytischen Ableitungen, Domain Warping, Erosions-fBm,
+//     Ridged Multifractal (Musgrave). Gebacken wird nur Höhe, Feuchte und Normale (Würfelkarte bis 4096²).
+//     Farben, Meeresspiegel, Klima, Rauheit und Glanz entstehen beim Zeichnen: diese Regler wirken sofort.
+//  2. Vulkane: Kegel, Krater, Caldera, Schneekappe mit Rinnen analytisch beim Zeichnen, scharf bei jedem Zoom.
+//  3. Rauch als Partikel (Lagrange): jedes Teilchen ist eine weiche, beleuchtete Quellwolke.
+//     Aufstieg mit w = W·√(1 − z/z*) bis zur eigenen Einschichthöhe z* (Mastin 2009: H = 2,00·V^0,241 km),
+//     Säule weitet sich wie b = b₀ + 6/5·α·z (Morton, Taylor & Turner 1956), oben Schirmwolke als
+//     Schwerestrom u_r = ⅔·k^(3/2)·r^(−1/2) (Woods & Kienle 1994, Volumenstrom nach Costa et al. 2013),
+//     danach Transport durch den Wind und Absinken. Kleine Ausbrüche: dünne Fahnen, mittlere: Knubbel, große: Pilz.
+//  4. Licht: Rayleigh + Mie (Chapman-Näherung, Schüler 2012), GGX-Glanz mit Rauheit pro Material,
+//     Rauchschatten auf dem Boden über eine Schattenkarte in Sonnenrichtung, Partikel in
+//     gewichteter reihenfolgeunabhängiger Transparenz (McGuire & Bavoil 2013).
 // Status: nur im Software-Renderer geprüft.
 // ---------------------------------------------------------------------------
 
@@ -115,119 +112,117 @@ const H = new URLSearchParams(location.hash.slice(1));
 const OFFSCREEN = H.has('offscreen');
 
 const S = {
-  seed: Number(Q.get('seed')) || 12567890, res: 2048, style: 0, sea: 0.0, cont: 1.3, warp: 0.9, mount: 0.55, erosion: 1.2, relief: 1.0, climate: 0.0, moist: 0.0,
-  radius: 6371, atm: 100, exag: 4,
-  vCount: 12, vSize: 50, vMer: 8.2, vAct: 0.55, vSeed: 1,
-  sCount: 1, sSize: 60, sMer: 9.7, superOn: true,
-  windU: 20, circ: 1.0, shear: 1.0, strat: 0.6, turb: 0.5, preU: 8, preDir: 30,
-  fallC: 0.4, lifeF: 10, kappa: 1.0, detail: 1.0, grid: 1, warm: 12,
-  lapse: 1800, spin: 1.0, sunAz: 115, sunEl: 12, exposure: 0.7, nebula: 1.0, stars: 1.0, glow: 1.0,
-  steps: 96, scale: 1.0, tilt: 0, debug: 0, auto: true,
+  seed: Number(Q.get('seed')) || 12567890, res: 2048, style: 0, sea: 0.0, cont: 1.3, warp: 0.9, mount: 0.55, erosion: 1.2, relief: 1.2, climate: 0.0, moist: 0.0,
+  radius: 6371, atm: 100, exag: 2, haze: 0.6,
+  vCount: 12, vSize: 25, vMer: 7.6, vAct: 0.6, vSeed: 1,
+  sCount: 1, sSize: 60, sMer: 9.3, superOn: true,
+  windU: 18, circ: 1.0, shear: 1.0, strat: 0.6, turb: 0.5, preU: 6, preDir: 30,
+  count: 1 << 20, opacity: 1.0, life: 10, spread: 0.12, settle: 0.15, warm: 8,
+  lapse: 300, spin: 0.3, sunAz: 115, sunEl: 12, exposure: 0.8, nebula: 1.0, stars: 1.0, glow: 1.0, tilt: 0,
+  scale: 1.0, auto: true,
 };
 const DEF = { ...S };
 // Werte auch über die Adresse: #res=1024&vCount=20 (für Tests und Links)
 for (const [k, v] of H) if (k in S && k !== 'seed') S[k] = typeof S[k] === 'boolean' ? v === 'true' : Number(v);
-const GRIDS = [[256, 128, 24], [512, 256, 40], [768, 384, 48], [1024, 512, 64]];
+const COUNTS = [1 << 18, 1 << 20, 1 << 22, 1 << 23, 1 << 24, 1 << 25];
 
 // ---------------------------------------------------------------------------
-// Regler. Jede Zeile: [Schlüssel, Name, min, max, Schritt, Erklärung, Formel, schwer?]
-// „schwer“ = wird erst beim Loslassen angewandt (Neu-Backen, Neu-Anlegen).
+// Regler. Jede Zeile: [Schlüssel, Name, min, max, Schritt, Erklärung, Formel, Art, Format]
+// Art: undefined = sofort · 'shape' = Gelände neu backen (beim Ziehen schnelle Vorschau) · 'heavy' = beim Loslassen
 // ---------------------------------------------------------------------------
 const fmtKm = (v) => (v >= 100 ? Math.round(v) : v.toFixed(v < 10 ? 1 : 0)) + ' km';
 const pct = (km) => ((km / S.radius) * 100).toFixed(km / S.radius < 0.01 ? 2 : 1) + ' % R';
 const merTxt = (lg) => `10^${lg.toFixed(1)} kg/s · H≈${plumeHeight(10 ** lg).toFixed(0)} km`;
-const lapseTxt = (v) => (v >= 3600 ? (v / 3600).toFixed(v >= 36000 ? 0 : 1) + ' h/s' : Math.round(v / 60) + ' min/s');
+const lapseTxt = (v) => (v >= 3600 ? (v / 3600).toFixed(1) + ' h/s' : v >= 60 ? (v / 60).toFixed(v < 600 ? 1 : 0) + ' min/s' : v + ' s/s');
 const sections = () => [
-  [t('Planet', 'Planet'), t('Gelände wird einmal in eine Würfelkarte gebacken. Änderungen hier backen neu, sobald du loslässt.', 'Terrain is baked once into a cube map. Changes here re-bake when you let go.'), [
+  [t('Planet', 'Planet'), t('Nur die Form wird gebacken (beim Ziehen als schnelle Vorschau). Farben, Meer, Klima und Glanz rechnet jedes Bild neu: sofort.', 'Only the shape is baked (a fast preview while dragging). Colours, sea, climate and gloss are computed every frame: instant.'), [
     ['res', t('Auflösung', 'Resolution'), 'select', [[512, '512² × 6'], [1024, '1024² × 6'], [2048, '2048² × 6'], [4096, '4096² × 6']],
-      t('Texel pro Würfelseite. 2048 ≈ 5 km pro Texel bei Erdgröße, 4096 ≈ 2,5 km (braucht ~0,8 GB Grafikspeicher). Oktaven wachsen mit: log₂N + 2.',
-        'Texels per cube face. 2048 ≈ 5 km per texel at Earth size, 4096 ≈ 2.5 km (needs ~0.8 GB of GPU memory). Octaves grow with it: log₂N + 2.'), null, true],
-    ['style', t('Farbwelt', 'Colour style'), 'select', [[0, t('Erdähnlich', 'Earth-like')], [1, t('Fremdwelt (Zufallsfarben)', 'Alien (random colours)')], [2, t('Vulkanwelt (Basalt)', 'Volcanic world (basalt)')]],
-      t('Farbtabelle für Biome. Der Seed variiert die Töne.', 'Biome colour table. The seed varies the tones.'), null, true],
-    ['sea', t('Meeresspiegel', 'Sea level'), -0.5, 0.5, 0.01, t('Höhe der Wasserlinie im Rauschfeld. Höher = mehr Ozean, Inseln statt Kontinente.', 'Height of the water line in the noise field. Higher = more ocean, islands instead of continents.'), 'Wasser, wo h(p) < Meeresspiegel', true],
-    ['cont', t('Kontinent-Skala', 'Continent scale'), 0.4, 4, 0.01, t('Grundfrequenz des Geländes. Klein = wenige große Kontinente.', 'Base frequency of the terrain. Small = few large continents.'), 'q = p·f₀', true],
-    ['warp', t('Verwirbelung', 'Domain warp'), 0, 2.5, 0.01, t('Domain Warping: die Koordinaten werden durch ein zweites Rauschfeld verschoben. Macht Küsten und Gebirgszüge organisch statt blasig.', 'Domain warping: coordinates are displaced by a second noise field. Makes coasts and ranges organic instead of blobby.'), 'h(p) = f(p + k·w(p)),  w = (fbm₁, fbm₂, fbm₃)', true],
-    ['mount', t('Gebirge', 'Mountains'), 0, 1.5, 0.01, t('Ridged Multifractal (Musgrave): scharfe Grate, deren Oktaven nur dort wachsen, wo die vorige Oktave hoch war.', 'Ridged multifractal (Musgrave): sharp ridges whose octaves only grow where the previous octave was high.'), 's = (1 − |n|)²·w,  w = clamp(2s, 0, 1)', true],
-    ['erosion', t('Erosion', 'Erosion'), 0, 4, 0.01, t('Oktaven werden durch den aufsummierten Gradienten gedämpft: steile Hänge bleiben glatt, Täler und Ebenen bekommen Detail, wie Abtragung.', 'Octaves are damped by the accumulated gradient: steep slopes stay smooth, valleys and plains get detail, like erosion.'), 'h += aᵢ·nᵢ / (1 + k·|Σ∇n|²)', true],
-    ['climate', t('Klima', 'Climate'), -0.6, 0.6, 0.01, t('Verschiebt die Temperatur: kalt = Eis und Tundra, warm = Wüste und Dschungel.', 'Shifts temperature: cold = ice and tundra, warm = desert and jungle.'), 'T = 1 − |φ/90°|^1,3 − Γ·h + ΔT', true],
-    ['moist', t('Feuchte', 'Moisture'), -0.6, 0.6, 0.01, t('Verschiebt die Feuchte (Wüste ↔ Wald). Subtropische Trockengürtel bei 30° bleiben.', 'Shifts moisture (desert ↔ forest). Subtropical dry belts at 30° remain.'), null, true],
-    ['relief', 'Relief', 0, 4, 0.01, t('Überhöhung der Normalen (nur Licht, sofort).', 'Normal exaggeration (lighting only, instant).'), 'n = normalize(n·p̂ + k·n_t)'],
-    ['radius', t('Planetenradius', 'Planet radius'), 1000, 20000, 10, t('Maßstab für alles in km: Vulkangrößen, Säulenhöhen und Wind beziehen sich darauf. Erde 6371 km, Mars 3390 km.', 'Scale for everything in km: volcano sizes, plume heights and wind refer to it. Earth 6371 km, Mars 3390 km.'), null, false, (v) => fmtKm(v)],
+      t('Texel pro Würfelseite. 2048 ≈ 5 km pro Texel bei Erdgröße, 4096 ≈ 2,5 km. Beim Hineinzoomen kommt darunter Rauschdetail pro Pixel dazu.', 'Texels per cube face. 2048 ≈ 5 km per texel at Earth size, 4096 ≈ 2.5 km. Zooming in adds per-pixel noise detail below that.'), null, 'heavy'],
+    ['style', t('Farbwelt', 'Colour style'), 'select', [[0, t('Erdähnlich', 'Earth-like')], [1, t('Fremdwelt (Zufallsfarben)', 'Alien (random colours)')], [2, t('Vulkanwelt (Lavameere)', 'Volcanic world (lava seas)')]],
+      t('Farbtabelle für Biome. Vulkanwelt: statt Wasser glühende Lava unter erstarrter Kruste.', 'Biome colour table. Volcanic world: glowing lava under a solid crust instead of water.')],
+    ['sea', t('Meeresspiegel', 'Sea level'), -0.6, 0.6, 0.005, t('Wasserlinie im Höhenfeld, sofort. Die Küste wird aus der gefilterten Höhe berechnet, deshalb bleibt sie beim Zoomen glatt.', 'Water line in the height field, instant. The coast is computed from the filtered height, so it stays smooth when zooming.'), 'Wasser, wo h(p) < Meeresspiegel'],
+    ['climate', t('Klima', 'Climate'), -0.6, 0.6, 0.01, t('Verschiebt die Temperatur: kalt = Eis, Tundra, Schneekappen; warm = Wüste, Dschungel.', 'Shifts temperature: cold = ice, tundra, snow caps; warm = desert, jungle.'), 'T = 1 − |φ/90°|^1,3 − Γ·h + ΔT'],
+    ['moist', t('Feuchte', 'Moisture'), -0.6, 0.6, 0.01, t('Wüste ↔ Wald. Subtropische Trockengürtel bei 30° bleiben.', 'Desert ↔ forest. Subtropical dry belts at 30° remain.')],
+    ['relief', 'Relief', 0, 4, 0.01, t('Überhöhung der Normalen (nur Licht).', 'Normal exaggeration (lighting only).'), 'n = normalize(n·p̂ + k·n_t)'],
+    ['cont', t('Kontinent-Skala', 'Continent scale'), 0.4, 4, 0.01, t('Grundfrequenz des Geländes. Klein = wenige große Kontinente.', 'Base frequency of the terrain. Small = few large continents.'), 'q = p·f₀', 'shape'],
+    ['warp', t('Verwirbelung', 'Domain warp'), 0, 2.5, 0.01, t('Domain Warping: die Koordinaten werden durch ein zweites Rauschfeld verschoben. Macht Küsten und Gebirgszüge organisch.', 'Domain warping: coordinates are displaced by a second noise field. Makes coasts and ranges organic.'), 'h(p) = f(p + k·w(p))', 'shape'],
+    ['mount', t('Gebirge', 'Mountains'), 0, 1.5, 0.01, t('Ridged Multifractal (Musgrave): scharfe Grate.', 'Ridged multifractal (Musgrave): sharp ridges.'), 's = (1 − |n|)²·w,  w = clamp(2s, 0, 1)', 'shape'],
+    ['erosion', t('Erosion', 'Erosion'), 0, 4, 0.01, t('Oktaven werden durch den aufsummierten Gradienten gedämpft: steile Hänge glatt, Täler mit Detail.', 'Octaves are damped by the accumulated gradient: steep slopes smooth, valleys detailed.'), 'h += aᵢ·nᵢ / (1 + k·|Σ∇n|²)', 'shape'],
+    ['radius', t('Planetenradius', 'Planet radius'), 1000, 20000, 10, t('Maßstab für alles in km. Erde 6371 km, Mars 3390 km.', 'Scale for everything in km. Earth 6371 km, Mars 3390 km.'), null, null, (v) => fmtKm(v)],
   ]],
   [t('Atmosphäre', 'Atmosphere'), null, [
-    ['atm', t('Atmosphärendicke', 'Atmosphere thickness'), 20, 300, 1, t('Obergrenze der Luftschicht (Erde ~100 km, Kármán-Linie). Bestimmt die Skalenhöhe H = Dicke/11,8, damit die Schichtung N und so die Säulenhöhe: dickere Luft = schwächere Schichtung = höhere Säulen.', 'Top of the air layer (Earth ~100 km, Kármán line). Sets the scale height H = thickness/11.8, therefore stratification N and plume height: thicker air = weaker stratification = taller plumes.'), 'N ∝ H^(−1/2),  H_Säule ∝ N^(−3/4) ∝ H^(3/8)', true, (v) => fmtKm(v) + ' · ' + pct(v)],
-    ['exag', t('Höhen-Überhöhung', 'Vertical exaggeration'), 1, 12, 0.1, t('Atmosphäre und Rauch werden in der Höhe gestreckt, damit man aus 1000–5000 km die 3D-Form sieht. 1 = maßstabsgetreu.', 'Atmosphere and smoke are stretched vertically so the 3D shape reads from 1000–5000 km. 1 = true scale.'), 'r = 1 + k·z/R', false, (v) => v.toFixed(1) + '×'],
+    ['atm', t('Atmosphärendicke', 'Atmosphere thickness'), 20, 300, 1, t('Obergrenze der Luftschicht (Erde ~100 km). Skalenhöhe H = Dicke/11,8 → Schichtung N → Säulenhöhe: dickere Luft = höhere Säulen.', 'Top of the air layer (Earth ~100 km). Scale height H = thickness/11.8 → stratification N → plume height: thicker air = taller plumes.'), 'N ∝ H^(−1/2),  H_Säule ∝ N^(−3/4) ∝ H^(3/8)', null, (v) => fmtKm(v) + ' · ' + pct(v)],
+    ['haze', t('Dunst', 'Haze'), 0, 2, 0.01, t('Stärke der Rayleigh- und Mie-Streuung (1 = Erde).', 'Strength of Rayleigh and Mie scattering (1 = Earth).')],
+    ['exag', t('Höhen-Überhöhung', 'Vertical exaggeration'), 1, 8, 0.1, t('Rauch und Luft in der Höhe gestreckt, damit man aus 1000–5000 km die Säulen sieht. 1 = maßstabsgetreu.', 'Smoke and air stretched vertically so columns read from 1000–5000 km. 1 = true scale.'), 'r = 1 + k·z/R', null, (v) => v.toFixed(1) + '×'],
   ]],
-  [t('Vulkane', 'Volcanoes'), t('Kegel, Krater und Säulen werden analytisch gezeichnet, scharf bei jedem Zoom.', 'Cones, craters and columns are drawn analytically, sharp at any zoom.'), [
-    ['vCount', t('Anzahl', 'Count'), 0, 48, 1, t('Normale Vulkane, per Seed verteilt. Sie brechen periodisch aus.', 'Regular volcanoes, placed by seed. They erupt periodically.'), null, true, (v) => String(v)],
-    ['vSize', t('Größe (Basisradius)', 'Size (base radius)'), 5, 300, 1, t('Radius des Vulkankegels. Ätna ~20 km, Mauna Loa ~60 km, Olympus Mons ~300 km. Einzelne Vulkane streuen ×0,5–1,5.', 'Radius of the cone. Etna ~20 km, Mauna Loa ~60 km, Olympus Mons ~300 km. Individual volcanoes vary ×0.5–1.5.'), null, true, (v) => fmtKm(v) + ' · ' + pct(v)],
-    ['vMer', t('Eruptionsrate', 'Eruption rate'), 5, 9.5, 0.05, t('Massenstrom (kg/s, log). Daraus die Säulenhöhe nach Mastin et al. (2009), gemessen an 34 echten Ausbrüchen.', 'Mass eruption rate (kg/s, log). Gives plume height by Mastin et al. (2009), fitted to 34 real eruptions.'), 'H = 2,00 km · (Ṁ/ρ)^0,241,  ρ = 2500 kg/m³', false, merTxt],
-    ['vAct', t('Aktivität', 'Activity'), 0, 1, 0.01, t('Anteil der Zeit, in der jeder Vulkan ausbricht. Pulse von 6–48 h lösen einzelne Aschepakete ab, die der Wind wegträgt.', 'Share of time each volcano erupts. Pulses of 6–48 h shed separate ash puffs the wind carries away.'), null, false, (v) => Math.round(v * 100) + ' %'],
+  [t('Vulkane', 'Volcanoes'), null, [
+    ['vCount', t('Anzahl', 'Count'), 0, 48, 1, t('Normale Vulkane, per Seed verteilt. Sie brechen periodisch aus.', 'Regular volcanoes, placed by seed. They erupt periodically.'), null, null, (v) => String(v)],
+    ['vSize', t('Größe (Basisradius)', 'Size (base radius)'), 5, 300, 1, t('Radius des Kegels. Ätna ~20 km, Mauna Loa ~60 km, Olympus Mons ~300 km. Streuung ×0,5–1,5.', 'Radius of the cone. Etna ~20 km, Mauna Loa ~60 km, Olympus Mons ~300 km. Varies ×0.5–1.5.'), null, null, (v) => fmtKm(v) + ' · ' + pct(v)],
+    ['vMer', t('Eruptionsrate', 'Eruption rate'), 5, 9.5, 0.05, t('Massenstrom (kg/s, log). Klein: dünne Fahne, die der Wind umlegt. Mittel: Knubbelwolken. Groß: Pilz mit Schirm.', 'Mass eruption rate (kg/s, log). Small: thin plume bent by the wind. Medium: knobbly clouds. Large: mushroom with umbrella.'), 'H = 2,00 km · (Ṁ/ρ)^0,241,  ρ = 2500 kg/m³', null, merTxt],
+    ['vAct', t('Aktivität', 'Activity'), 0, 1, 0.01, t('Anteil der Zeit, in der jeder Vulkan ausbricht (Pulse von 6–48 h).', 'Share of time each volcano erupts (pulses of 6–48 h).'), null, null, (v) => Math.round(v * 100) + ' %'],
   ]],
   [t('Supervulkan', 'Supervolcano'), t('Caldera statt Kegel. VEI 8: > 1000 km³ Auswurf.', 'Caldera instead of a cone. VEI 8: > 1000 km³ ejecta.'), [
-    ['sCount', t('Anzahl', 'Count'), 0, 4, 1, t('Supervulkane (Yellowstone, Toba, Campi Flegrei).', 'Supervolcanoes (Yellowstone, Toba, Campi Flegrei).'), null, true, (v) => String(v)],
-    ['sSize', t('Caldera-Durchmesser', 'Caldera diameter'), 10, 200, 1, t('Yellowstone 70 km, Toba 100 km, Campi Flegrei 13 km. Die Säule startet mit diesem Radius.', 'Yellowstone 70 km, Toba 100 km, Campi Flegrei 13 km. The column starts with this radius.'), 'b₀ = D/4', true, (v) => fmtKm(v) + ' · ' + pct(v)],
-    ['sMer', t('Eruptionsrate', 'Eruption rate'), 8, 11, 0.05, t('Pinatubo 1991: ~10⁹ kg/s. Toba: ~10¹⁰–10¹¹ kg/s. Die Säule ist durch die Atmosphärendicke begrenzt.', 'Pinatubo 1991: ~10⁹ kg/s. Toba: ~10¹⁰–10¹¹ kg/s. The column is capped by the atmosphere thickness.'), 'H = 2,00·V^0,241·(H_s/8,5 km)^(3/8)', false, merTxt],
+    ['sCount', t('Anzahl', 'Count'), 0, 4, 1, t('Yellowstone, Toba, Campi Flegrei.', 'Yellowstone, Toba, Campi Flegrei.'), null, null, (v) => String(v)],
+    ['sSize', t('Caldera-Durchmesser', 'Caldera diameter'), 10, 200, 1, t('Yellowstone 70 km, Toba 100 km, Campi Flegrei 13 km.', 'Yellowstone 70 km, Toba 100 km, Campi Flegrei 13 km.'), 'b₀ = D/4', null, (v) => fmtKm(v) + ' · ' + pct(v)],
+    ['sMer', t('Eruptionsrate', 'Eruption rate'), 8, 11, 0.05, t('Pinatubo 1991: ~10⁹ kg/s. Toba: ~10¹⁰–10¹¹ kg/s.', 'Pinatubo 1991: ~10⁹ kg/s. Toba: ~10¹⁰–10¹¹ kg/s.'), 'H = 2,00·V^0,241·(H_s/8,5 km)^(3/8)', null, merTxt],
   ]],
-  [t('Wind', 'Wind'), t('Bestimmt, wohin die Asche zieht. Oben und unten weht es verschieden: daraus entstehen Schichten.', 'Decides where the ash goes. It blows differently high and low: that makes the layers.'), [
-    ['windU', t('Zirkulation', 'Circulation'), 0, 60, 0.5, t('Globale Zellen: Passat (Ost) am Äquator, Westwinde bei 45°, polare Ostwinde, Hadley-Rückstrom. Der Jet nimmt bis zur Tropopause zu.', 'Global cells: trade winds (easterly) at the equator, westerlies at 45°, polar easterlies, Hadley return flow. The jet grows up to the tropopause.'), 'u(φ,z) = U·(−0,4 + 1,4·e^(−((|φ|−45°)/15°)²) + 2s·jet·z/z_T)', false, (v) => v.toFixed(0) + ' m/s'],
-    ['shear', t('Höhenscherung', 'Vertical shear'), 0, 3, 0.01, t('Thermischer Wind: der Westwind wird mit der Höhe stärker. Säulen neigen sich, Schichten reißen auseinander.', 'Thermal wind: westerlies strengthen with height. Columns lean, layers tear apart.'), '∂u/∂z = −(g/fT)·∂T/∂y'],
-    ['strat', t('Stratosphären-Ostwind', 'Stratospheric easterly'), 0, 1.5, 0.01, t('Über der Tropopause dreht der Wind auf Ost (wie Pinatubos Wolke, die in 3 Wochen westwärts um die Erde zog). Oberer Schirm und unterer Rauch ziehen gegeneinander.', 'Above the tropopause the wind turns easterly (like Pinatubo’s cloud, which circled the Earth westward in 3 weeks). Upper umbrella and lower smoke move opposite ways.')],
-    ['turb', t('Wirbel', 'Eddies'), 0, 1.5, 0.01, t('Divergenzfreie Wirbel aus einer Stromfunktion ψ (Curl-Noise auf der Kugel). Verbiegen die Aschefahnen.', 'Divergence-free eddies from a stream function ψ (curl noise on the sphere). Bend the ash plumes.'), 'v = r̂ × ∇ψ'],
-    ['preU', t('Grundwind', 'Prevailing wind'), 0, 60, 0.5, t('Zusätzlicher Wind in eine feste Richtung, überall gleich.', 'Extra wind in one fixed direction, the same everywhere.'), 'v = U·(cos θ·ê_Ost + sin θ·ê_Nord)', false, (v) => v.toFixed(0) + ' m/s'],
-    ['preDir', t('Windrichtung', 'Wind direction'), -180, 180, 1, t('0° = nach Osten, 90° = nach Norden, 180° = nach Westen.', '0° = toward east, 90° = toward north, 180° = toward west.'), null, false, (v) => v + '°'],
+  [t('Wind', 'Wind'), t('Trägt den Rauch. Oben und unten weht es verschieden: daraus entstehen Schichten.', 'Carries the smoke. It blows differently high and low: that makes the layers.'), [
+    ['windU', t('Zirkulation', 'Circulation'), 0, 60, 0.5, t('Passat am Äquator, Westwinde bei 45°, polare Ostwinde, Hadley-Rückstrom. Der Jet nimmt bis zur Tropopause zu.', 'Trade winds at the equator, westerlies at 45°, polar easterlies, Hadley return flow. The jet grows up to the tropopause.'), 'u(φ,z) = U·(−0,4 + 1,4·e^(−((|φ|−45°)/15°)²) + 2s·jet·z/z_T)', null, (v) => v.toFixed(0) + ' m/s'],
+    ['shear', t('Höhenscherung', 'Vertical shear'), 0, 3, 0.01, t('Thermischer Wind: Westwind wird mit der Höhe stärker. Säulen neigen sich.', 'Thermal wind: westerlies strengthen with height. Columns lean.'), '∂u/∂z = −(g/fT)·∂T/∂y'],
+    ['strat', t('Stratosphären-Ostwind', 'Stratospheric easterly'), 0, 1.5, 0.01, t('Über der Tropopause Ostwind (Pinatubos Wolke zog in 3 Wochen westwärts um die Erde).', 'Easterly above the tropopause (Pinatubo’s cloud circled the Earth westward in 3 weeks).')],
+    ['turb', t('Wirbel', 'Eddies'), 0, 1.5, 0.01, t('Divergenzfreie Wirbel aus einer Stromfunktion ψ.', 'Divergence-free eddies from a stream function ψ.'), 'v = r̂ × ∇ψ'],
+    ['preU', t('Grundwind', 'Prevailing wind'), 0, 60, 0.5, t('Zusätzlicher Wind in eine feste Richtung.', 'Extra wind in one fixed direction.'), 'v = U·(cos θ·ê_Ost + sin θ·ê_Nord)', null, (v) => v.toFixed(0) + ' m/s'],
+    ['preDir', t('Windrichtung', 'Wind direction'), -180, 180, 1, t('0° = nach Osten, 90° = nach Norden, 180° = nach Westen.', '0° = toward east, 90° = toward north, 180° = toward west.'), null, null, (v) => v + '°'],
     ['circ', t('Zellen-Anteil', 'Cell share'), 0, 1, 0.01, t('0 = nur Grundwind, 1 = volle globale Zirkulation.', '0 = prevailing wind only, 1 = full global circulation.')],
   ]],
-  [t('Asche', 'Ash'), null, [
-    ['kappa', t('Dichte', 'Opacity'), 0.05, 5, 0.01, t('Massen-Extinktion κ in m²/g (vulkanische Asche ~0,3–1). Beer–Lambert entlang des Sehstrahls.', 'Mass extinction κ in m²/g (volcanic ash ~0.3–1). Beer–Lambert along the view ray.'), 'T = exp(−∫κ·c ds)'],
-    ['detail', t('Feinstruktur', 'Fine structure'), 0, 2, 0.01, t('Rauschen, das mit dem Wind fließt (zwei Phasen, überblendet), gestreckt in der Waagerechten: Schichten und Fetzen feiner als das Gitter.', 'Noise that flows with the wind (two phases, cross-faded), stretched horizontally: layers and shreds finer than the grid.'), 'c′ = c·max(0, 1 + k·(n(x − u·τ) − ½))'],
-    ['fallC', t('Absinken grobe Asche', 'Coarse ash settling'), 0, 2, 0.01, t('Fallgeschwindigkeit der groben Fraktion. Feine Asche/Sulfat sinkt 40× langsamer.', 'Settling speed of the coarse fraction. Fine ash/sulfate settles 40× slower.'), 'w_s = (ρ_p − ρ)·g·d² / 18μ', false, (v) => v.toFixed(2) + ' m/s'],
-    ['lifeF', t('Lebensdauer feine Asche', 'Fine ash lifetime'), 0.5, 60, 0.5, t('Wie lange der feine Schleier bleibt (Sulfat-Aerosol in der Stratosphäre: Monate).', 'How long the fine veil lasts (stratospheric sulfate aerosol: months).'), 'c(t) = c₀·e^(−t/τ)', false, (v) => v + ' d'],
-    ['grid', t('Rauch-Gitter', 'Smoke grid'), 'select', GRIDS.map((g, i) => [i, `${g[0]}×${g[1]}×${g[2]}`]), t('Länge × Breite × Höhe des 3D-Transportgitters über der ganzen Kugel.', 'Longitude × latitude × height of the 3D transport grid over the whole sphere.'), null, true],
-    ['warm', t('Vorlauf', 'Warm-up'), 0, 72, 1, t('So viele Stunden werden beim Start vorgerechnet, damit die Asche schon unterwegs ist.', 'This many hours are pre-computed at start so the ash is already on its way.'), null, false, (v) => v + ' h'],
+  [t('Rauch', 'Smoke'), t('Jedes Teilchen ist eine weiche Quellwolke mit eigenem Licht und Schatten.', 'Each particle is a soft puff with its own light and shadow.'), [
+    ['count', t('Teilchen', 'Particles'), 'select', COUNTS.map((c) => [c, c >= 1 << 20 ? `${c / (1 << 20)} M` : `${c / 1024} k`]), t('Mehr Teilchen = dichtere, feinere Wolken. Handy ~1 M, starke Grafikkarte bis 32 M.', 'More particles = denser, finer clouds. Phone ~1 M, strong GPU up to 32 M.'), null, 'heavy'],
+    ['opacity', t('Dichte', 'Opacity'), 0.05, 3, 0.01, t('Deckkraft pro Quellwolke. Sie verdünnt sich, während die Wolke wächst (Masse bleibt, Fläche wächst).', 'Opacity per puff. It thins as the puff grows (mass stays, area grows).'), 'α = 1 − e^(−κ·m/(π r²))'],
+    ['spread', t('Ausbreitung', 'Spreading'), 0, 4, 0.01, t('Turbulente Diffusion: wie schnell eine Quellwolke nach dem Aufstieg wächst.', 'Turbulent diffusion: how fast a puff grows after rising.'), 'r² = r₀² + 4K·t'],
+    ['life', t('Lebensdauer', 'Lifetime'), 1, 72, 0.5, t('Wie lange ein Teilchen in der Luft bleibt, bevor es ausfällt oder sich auflöst. Länger = längere Fahnen.', 'How long a particle stays aloft before it falls out or dissolves. Longer = longer plumes.'), null, null, (v) => v + ' h'],
+    ['settle', t('Absinken', 'Settling'), 0, 2, 0.01, t('Fallgeschwindigkeit der Asche nach dem Aufstieg.', 'Settling speed of ash after rising.'), 'w_s = (ρ_p − ρ)·g·d² / 18μ', null, (v) => v.toFixed(2) + ' m/s'],
+    ['warm', t('Vorlauf', 'Warm-up'), 0, 48, 1, t('So viele Stunden werden beim Start vorgerechnet.', 'This many hours are pre-computed at start.'), null, null, (v) => v + ' h'],
   ]],
   [t('Zeit und Licht', 'Time and light'), null, [
-    ['lapse', t('Zeitraffer', 'Time lapse'), 60, 43200, 60, t('Simulierte Zeit pro echter Sekunde. Die Physik bleibt gleich, nur schneller.', 'Simulated time per real second. The physics stays the same, only faster.'), null, false, lapseTxt],
-    ['spin', t('Drehung', 'Spin'), 0, 3, 0.01, t('1 = ein Tag dauert 24 simulierte Stunden. 0 = stehender Planet. Sterne und Nebel drehen nicht mit.', '1 = one day lasts 24 simulated hours. 0 = still planet. Stars and nebula do not turn with it.')],
-    ['sunAz', t('Sonne (Richtung)', 'Sun (azimuth)'), -180, 180, 1, t('Flache Sonne an der Tag-Nacht-Grenze zeigt die Säulen von der Seite, mit langen Schatten.', 'A low sun at the terminator shows the columns from the side, with long shadows.'), null, false, (v) => v + '°'],
-    ['sunEl', t('Sonne (Höhe)', 'Sun (elevation)'), -80, 80, 1, null, null, false, (v) => v + '°'],
-    ['tilt', t('Blickneigung', 'View tilt'), 0, 80, 1, t('Kippt den Blick vom Planetenmittelpunkt zum Horizont. Aus 1000–5000 km sieht man die Säulen dann von der Seite, mit dem Weltraum dahinter. Auch: rechte Maustaste oder Umschalt + Ziehen.', 'Tilts the view from the planet centre toward the horizon. From 1000–5000 km you then see the columns from the side, with space behind. Also: right mouse button or Shift + drag.'), null, false, (v) => v + '°'],
+    ['lapse', t('Zeitraffer', 'Time lapse'), 10, 7200, 10, t('Simulierte Zeit pro echter Sekunde (Wind, Aufstieg, Ausbrüche).', 'Simulated time per real second (wind, rise, eruptions).'), null, null, lapseTxt],
+    ['spin', t('Drehung', 'Spin'), 0, 5, 0.01, t('Drehung des Planeten in Grad pro Sekunde, unabhängig vom Zeitraffer. Sterne und Nebel drehen nicht mit.', 'Planet rotation in degrees per second, independent of time lapse. Stars and nebula do not turn with it.'), null, null, (v) => v.toFixed(2) + '°/s'],
+    ['tilt', t('Blickneigung', 'View tilt'), 0, 80, 1, t('Kippt den Blick zum Horizont: Säulen von der Seite, Weltraum dahinter. Auch: rechte Maustaste oder Umschalt + Ziehen.', 'Tilts the view to the horizon: columns from the side, space behind. Also: right mouse or Shift + drag.'), null, null, (v) => v + '°'],
+    ['sunAz', t('Sonne (Richtung)', 'Sun (azimuth)'), -180, 180, 1, t('Flache Sonne an der Tag-Nacht-Grenze: lange Schatten, Säulen plastisch.', 'Low sun at the terminator: long shadows, sculpted columns.'), null, null, (v) => v + '°'],
+    ['sunEl', t('Sonne (Höhe)', 'Sun (elevation)'), -80, 80, 1, null, null, null, (v) => v + '°'],
     ['exposure', t('Belichtung', 'Exposure'), 0.2, 4, 0.01, null],
-    ['glow', t('Glut', 'Glow'), 0, 4, 0.01, t('Leuchten der Krater und der Säulenbasis (von unten angestrahlt).', 'Glow of craters and column base (lit from below).')],
-    ['nebula', t('Nebel', 'Nebula'), 0, 3, 0.01, t('Hintergrundnebel, fest im Raum: dreht sich nur mit der Kamera, nie mit dem Planeten.', 'Background nebula, fixed in space: turns only with the camera, never with the planet.')],
+    ['glow', t('Glut', 'Glow'), 0, 4, 0.01, t('Leuchten von Krater, Lava und Säulenbasis.', 'Glow of crater, lava and column base.')],
+    ['nebula', t('Nebel', 'Nebula'), 0, 3, 0.01, t('Fest im Raum: dreht nur mit der Kamera.', 'Fixed in space: turns only with the camera.')],
     ['stars', t('Sterne', 'Stars'), 0, 3, 0.01, null],
   ]],
   [t('Grafikkarte', 'Graphics'), t('Kostet nur GPU-Zeit, ändert die Physik nicht.', 'Costs only GPU time, does not change the physics.'), [
-    ['steps', t('Raymarch-Schritte', 'Ray-march steps'), 16, 256, 1, t('Schritte durch die Atmosphäre pro Pixel. In der Nähe einer Säule wird automatisch feiner gerechnet.', 'Steps through the atmosphere per pixel. Near a column the step is refined automatically.'), null, false, (v) => String(v)],
-    ['auto', t('Automatik 60 fps', 'Auto 60 fps'), 'check', null, t('Senkt die Render-Auflösung, solange die Bildrate unter 50 fps liegt, und hebt sie bis zum eingestellten Wert wieder an.', 'Lowers the render resolution while the frame rate is below 50 fps and raises it back up to the set value.')],
-    ['scale', t('Render-Auflösung', 'Render resolution'), 0.35, 2, 0.05, t('Faktor auf die Bildschirmauflösung (über 1 = Supersampling).', 'Factor on screen resolution (above 1 = supersampling).'), null, false, (v) => v.toFixed(2) + '×'],
+    ['auto', t('Automatik 60 fps', 'Auto 60 fps'), 'check', null, t('Senkt die Render-Auflösung, solange die Bildrate unter 50 fps liegt.', 'Lowers the render resolution while the frame rate is below 50 fps.')],
+    ['scale', t('Render-Auflösung', 'Render resolution'), 0.35, 2, 0.05, t('Faktor auf die Bildschirmauflösung (über 1 = Supersampling).', 'Factor on screen resolution (above 1 = supersampling).'), null, null, (v) => v.toFixed(2) + '×'],
   ]],
 ];
 
 const help = document.getElementById('help');
-const HEAVY = { bake: new Set(['seed', 'res', 'style', 'sea', 'cont', 'warp', 'mount', 'erosion', 'climate', 'moist']), volc: new Set(['vCount', 'vSize', 'sCount', 'sSize', 'vSeed']), grid: new Set(['grid', 'atm']) };
-let onHeavy = () => {};
+let onChange = () => {};
+let paused = false;
 function buildUI() {
   const box = document.getElementById('controls');
   box.innerHTML = '';
-  // Seed
   const seedRow = document.createElement('div'); seedRow.className = 'seed';
   const seedIn = document.createElement('input'); seedIn.type = 'text'; seedIn.inputMode = 'numeric'; seedIn.value = S.seed; seedIn.id = 'c-seed'; seedIn.setAttribute('aria-label', 'Seed');
   const dice = document.createElement('button'); dice.type = 'button'; dice.textContent = t('Würfeln', 'Roll');
   const vdice = document.createElement('button'); vdice.type = 'button'; vdice.textContent = t('Vulkane neu', 'New volcanoes');
-  const setSeed = (v) => { S.seed = (Number(v) >>> 0) || 1; seedIn.value = S.seed; try { history.replaceState(null, '', `?seed=${S.seed}${location.hash}`); } catch {} onHeavy('seed'); };
+  const setSeed = (v) => { S.seed = (Number(v) >>> 0) || 1; seedIn.value = S.seed; try { history.replaceState(null, '', `?seed=${S.seed}${location.hash}`); } catch {} onChange('seed', 'heavy'); };
   seedIn.addEventListener('change', () => setSeed(seedIn.value));
   dice.addEventListener('click', () => setSeed(Math.floor(Math.random() * 1e8)));
-  vdice.addEventListener('click', () => { S.vSeed = (S.vSeed + 1) | 0; onHeavy('vSeed'); });
+  vdice.addEventListener('click', () => { S.vSeed = (S.vSeed + 1) | 0; onChange('vSeed'); });
   seedRow.append(seedIn, dice, vdice);
   const seedLab = document.createElement('div'); seedLab.className = 'note'; seedLab.textContent = t('Seed (auch als ?seed= in der Adresse)', 'Seed (also as ?seed= in the address)');
   box.append(seedLab, seedRow);
   const btns = document.createElement('div'); btns.className = 'btns';
   const erupt = document.createElement('button'); erupt.type = 'button'; erupt.className = 'hot'; erupt.textContent = t('Supervulkan zünden', 'Trigger supervolcano');
-  erupt.addEventListener('click', () => onHeavy('erupt'));
+  erupt.addEventListener('click', () => onChange('erupt'));
   const clear = document.createElement('button'); clear.type = 'button'; clear.textContent = t('Himmel leeren', 'Clear sky');
-  clear.addEventListener('click', () => onHeavy('clear'));
-  const pause = document.createElement('button'); pause.type = 'button'; pause.id = 'pause'; pause.textContent = paused ? '▶' : '❚❚';
+  clear.addEventListener('click', () => onChange('clear'));
+  const pause = document.createElement('button'); pause.type = 'button'; pause.textContent = paused ? '▶' : '❚❚';
   pause.addEventListener('click', () => { paused = !paused; pause.textContent = paused ? '▶' : '❚❚'; });
   btns.append(erupt, clear, pause);
   box.append(btns);
@@ -235,11 +230,12 @@ function buildUI() {
   for (const [title, note, rows] of sections()) {
     const h2 = document.createElement('h2'); h2.textContent = title; box.append(h2);
     if (note) { const p = document.createElement('p'); p.className = 'note'; p.textContent = note; box.append(p); }
-    for (const [key, label, a, b, c, d, f, heavy, fmt] of rows) {
+    for (const [key, label, a, b, c, d, f, kind, fmt] of rows) {
       const row = document.createElement('div'); row.className = 'row';
       const lab = document.createElement('label'); lab.textContent = label; lab.htmlFor = 'c-' + key;
-      const hint = a === 'select' || a === 'check' ? c : d;
-      const formula = a === 'select' || a === 'check' ? null : f;
+      const isSel = a === 'select' || a === 'check';
+      const hint = isSel ? c : d;
+      const formula = isSel ? null : f;
       const show = () => { help.innerHTML = `<b>${label}.</b> ${hint || ''}${formula ? `<code class="fx">${formula}</code>` : ''}`; };
       row.addEventListener('pointerenter', show); row.addEventListener('focusin', show);
       if (a === 'check') {
@@ -251,16 +247,17 @@ function buildUI() {
         const sel = document.createElement('select'); sel.id = 'c-' + key;
         for (const [v, txt] of b) { const o = document.createElement('option'); o.value = v; o.textContent = txt; sel.append(o); }
         sel.value = String(S[key]);
-        sel.addEventListener('change', () => { S[key] = Number(sel.value); onHeavy(key); });
+        sel.addEventListener('change', () => { S[key] = Number(sel.value); onChange(key, kind); });
         row.append(lab, sel);
       } else {
         const out = document.createElement('output');
         const inp = document.createElement('input'); inp.type = 'range'; inp.id = 'c-' + key; inp.min = a; inp.max = b; inp.step = c; inp.value = S[key];
         const show2 = () => { out.textContent = fmt ? fmt(S[key]) : Number(S[key]).toFixed(c < 0.01 ? 3 : 2); };
         show2();
-        inp.addEventListener('input', () => { S[key] = Number(inp.value); show2(); if (!heavy) onHeavy(key, true); });
-        inp.addEventListener('change', () => { S[key] = Number(inp.value); show2(); if (heavy) onHeavy(key); });
-        lab.addEventListener('dblclick', () => { S[key] = DEF[key]; inp.value = S[key]; show2(); onHeavy(key); });
+        // Alles wirkt schon beim Ziehen; nur das Gelände wird beim Loslassen in voller Auflösung gebacken
+        inp.addEventListener('input', () => { S[key] = Number(inp.value); show2(); onChange(key, kind === 'shape' ? 'preview' : kind); });
+        if (kind === 'shape') inp.addEventListener('change', () => onChange(key, 'shape'));
+        lab.addEventListener('dblclick', () => { S[key] = DEF[key]; inp.value = S[key]; show2(); onChange(key, kind); });
         row.append(lab, out, inp);
       }
       box.append(row);
@@ -269,14 +266,13 @@ function buildUI() {
   help.innerHTML = t('Fahre über einen Regler, um zu sehen, was er bewirkt und welche Formel dahintersteht. Doppelklick auf den Namen setzt ihn zurück.',
     'Hover a control to see what it does and which formula is behind it. Double-click its name to reset it.');
   document.getElementById('t-title').textContent = t('Vulkanplanet', 'Volcano Planet');
-  document.getElementById('t-hint').textContent = t('ziehen zum Drehen, Mausrad oder zwei Finger zum Zoomen', 'drag to rotate, scroll or pinch to zoom');
+  document.getElementById('t-hint').textContent = t('ziehen: drehen · Mausrad: zoomen · rechte Maustaste/Umschalt: neigen', 'drag: rotate · wheel: zoom · right mouse/Shift: tilt');
   document.getElementById('t-foot').innerHTML = t(
     'Teil von <a href="https://github.com/elias-nero-tron/Fluid-Gas-Planet">Fluid Gas Planet</a>, Idee: elias-nero-tron. Eigener Code, keine Bilddateien. Status: nur im Software-Renderer geprüft.',
     'Part of <a href="https://github.com/elias-nero-tron/Fluid-Gas-Planet">Fluid Gas Planet</a>, idea: elias-nero-tron. Original code, no image files. Status: verified in the software renderer only.');
   document.getElementById('lang').textContent = lang === 'de' ? 'EN' : 'DE';
   document.documentElement.lang = lang;
 }
-let paused = false;
 document.getElementById('lang').addEventListener('click', () => { lang = lang === 'de' ? 'en' : 'de'; try { localStorage.setItem('fgp-lang', lang); } catch {} buildUI(); });
 
 // ---------------------------------------------------------------------------
@@ -295,18 +291,19 @@ function genVolcanoes() {
   volcs = [];
   for (let i = 0; i < S.vCount; i++) {
     const Rb = S.vSize * (0.5 + r());
-    const shield = r() < 0.35;
-    volcs.push({ dir: randDir(r), Rb, Hc: shield ? Math.min(0.07 * Rb, 22) : Math.min(0.28 * Rb, 9), rc: (shield ? 0.07 : 0.1) * Rb, type: shield ? 1 : 0,
-      mer: 0, merJ: -0.3 + (r() - 0.5) * 1.2, period: (6 + r() * 42) * 3600, phase: r(), super: false });
+    const shield = r() < 0.3;
+    // Stratovulkan: Hangneigung ~15–30°, Schildvulkan ~5°
+    volcs.push({ dir: randDir(r), Rb, Hc: shield ? Math.min(0.08 * Rb, 9) : Math.min(0.2 * Rb, 5), rc: (shield ? 0.08 : 0.07) * Rb, type: shield ? 1 : 0,
+      merJ: -0.3 + (r() - 0.5) * 1.4, period: (6 + r() * 42) * 3600, phase: r(), super: false });
   }
   for (let i = 0; i < S.sCount; i++) {
     const rc = S.sSize / 2;
-    volcs.push({ dir: randDir(r), Rb: rc * 2.2, Hc: 1.2, rc, type: 2, mer: 0, merJ: (r() - 0.5) * 0.4, period: 0, phase: 0, super: true });
+    volcs.push({ dir: randDir(r), Rb: rc * 2.2, Hc: 1.2, rc, type: 2, merJ: (r() - 0.5) * 0.4, period: 0, phase: 0, super: true });
   }
 }
 
 // ---------------------------------------------------------------------------
-// WGSL: gemeinsame Mathematik
+// WGSL
 // ---------------------------------------------------------------------------
 const NOISE = /* wgsl */`
 const PI = 3.14159265;
@@ -369,7 +366,6 @@ fn fbm(p0: vec3f, oct: i32) -> f32 {
 }
 `;
 
-// Wind: Zirkulationszellen + thermischer Wind + Stratosphäre + Wirbel + Grundwind (m/s, tangential)
 const WIND = /* wgsl */`
 struct WindP { a: vec4f, b: vec4f, c: vec4f }   // a: U, Zellen, Scherung, Strat.; b: Wirbel, Grundwind, Richtung, Tropopause km; c: Zeit s
 fn eastOf(p: vec3f) -> vec3f { let e = vec3f(-p.z, 0.0, p.x); let l = length(e); return select(vec3f(1.0, 0.0, 0.0), e / l, l > 1e-5); }
@@ -393,28 +389,18 @@ fn wind(p: vec3f, zkm: f32, W: WindP) -> vec3f {
 }
 `;
 
-// Vulkane: dynamische Daten (pro Bild von der CPU) + Säulenversatz (pro Bild auf der GPU)
 const VOLC = /* wgsl */`
 struct Volc { p: vec4f, q: vec4f, e: vec4f, f: vec4f }
-// p: Richtung xyz, Basisradius km · q: Kegelhöhe km, Kraterradius km, Typ, Einflussradius km
-// e: Massenstrom kg/s, Säulenhöhe km, Aufstieg W m/s, Aktivität · f: b₀ km, α, k (Schirm), R_max km
-fn shiftAt(i: u32, z: f32, H: f32) -> vec3f {
-  let x = clamp(z / max(H, 0.1), 0.0, 1.0) * 4.0;
-  let k = min(u32(x), 3u); let f = x - f32(k);
-  let a = select(vec3f(0.0), SH[i * 4u + max(k, 1u) - 1u].xyz, k > 0u);
-  return mix(a, SH[i * 4u + k].xyz, f);
-}
+// p: Richtung xyz, Basisradius km · q: Kegelhöhe km, Kraterradius km, Typ (0 Strato, 1 Schild, 2 Caldera), Emissionsgewicht
+// e: Massenstrom kg/s, Säulenhöhe km, Aufstieg W m/s, Aktivität · f: b₀ km, –, k (Schirm), R_max km
 `;
 
-// ---------------------------------------------------------------------------
-// Gelände backen: Höhe, Normale, Farbe → Würfelkarte
-// ---------------------------------------------------------------------------
+// Gelände backen: nur Form. Höhe als zwei 8-bit-Kanäle (hi + lo/255, linear filterbar), Feuchte, Detail; Normale.
 const BAKE = NOISE + /* wgsl */`
-struct BakeU { face: vec4f, seed: vec4f, shape: vec4f, clim: vec4f, pal: array<vec4f, 12> }
+struct BakeU { face: vec4f, seed: vec4f, shape: vec4f, clim: vec4f }
 @group(0) @binding(0) var<uniform> B: BakeU;
-@group(0) @binding(1) var albOut: texture_storage_2d_array<rgba8unorm, write>;
+@group(0) @binding(1) var hmOut: texture_storage_2d_array<rgba8unorm, write>;
 @group(0) @binding(2) var nrmOut: texture_storage_2d_array<rgba8snorm, write>;
-
 fn faceDir(face: u32, s: f32, t: f32) -> vec3f {
   switch face {
     case 0u: { return vec3f(1.0, -t, -s); }
@@ -425,7 +411,6 @@ fn faceDir(face: u32, s: f32, t: f32) -> vec3f {
     default: { return vec3f(-s, -t, -1.0); }
   }
 }
-// Erosions-fBm: jede Oktave wird durch den bisher aufsummierten Gradienten gedämpft
 fn erosionFbm(p0: vec3f, oct: i32, ero: f32) -> f32 {
   var p = p0; var a = 0.0; var b = 0.5; var d = vec3f(0.0);
   for (var i = 0; i < oct; i++) {
@@ -436,7 +421,6 @@ fn erosionFbm(p0: vec3f, oct: i32, ero: f32) -> f32 {
   }
   return a;
 }
-// Ridged Multifractal (Musgrave): Oktave i wächst nur, wo Oktave i−1 hoch war
 fn ridged(p0: vec3f, oct: i32) -> f32 {
   var p = p0; var sum = 0.0; var amp = 0.6; var w = 1.0;
   for (var i = 0; i < oct; i++) {
@@ -453,22 +437,18 @@ fn warped(p: vec3f) -> vec3f {
 }
 fn heightQ(q: vec3f, oct: i32) -> f32 {
   let c = erosionFbm(q, oct, B.shape.w) * 1.3;
-  let land = smoothstep(B.seed.w - 0.05, B.seed.w + 0.25, c);
+  let land = smoothstep(-0.1, 0.3, c);
   let m = ridged(q * 1.9 + vec3f(11.0, 4.0, 2.0), max(oct - 2, 4));
   return c + B.shape.z * m * land * 0.55;
 }
-
 @compute @workgroup_size(8, 8, 1)
 fn bake(@builtin(global_invocation_id) gid: vec3u) {
   let N = u32(B.face.z);
   let x = gid.x; let y = gid.y + u32(B.face.y);
   if (x >= N || y >= N) { return; }
   let face = u32(B.face.x);
-  let s = (f32(x) + 0.5) / f32(N) * 2.0 - 1.0;
-  let tt = (f32(y) + 0.5) / f32(N) * 2.0 - 1.0;
-  let p = normalize(faceDir(face, s, tt));
+  let p = normalize(faceDir(face, (f32(x) + 0.5) / f32(N) * 2.0 - 1.0, (f32(y) + 0.5) / f32(N) * 2.0 - 1.0));
   let oct = i32(B.face.w);
-  // Tangenten für die Normale (finite Differenzen im selben verzerrten Koordinatensystem: nahtlos)
   let hlp = select(vec3f(0.0, 1.0, 0.0), vec3f(1.0, 0.0, 0.0), abs(p.y) > 0.9);
   let t1 = normalize(cross(p, hlp)); let t2 = cross(p, t1);
   let eps = 1.3 / f32(N);
@@ -477,41 +457,13 @@ fn bake(@builtin(global_invocation_id) gid: vec3u) {
   let h1 = heightQ(q + t1 * eps * B.shape.x, oct);
   let h2 = heightQ(q + t2 * eps * B.shape.x, oct);
   let grad = ((h1 - h) * t1 + (h2 - h) * t2) / eps;
-  let hs = h - B.seed.w;
-  let slope = length(grad) * B.clim.w;
-  var n = normalize(p - grad * B.clim.w);
-
-  // Klima: Temperatur aus Breite und Höhe, Feuchte aus Rauschen minus subtropischer Trockengürtel
-  let lat = asin(clamp(p.y, -1.0, 1.0));
-  let al = abs(lat) / (PI * 0.5);
-  let nz = fbm(p * 6.0 + B.seed.zxy, 4);
-  let temp = 1.0 - pow(al, 1.3) * 1.15 - max(hs, 0.0) * 1.6 + 0.12 * nz + B.clim.y;
-  let moist = 0.5 + 0.7 * fbm(p * 2.3 + B.seed.yzx * 1.7, 6) - 0.28 * exp(-pow((al - 0.33) / 0.1, 2.0)) + B.clim.z;
-  let det = fbm(p * 40.0 + B.seed.xyz, 4);
-
-  var col: vec3f;
-  var a: f32;
-  if (hs < 0.0) {
-    let depth = -hs;
-    col = mix(B.pal[1].rgb, B.pal[0].rgb, smoothstep(0.0, 0.22, depth));
-    n = p;
-    a = clamp(0.5 + hs * 1.5, 0.0, 0.499);
-    // Meereis
-    let ice = smoothstep(0.1, 0.02, temp + 0.05 * nz);
-    if (ice > 0.5) { col = B.pal[11].rgb * (0.9 + 0.1 * det); a = 0.5; }
-  } else {
-    let dry = mix(B.pal[3].rgb, B.pal[4].rgb, smoothstep(0.2, 0.45, moist));
-    var wet = mix(B.pal[5].rgb, B.pal[6].rgb, smoothstep(0.5, 0.8, moist));
-    wet = mix(wet, B.pal[7].rgb, smoothstep(0.72, 0.95, temp) * smoothstep(0.55, 0.8, moist));
-    col = mix(dry, wet, smoothstep(0.35, 0.62, moist));
-    col = mix(col, B.pal[8].rgb, smoothstep(0.45, 0.25, temp));
-    col = mix(col, B.pal[9].rgb, clamp(smoothstep(0.4, 1.3, slope) + smoothstep(0.3, 0.6, hs), 0.0, 1.0));
-    col = mix(col, B.pal[2].rgb, smoothstep(0.018, 0.004, hs) * smoothstep(0.1, 0.3, temp));
-    col = mix(col, B.pal[10].rgb, smoothstep(0.16, 0.02, temp + 0.08 * det + 0.2 * slope * 0.0));
-    col *= 0.88 + 0.24 * (det + 0.5);
-    a = clamp(0.5 + hs * 1.5, 0.502, 1.0);
-  }
-  textureStore(albOut, vec2u(x, y), face, vec4f(sqrt(clamp(col, vec3f(0.0), vec3f(1.0))), a));
+  let n = normalize(p - grad * B.clim.w);
+  let al = abs(asin(clamp(p.y, -1.0, 1.0))) / (PI * 0.5);
+  let moist = clamp(0.5 + 0.7 * fbm(p * 2.3 + B.seed.yzx * 1.7, 6) - 0.28 * exp(-pow((al - 0.33) / 0.1, 2.0)), 0.0, 1.0);
+  let det = clamp(fbm(p * 40.0 + B.seed.xyz, 4) + 0.5, 0.0, 1.0);
+  let h01 = clamp((h + 1.5) / 3.0, 0.0, 1.0) * 255.0;
+  let hi = floor(h01);
+  textureStore(hmOut, vec2u(x, y), face, vec4f(hi / 255.0, h01 - hi, moist, det));
   textureStore(nrmOut, vec2u(x, y), face, vec4f(n, 0.0));
 }
 `;
@@ -529,7 +481,6 @@ fn mip(@builtin(global_invocation_id) gid: vec3u) {
 }
 `;
 
-// Nebel: fest im Raum, einmal pro Seed gebacken
 const NEB = NOISE + /* wgsl */`
 struct NebU { a: vec4f, seed: vec4f, gal: vec4f, c0: vec4f, c1: vec4f, c2: vec4f }
 @group(0) @binding(0) var<uniform> U: NebU;
@@ -570,122 +521,104 @@ fn neb(@builtin(global_invocation_id) gid: vec3u) {
 }
 `;
 
-// ---------------------------------------------------------------------------
-// Aschetransport: semi-Lagrange auf dem Kugelschalen-Gitter
-// ---------------------------------------------------------------------------
-const SIM_HEAD = /* wgsl */`
-struct SimU { grid: vec4f, geo: vec4f, ash: vec4f, src: vec4f, wind: WindP }
-@group(0) @binding(0) var<uniform> U: SimU;
-@group(0) @binding(4) var<storage, read> V: array<Volc>;
-`;
-const PREP = NOISE + WIND + VOLC + SIM_HEAD + /* wgsl */`
-@group(0) @binding(5) var<storage, read_write> SH: array<vec4f>;
-// Säulenachse im Wind: s(z) = ∫ u(z′)/W dz′ (bent-over plume), Mittelpunktregel in vier Abschnitten
-@compute @workgroup_size(64)
-fn prep(@builtin(global_invocation_id) gid: vec3u) {
-  let i = gid.x;
-  if (i >= u32(U.geo.z)) { return; }
-  let v = V[i];
-  let Hh = max(v.e.y, 0.1);
-  var acc = vec3f(0.0);
-  for (var k = 0u; k < 4u; k++) {
-    let z = Hh * (f32(k) + 0.5) / 4.0;
-    let u = wind(v.p.xyz, z, U.wind);
-    acc += (u - v.p.xyz * dot(u, v.p.xyz)) * (Hh / 4.0) / max(v.e.z, 1.0);
-    SH[i * 4u + k] = vec4f(acc, 0.0);
-  }
+
+// Partikel: Aufstieg, Schirm, Wind, Absinken, Neugeburt an den Schloten
+const PART = NOISE + WIND + VOLC + /* wgsl */`
+struct PU { a: vec4f, b: vec4f, c: vec4f, wind: WindP }
+// a: dt, Zeit, R km, Anzahl Vulkane · b: Teilchen, Zufall, Lebensdauer s, – · c: Absinken m/s, Summe Gewichte, Zurücksetzen, –
+@group(0) @binding(0) var<uniform> U: PU;
+@group(0) @binding(1) var<storage, read_write> P: array<vec4f>;   // Richtung xyz, Höhe km (< 0: tot)
+@group(0) @binding(2) var<storage, read_write> M: array<vec4f>;   // Alter s, Lebensdauer s, Vulkan, Einschichthöhe z* km
+@group(0) @binding(3) var<storage, read> V: array<Volc>;
+@group(0) @binding(4) var<storage, read> CW: array<f32>;          // kumulierte Emissionsgewichte
+fn rnd4(a: u32, b: u32) -> vec4f {
+  let h = pcg3d(vec3u(a, b, 0x9e3779b9u)); let g = pcg3d(h ^ vec3u(0x85ebca6bu));
+  return vec4f(vec3f(h >> vec3u(8u)) / 16777216.0, f32(g.x >> 8u) / 16777216.0);
 }
-`;
-const SIM = NOISE + WIND + VOLC + SIM_HEAD + /* wgsl */`
-@group(0) @binding(1) var src: texture_3d<f32>;
-@group(0) @binding(2) var smp: sampler;
-@group(0) @binding(3) var dst: texture_storage_3d<rgba16float, write>;
-@group(0) @binding(5) var<storage, read> SH: array<vec4f>;
-
-fn gridUV(p: vec3f) -> vec2f { return vec2f(atan2(p.z, p.x) / (2.0 * PI) + 0.5, asin(clamp(p.y, -1.0, 1.0)) / PI + 0.5); }
-
-@compute @workgroup_size(8, 8, 4)
-fn advect(@builtin(global_invocation_id) gid: vec3u) {
-  let dims = vec3u(U.grid.xyz);
-  if (any(gid >= dims)) { return; }
-  if (U.src.y > 0.5) { textureStore(dst, gid, vec4f(0.0)); return; }
-  let R = U.geo.x; let Htop = U.geo.y; let dt = U.grid.w;
-  let lon = ((f32(gid.x) + 0.5) / f32(dims.x) - 0.5) * 2.0 * PI;
-  let lat = ((f32(gid.y) + 0.5) / f32(dims.y) - 0.5) * PI;
-  let zkm = (f32(gid.z) + 0.5) / f32(dims.z) * Htop;
-  let p = vec3f(cos(lat) * cos(lon), sin(lat), cos(lat) * sin(lon));
-  let cellKm = max(2.0 * PI * R * cos(lat) / f32(dims.x), PI * R / f32(dims.y));
-
-  var vel = wind(p, zkm, U.wind);
-  var srcAdd = vec2f(0.0);
-  let nv = u32(U.geo.z);
-  for (var i = 0u; i < nv; i++) {
+@compute @workgroup_size(256)
+fn update(@builtin(global_invocation_id) gid: vec3u) {
+  let id = gid.x;
+  if (id >= u32(U.b.x)) { return; }
+  let dt = U.a.x; let R = U.a.z; let nv = u32(U.a.w);
+  var p = P[id]; var m = M[id];
+  if (U.c.z > 0.5) { P[id] = vec4f(0.0, 0.0, 0.0, -1.0); M[id] = vec4f(0.0, rnd4(id, 7u).x * U.b.z, 0.0, 0.0); return; }
+  m.x += dt;
+  let vid = u32(m.z);
+  if (m.x >= m.y || vid >= nv) {
+    // Neugeburt an einem Schlot, gewählt nach Emissionsgewicht (∝ Massenstrom)
+    let r = rnd4(id, bitcast<u32>(U.b.y));
+    if (U.c.y <= 0.0 || nv == 0u) { P[id] = vec4f(0.0, 0.0, 0.0, -1.0); M[id] = vec4f(0.0, 120.0 + r.y * 1800.0, 0.0, 0.0); return; }
+    let x = r.x * U.c.y;
+    var i = 0u;
+    loop { if (i + 1u >= nv || CW[i] >= x) { break; } i++; }
     let v = V[i];
-    if (v.e.w <= 0.001) { continue; }
-    let cd = dot(p, v.p.xyz);
-    if (cd < cos(min(v.q.w / R, 3.0))) { continue; }
-    let dv = (p - v.p.xyz * cd) * R;
-    let Hh = v.e.y;
-    // Schirmwolke: Schwerestrom auf der Höhe neutralen Auftriebs (Woods & Kienle 1994):
-    // R(t) = k·t^(2/3)  →  u_r(r) = (2/3)·k^(3/2)·r^(−1/2)
-    let du = dv - SH[i * 4u + 3u].xyz;
-    let ru = length(du);
-    let bTop = v.f.x + 1.2 * v.f.y * Hh;
-    let vert = exp(-pow((zkm - 0.74 * Hh) / (0.12 * Hh + 1.0), 2.0));   // neutrale Auftriebshöhe H_nb ≈ 0,75·H
-    let ur = (2.0 / 3.0) * pow(v.f.z, 1.5) / sqrt(max(ru, bTop) * 1000.0);
-    vel += (du / max(ru, 1e-3)) * ur * vert * smoothstep(v.f.w, 0.6 * v.f.w, ru) * v.e.w;
-    // Quelle: Suzuki-Verteilung S(ζ) ∝ (1 − ζ)·e^(A(ζ − 1)), waagerecht Gauß mit Säulenradius b(z)
-    if (zkm < Hh) {
-      let rv = dv - shiftAt(i, zkm, Hh);
-      let b = v.f.x + 1.2 * v.f.y * zkm;
-      let sg = max(b, 0.5 * cellKm);
-      let G = exp(-dot(rv, rv) / (2.0 * sg * sg)) / (2.0 * PI * sg * sg * 1e6);
-      let ze = zkm / Hh;
-      let Sz = (1.0 - ze) * exp(4.0 * (ze - 1.0)) / (0.0567 * Hh * 1000.0);   // A = 4: Maximum bei ζ = 0,75
-      srcAdd += v.e.x * 1000.0 * Sz * G * U.src.x * vec2f(0.6, 0.4);
-    }
+    let e = eastOf(v.p.xyz); let n = cross(e, v.p.xyz);
+    let th = r.z * 2.0 * PI; let rho = sqrt(r.w);
+    let dir = normalize(v.p.xyz + (cos(th) * e + sin(th) * n) * rho * v.f.x / R);
+    let life = U.b.z * mix(0.4, 1.6, r.y) * select(1.0, 2.0, v.q.z > 1.5);
+    // eigene Einschichthöhe: die meisten nahe der Spitze (Schirm), einige tiefer (Fahne entlang der Säule)
+    let zs = v.e.y * (0.5 + 0.5 * pow(fract(r.x * 97.13 + r.y * 13.7), 0.5));
+    P[id] = vec4f(dir, 0.05);
+    M[id] = vec4f(0.0, life, f32(i) + 0.5, zs);
+    return;
   }
-  // Rückwärts-Spur: horizontal auf der Kugel, vertikal mit Sinkgeschwindigkeit
-  let tang = vel - p * dot(vel, p);
-  let p0 = normalize(p - tang * dt / (R * 1000.0));
-  let uv = gridUV(p0);
-  let c = textureSampleLevel(src, smp, vec3f(uv, (zkm + U.ash.x * dt / 1000.0) / Htop), 0.0).x;
-  let f = textureSampleLevel(src, smp, vec3f(uv, (zkm + U.ash.y * dt / 1000.0) / Htop), 0.0).y;
-  let o = vec2f(c * exp(-dt / U.ash.z), f * exp(-dt / U.ash.w)) + srcAdd * dt;
-  textureStore(dst, gid, vec4f(min(o, vec2f(60000.0)), 0.0, 0.0));
+  if (p.w < 0.0) { M[id] = m; return; }
+  let v = V[vid];
+  let dir = p.xyz; let z = p.w;
+  let h = rnd4(id, bitcast<u32>(m.y));
+  let e0 = eastOf(v.p.xyz); let n0 = cross(e0, v.p.xyz);
+  let ldir = cos(h.z * 2.0 * PI) * e0 + sin(h.z * 2.0 * PI) * n0;
+  let rho = sqrt(h.w);
+  let zs = max(m.w, 0.3);
+  let f = z / zs;
+  let W = max(v.e.z, 3.0);
+  var vel = wind(dir, z, U.wind);
+  var w = 0.0;
+  // Säule: Auftrieb bis z*, Radius wächst wie b = b₀ + 0,12·z (MTT, α = 0,1)
+  if (f < 0.98) {
+    w = W * sqrt(max(1.0 - f, 0.0)) + 0.3;
+    vel += ldir * rho * 0.12 * w;
+  }
+  // Schirm: radialer Schwerestrom um den Schlot
+  let uw = smoothstep(0.7, 0.97, f);
+  let dv = (dir - v.p.xyz * dot(dir, v.p.xyz)) * R;
+  let rr = length(dv);
+  let rdir = select(ldir, dv / max(rr, 1e-4), rr > 0.05);
+  let ur = min((2.0 / 3.0) * pow(v.f.z, 1.5) / sqrt(max(rr, v.f.x + 0.12 * zs) * 1000.0), 0.8 * W);
+  // über dem Schlot bleibt eine überschießende Kuppel stehen (kein Loch in der Mitte)
+  vel += rdir * ur * uw * smoothstep(v.f.w, 0.5 * v.f.w, rr) * smoothstep(0.0, v.f.x + 0.12 * zs, rr) * max(v.e.w, 0.15);
+  // Turbulenz: kleine Wirbel, im Aufstieg stärker (Knubbel)
+  let tn = noised(dir * (R / 25.0) + vec3f(0.0, z * 0.2, U.a.y * 3e-4)).yzw;
+  vel += cross(dir, tn) * (0.15 * W * (1.0 - uw) + 2.0);
+  w += tn.x * 0.1 * W * (1.0 - uw);
+  // Absinken nach dem Aufstieg
+  w -= U.c.x * (0.3 + 1.4 * h.x) * uw;
+  let tang = vel - dir * dot(vel, dir);
+  let d2 = normalize(dir + tang * dt / (R * 1000.0));
+  let z2 = z + w * dt / 1000.0;
+  if (z2 < 0.0) { m.x = m.y; }
+  P[id] = vec4f(d2, max(z2, 0.0));
+  M[id] = m;
 }
 `;
 
-// ---------------------------------------------------------------------------
-// Bild: Hintergrund, Boden, Atmosphäre und Asche in einem Raymarch
-// ---------------------------------------------------------------------------
-const RENDER = NOISE + WIND + VOLC + /* wgsl */`
+// Gemeinsame Uniforms für Planet, Partikel und Zusammensetzen
+const RU_DECL = /* wgsl */`
 struct RU {
   cam: vec4f, right: vec4f, up: vec4f, fwd: vec4f, sunW: vec4f, sunP: vec4f,
-  rot: vec4f, geo: vec4f, atm: vec4f, ash: vec4f, misc: vec4f, res: vec4f, wind: WindP,
+  rot: vec4f, geo: vec4f, atm: vec4f, look: vec4f, part: vec4f, res: vec4f, shx: vec4f, shy: vec4f,
+  pal: array<vec4f, 12>,
 }
-// cam: xyz, tan(fov/2) · right: xyz, Seitenverh. · up: xyz, Belichtung · fwd: xyz, – · sunW: xyz, Sonnenstärke
-// sunP: Sonne im Planetensystem, Pixelwinkel · rot: cos θ, sin θ, Sicht-Zeit, Sim-Zeit · geo: R km, Dicke km, Überhöhung, Anzahl Vulkane
-// atm: H_Rayleigh km, H_Mie km, Relief, Glut · ash: κ, Feinstruktur, Schritte, – · misc: Nebel, Sterne, – · res: Breite, Höhe, Bild, Gitter-Länge
+// cam: xyz, tan(fov/2) · right: xyz, Seitenverh. · up: xyz, Belichtung · fwd: xyz, Kameraabstand · sunW: xyz, Sonnenstärke
+// sunP: Sonne im Planetensystem, Pixelwinkel · rot: cos θ, sin θ, Zeit s, Sim-Zeit s · geo: R km, Dicke km, Überhöhung, Anzahl Vulkane
+// atm: H_R km, H_M km, Relief, Glut · look: Meer, Klima, Feuchte, Dunst · part: Dichte, Ausbreitung km²/s, Farbwelt, –
+// res: Breite, Höhe, Bild, Textur-N · shx/shy: Achsen der Schattenkarte (Welt)
 @group(0) @binding(0) var<uniform> G: RU;
-@group(0) @binding(1) var albT: texture_cube<f32>;
-@group(0) @binding(2) var nrmT: texture_cube<f32>;
-@group(0) @binding(3) var smp: sampler;
-@group(0) @binding(4) var ashT: texture_3d<f32>;
-@group(0) @binding(5) var ashS: sampler;
-@group(0) @binding(6) var nebT: texture_cube<f32>;
-@group(0) @binding(7) var<storage, read> V: array<Volc>;
-@group(0) @binding(8) var<storage, read> SH: array<vec4f>;
-
-const BR = vec3f(5.8e-6, 13.5e-6, 33.1e-6) * 0.8;   // Rayleigh-Streuung 1/m (Meereshöhe, Erde), leicht gedämpft
+const BR = vec3f(5.8e-6, 13.5e-6, 33.1e-6);   // Rayleigh-Streuung 1/m (Meereshöhe, Erde)
 const BM = 21e-6;                              // Mie-Streuung 1/m
 const LAVA = vec3f(1.0, 0.33, 0.06);
-
-@vertex fn vs(@builtin(vertex_index) i: u32) -> @builtin(position) vec4f {
-  let p = vec2f(f32((i << 1u) & 2u), f32(i & 2u));
-  return vec4f(p * 2.0 - 1.0, 0.0, 1.0);
-}
 fn toPl(w: vec3f) -> vec3f { return vec3f(G.rot.x * w.x + G.rot.y * w.z, w.y, -G.rot.y * w.x + G.rot.x * w.z); }
+fn toW(p: vec3f) -> vec3f { return vec3f(G.rot.x * p.x - G.rot.y * p.z, p.y, G.rot.y * p.x + G.rot.x * p.z); }
 fn sphere(o: vec3f, d: vec3f, r: f32) -> vec2f {
   let b = dot(o, d); let c = dot(o, o) - r * r; let h = b * b - c;
   if (h < 0.0) { return vec2f(-1.0); }
@@ -696,72 +629,35 @@ fn chapman(X: f32, h: f32, cz: f32) -> f32 {
   let c = sqrt(X + h);
   if (cz >= 0.0) { return c / (c * cz + 1.0) * exp(-h); }
   let x0 = sqrt(1.0 - cz * cz) * (X + h);
-  let c0 = sqrt(x0);
-  return 2.0 * c0 * exp(min(X - x0, 60.0)) - c / (1.0 - c * cz) * exp(-h);
+  return 2.0 * sqrt(x0) * exp(min(X - x0, 60.0)) - c / (1.0 - c * cz) * exp(-h);
 }
 fn sunTrans(altkm: f32, cz: f32) -> vec3f {
-  let R = G.geo.x;
-  let tr = BR * G.atm.x * 1000.0 * chapman(R / G.atm.x, altkm / G.atm.x, cz);
-  let tm = BM * 1.11 * G.atm.y * 1000.0 * chapman(R / G.atm.y, altkm / G.atm.y, cz);
+  let R = G.geo.x; let k = G.look.w;
+  let tr = BR * k * G.atm.x * 1000.0 * chapman(R / G.atm.x, altkm / G.atm.x, cz);
+  let tm = BM * k * 1.11 * G.atm.y * 1000.0 * chapman(R / G.atm.y, altkm / G.atm.y, cz);
   return exp(-(tr + vec3f(tm)));
 }
-fn hg(mu: f32, g: f32) -> f32 { let g2 = g * g; return (1.0 - g2) / (4.0 * PI * pow(1.0 + g2 - 2.0 * g * mu, 1.5)); }
-fn gridUVW(n: vec3f, zkm: f32) -> vec3f { return vec3f(atan2(n.z, n.x) / (2.0 * PI) + 0.5, asin(clamp(n.y, -1.0, 1.0)) / PI + 0.5, zkm / G.geo.y); }
-fn ashAt(p: vec3f) -> vec2f {
-  let r = length(p); let n = p / r;
-  let zkm = (r - 1.0) * G.geo.x / G.geo.z;
-  if (zkm > G.geo.y) { return vec2f(0.0); }
-  return textureSampleLevel(ashT, ashS, gridUVW(n, zkm), 0.0).xy;
+fn tonemap(c0: vec3f, fc: vec2f) -> vec3f {
+  let x = c0 * G.up.w * 0.6;
+  let m = clamp((x * (2.51 * x + 0.03)) / (x * (2.43 * x + 0.59) + 0.14), vec3f(0.0), vec3f(1.0));
+  let dith = (fract(sin(dot(fc, vec2f(12.9898, 78.233))) * 43758.5453) - 0.5) / 255.0;
+  return pow(m, vec3f(1.0 / 2.2)) + dith;
 }
-// Feinstruktur: zweiphasiges Fließrauschen (Neyret 2003). Koordinaten fließen mit dem Wind, werden alle
-// P Sekunden zurückgesetzt, zwei um P/2 versetzte Phasen werden überblendet → keine Verzerrung, kein Sprung.
-// Waagerecht 90 km, senkrecht 5 km Wellenlänge: flache Lagen wie echte Ascheschichten.
-fn ashDetail(n: vec3f, zkm: f32) -> f32 {
-  let R = G.geo.x;
-  let base = n * (R / 90.0 + zkm / 5.0);
-  let wv = windCirc(n, zkm, G.wind) / 1000.0 / 90.0;   // Rauscheinheiten pro Sekunde
-  let P = 5.0 * 3600.0; let t = G.rot.w;
-  let a0 = t / P; let a1 = a0 + 0.5;
-  let f0 = fract(a0); let f1 = fract(a1);
-  let n0 = fbm(base - wv * f0 * P + rnd3(vec3f(floor(a0), 1.0, 2.0)) * 50.0, 3);
-  let n1 = fbm(base - wv * f1 * P + rnd3(vec3f(floor(a1), 3.0, 4.0)) * 50.0, 3);
-  let w0 = 1.0 - abs(2.0 * f0 - 1.0);
-  return (n0 * w0 + n1 * (1.0 - w0)) * 1.4 + 0.5;
-}
-// Eruptionssäule (analytisch, scharf): Radius b(z) = b₀ + 6/5·α·z (Morton, Taylor & Turner 1956),
-// Achse im Wind versetzt, pilzförmiger Übergang in den Schirm, Quellwolken steigen mit W auf.
-fn billow(q0: vec3f) -> f32 {
-  var q = q0; var a = 0.0; var w = 0.5;
-  for (var i = 0; i < 4; i++) { let n = noise(q); a += w * (1.0 - n * n * 2.0); q = M3 * q * 2.1; w *= 0.5; }
-  return a * 1.07 - 0.1;
-}
-fn column(i: u32, p: vec3f, r: f32) -> vec2f {
-  let v = V[i];
-  let Hh = v.e.y;
-  let zkm = (r - 1.0) * G.geo.x / G.geo.z;
-  if (zkm < -0.2 || zkm > Hh * 1.2) { return vec2f(0.0); }
-  let n = p / r;
-  let cd = dot(n, v.p.xyz);
-  let dv = (n - v.p.xyz * cd) * G.geo.x;
-  let rv = dv - shiftAt(i, clamp(zkm, 0.0, Hh), Hh);
-  let rr = length(rv);
-  let zeta = zkm / max(Hh, 0.1);
-  let b = v.f.x + 1.2 * v.f.y * max(zkm, 0.0);
-  let be = b * (1.0 + 2.4 * smoothstep(0.55, 0.92, zeta));
-  if (rr > be * 1.7) { return vec2f(0.0); }
-  let rise = G.rot.z * v.e.z / 1000.0;
-  let q = (rv + v.p.xyz * (zkm - rise)) / (1.1 * b) + vec3f(f32(i) * 7.3);
-  let nb = billow(q);
-  let edge = rr / be + 0.4 * (nb - 0.5);
-  // runde Kuppe über der Säule (überschießende Spitze)
-  let top = 1.0 - smoothstep(0.93, 1.12, zeta + 0.3 * (rr / be) * (rr / be) + 0.12 * (nb - 0.5));
-  let d = smoothstep(1.0, 0.55, edge) * top * smoothstep(-0.2, 0.3, zkm);
-  let conc = v.e.x * 1000.0 / (PI * b * b * 1e6 * max(v.e.z, 1.0)) * d;
-  let glow = d * exp(-max(zkm, 0.0) / (0.08 * Hh + 0.4)) * v.e.w;
-  return vec2f(conc, glow);
-}
+`;
 
-// Sterne: Zellen auf einer Würfelprojektion, Helligkeit nach Potenzgesetz, Farbe nach Temperatur
+// Planet: Hintergrund, Boden mit Farben/Glanz beim Zeichnen, Atmosphäre → HDR
+const PLANET = NOISE + WIND + VOLC + RU_DECL + /* wgsl */`
+@group(0) @binding(1) var hmT: texture_cube<f32>;
+@group(0) @binding(2) var nrmT: texture_cube<f32>;
+@group(0) @binding(3) var smp: sampler;
+@group(0) @binding(4) var nebT: texture_cube<f32>;
+@group(0) @binding(5) var<storage, read> V: array<Volc>;
+@group(0) @binding(6) var shT: texture_2d<f32>;
+
+@vertex fn vs(@builtin(vertex_index) i: u32) -> @builtin(position) vec4f {
+  let p = vec2f(f32((i << 1u) & 2u), f32(i & 2u));
+  return vec4f(p * 2.0 - 1.0, 0.0, 1.0);
+}
 fn starColor(x: f32) -> vec3f {
   return mix(mix(vec3f(1.0, 0.62, 0.38), vec3f(1.0, 0.95, 0.88), smoothstep(0.0, 0.5, x)), vec3f(0.7, 0.8, 1.0), smoothstep(0.55, 1.0, x));
 }
@@ -785,28 +681,30 @@ fn stars(d: vec3f) -> vec3f {
     else if (face < 3.5) { sd = vec3f(spos.x, select(-1.0, 1.0, face < 2.5), spos.y); }
     else { sd = vec3f(spos.x, spos.y, select(-1.0, 1.0, face < 4.5)); }
     let dd = length(d - normalize(sd));
-    let bright = 2.5 * pow(10.0, -2.6 * h.z) / pow(f32(l + 1), 1.5);   // Helligkeit ~ 10^(−0,4·m)
+    let bright = 2.5 * pow(10.0, -2.6 * h.z) / pow(f32(l + 1), 1.5);
     let sz = px * 0.55;
     col += starColor(h2.y) * bright * exp(-dd * dd / (sz * sz));
   }
   return col;
 }
 
-// Vulkan-Gelände (analytisch): Kegel, Krater, Caldera. Liefert Höhe km, Gradient, Basalt-Anteil, Glut.
-struct Cone { h: f32, g: vec3f, basalt: f32, glow: f32 }
+// Vulkan-Gelände (analytisch): Kegel, Krater, Caldera; Rinnen für Schnee und Lava
+struct Cone { h: f32, g: vec3f, basalt: f32, glow: f32, gully: f32 }
 fn coneH(r: f32, v: Volc) -> f32 {
   let x = r / v.p.w; let rc = v.q.y;
-  if (v.q.z > 1.5) {  // Caldera: Ringwall, eingesunkener Boden, flache Aufwölbung außen
+  if (v.q.z > 1.5) {
     let rim = v.q.x * exp(-pow((r - rc) / (0.3 * rc), 2.0));
     let floorD = -0.9 * v.q.x * (1.0 - smoothstep(0.75 * rc, rc, r));
     return rim + floorD + 0.3 * v.q.x * max(1.0 - x, 0.0);
   }
-  var h = v.q.x * pow(max(1.0 - x, 0.0), select(1.8, 1.2, v.q.z > 0.5));
-  h -= 0.35 * v.q.x * max(1.0 - (r / rc) * (r / rc), 0.0);
+  // Stratovulkan konkav (e^-Profil), Schildvulkan flach gewölbt
+  var h = select(v.q.x * (exp(-3.2 * x) - exp(-3.2)) / (1.0 - exp(-3.2)), v.q.x * (1.0 - x * x), v.q.z > 0.5);
+  h = select(h, 0.0, x >= 1.0);
+  h -= 0.25 * v.q.x * max(1.0 - (r / rc) * (r / rc), 0.0);
   return h;
 }
 fn cones(n: vec3f) -> Cone {
-  var o: Cone; o.h = 0.0; o.g = vec3f(0.0); o.basalt = 0.0; o.glow = 0.0;
+  var o: Cone; o.h = 0.0; o.g = vec3f(0.0); o.basalt = 0.0; o.glow = 0.0; o.gully = 0.0;
   let R = G.geo.x;
   let nv = u32(G.geo.w);
   for (var i = 0u; i < nv; i++) {
@@ -816,19 +714,125 @@ fn cones(n: vec3f) -> Cone {
     let dv = (n - v.p.xyz * cd) * R;
     let r = length(dv);
     let rd = dv / max(r, 1e-4);
-    let e = max(0.02 * v.q.y, 0.05);
+    let e = max(0.01 * v.q.y, 0.02);
     let h = coneH(r, v);
-    let dh = (coneH(r + e, v) - coneH(max(r - e, 0.0), v)) / (e + min(r, e));
-    o.h += h; o.g += rd * dh;
+    // radiale Rinnen (Erosion): Winkel-Rauschen, zur Spitze hin enger
+    let ea = eastOf(v.p.xyz);
+    let ang = atan2(dot(rd, cross(v.p.xyz, ea)), dot(rd, ea));
     let x = r / v.p.w;
-    o.basalt = max(o.basalt, smoothstep(1.0, 0.35, x) * select(0.75, 0.45, v.q.z > 1.5));
-    // Lavasee im Krater plus Lavaströme als Rauschadern die Flanke hinab
+    let gl = noise(vec3f(cos(ang), sin(ang), 0.0) * 9.0 + vec3f(f32(i) * 3.1, x * 1.5, 0.0));
+    let rid = (1.0 - abs(gl)) * smoothstep(1.0, 0.2, x) * smoothstep(0.0, 0.25, r / max(v.q.y, 0.1) - 1.0);
+    let dh = (coneH(r + e, v) - coneH(max(r - e, 0.0), v)) / (e + min(r, e));
+    let tang = cross(v.p.xyz, rd);
+    o.h += h; o.g += rd * dh + tang * (gl * 0.35 * v.q.x / v.p.w) * smoothstep(1.0, 0.3, x);
+    o.gully = max(o.gully, rid * select(1.0, 0.0, x >= 1.0));
+    o.basalt = max(o.basalt, smoothstep(1.0, 0.3, x) * select(0.55, 0.35, v.q.z > 1.5));
     let lake = smoothstep(v.q.y * 0.9, v.q.y * 0.3, r);
-    let ang = atan2(dot(rd, cross(v.p.xyz, eastOf(v.p.xyz))), dot(rd, eastOf(v.p.xyz)));
-    let vein = pow(max(1.0 - abs(noise(vec3f(ang * 5.0, r / v.p.w * 3.0, f32(i)))) * 1.0, 0.0), 12.0) * smoothstep(0.8, 0.15, x) * smoothstep(0.5 * v.q.y, v.q.y, r);
-    o.glow += (lake * (0.7 + 0.3 * noise(dv * 0.5 / max(v.q.y, 1.0) + vec3f(G.rot.z * 0.0005))) + vein * 0.6) * v.e.w;
+    o.glow += lake * (0.7 + 0.3 * noise(dv * 0.5 / max(v.q.y, 1.0) + vec3f(G.rot.z * 0.3))) * v.e.w;
   }
   return o;
+}
+
+fn shadowAt(pw: vec3f) -> f32 {
+  let uv = vec2f(dot(pw, G.shx.xyz), dot(pw, G.shy.xyz)) / 1.3 * vec2f(0.5, -0.5) + 0.5;
+  let o = 0.75 / 2048.0;
+  let od = textureSampleLevel(shT, smp, uv + vec2f(o, o), 0.0).r + textureSampleLevel(shT, smp, uv + vec2f(-o, o), 0.0).r
+         + textureSampleLevel(shT, smp, uv + vec2f(o, -o), 0.0).r + textureSampleLevel(shT, smp, uv + vec2f(-o, -o), 0.0).r;
+  return exp(-od * 0.25);
+}
+
+fn ggx(n: vec3f, v: vec3f, l: vec3f, rough: f32, f0: f32) -> f32 {
+  let hv = normalize(l + v);
+  let nh = max(dot(n, hv), 0.0); let nl = max(dot(n, l), 0.0); let nv = max(dot(n, v), 1e-3);
+  let a2 = rough * rough * rough * rough;
+  let D = a2 / (PI * pow(nh * nh * (a2 - 1.0) + 1.0, 2.0));
+  let k = (rough + 1.0) * (rough + 1.0) / 8.0;
+  let Gs = nl / (nl * (1.0 - k) + k) * nv / (nv * (1.0 - k) + k);
+  let F = f0 + (1.0 - f0) * pow(1.0 - max(dot(hv, v), 0.0), 5.0);
+  return D * Gs * F / (4.0 * nv);
+}
+
+fn shadeGround(pg: vec3f, rd: vec3f, t: f32) -> vec3f {
+  let n0 = normalize(pg);
+  let sun = G.sunP.xyz;
+  let px = G.sunP.w;
+  let dRx = toPl(G.right.xyz) * px; let dRy = toPl(G.up.xyz) * px;
+  let dn = min(dot(n0, rd), -0.05);
+  let dPx = t * (dRx - rd * dot(n0, dRx) / dn);
+  let dPy = t * (dRy - rd * dot(n0, dRy) / dn);
+  let hm = textureSampleGrad(hmT, smp, n0, dPx, dPy);
+  let nb = textureSampleGrad(nrmT, smp, n0, dPx, dPy).xyz;
+  let cn = cones(n0);
+  // Höhe in Rauscheinheiten (1 Einheit ≈ 6 km), Vulkane dazu
+  let h = (hm.r + hm.g / 255.0) * 3.0 - 1.5 + cn.h / 6.0;
+  let hs = h - G.look.x;
+  let det = hm.a * 2.0 - 1.0;
+  // Detail unter der Texturauflösung: beim Hineinzoomen kommt Rauschrelief pro Pixel dazu
+  let foot = max(length(dPx), length(dPy));
+  let texel = 1.6 / G.res.w;
+  let zoomIn = smoothstep(texel * 1.5, texel * 0.3, foot);
+  var nd = vec3f(0.0); var dd = 0.0;
+  if (zoomIn > 0.0) {
+    let q = n0 * G.res.w * 1.2;
+    let a = noised(q); let b = noised(q * 2.3 + vec3f(5.0));
+    nd = (a.yzw + 0.5 * b.yzw) * zoomIn; dd = (a.x + 0.5 * b.x) * zoomIn;
+  }
+  // Klima: beim Zeichnen, damit Meer, Klima und Feuchte sofort wirken
+  let lat = asin(clamp(n0.y, -1.0, 1.0));
+  let al = abs(lat) / (PI * 0.5);
+  let temp = 1.0 - pow(al, 1.3) * 1.15 - max(hs, 0.0) * 1.6 + 0.12 * det + G.look.y;
+  let moist = hm.b + G.look.z + 0.05 * dd;
+  let slope = length(nb - n0 * dot(nb, n0)) * 8.0;
+  var alb: vec3f; var rough: f32; var f0 = 0.04; var emit = vec3f(0.0);
+  var n = n0;
+  let lavaWorld = G.part.z > 1.5;
+  if (hs < 0.0) {
+    let depth = -hs;
+    if (lavaWorld) {
+      // Lavameer: erstarrte Kruste mit glühenden Rissen
+      let cr = 1.0 - abs(noise(n0 * 180.0 + vec3f(G.rot.z * 0.002)));
+      let crack = pow(cr, 18.0) + 0.4 * pow(1.0 - abs(noise(n0 * 700.0)), 24.0);
+      alb = G.pal[0].rgb; rough = 0.9;
+      emit = LAVA * (crack * 4.0 + smoothstep(0.03, 0.0, depth) * 2.0) * G.atm.w;
+    } else {
+      alb = mix(G.pal[1].rgb, G.pal[0].rgb, smoothstep(0.0, 0.22, depth));
+      alb = mix(alb, G.pal[1].rgb * 1.6, smoothstep(0.02, 0.0, depth) * 0.6);   // helles Flachwasser an der Küste
+      rough = 0.07; f0 = 0.02;
+      let ice = smoothstep(0.1, 0.02, temp + 0.05 * det);
+      if (ice > 0.0) { alb = mix(alb, G.pal[11].rgb * (0.9 + 0.1 * det), ice); rough = mix(rough, 0.35, ice); }
+      if (ice < 0.5) { n = normalize(n0 + nd * 0.05); }
+      else { n = normalize(nb + nd * 0.1); }
+    }
+  } else {
+    let dry = mix(G.pal[3].rgb, G.pal[4].rgb, smoothstep(0.2, 0.45, moist));
+    var wet = mix(G.pal[5].rgb, G.pal[6].rgb, smoothstep(0.5, 0.8, moist));
+    wet = mix(wet, G.pal[7].rgb, smoothstep(0.72, 0.95, temp) * smoothstep(0.55, 0.8, moist));
+    alb = mix(dry, wet, smoothstep(0.35, 0.62, moist));
+    alb = mix(alb, G.pal[8].rgb, smoothstep(0.45, 0.25, temp));
+    let rockM = clamp(smoothstep(0.4, 1.3, slope) + smoothstep(0.3, 0.6, hs), 0.0, 1.0);
+    alb = mix(alb, G.pal[9].rgb, rockM);
+    alb = mix(alb, G.pal[2].rgb, smoothstep(0.012, 0.003, hs) * smoothstep(0.1, 0.3, temp));
+    alb = mix(alb, vec3f(0.07, 0.065, 0.06), cn.basalt);
+    // Schnee: Temperatur + Hangneigung; an Vulkanen in Rinnen zerteilt
+    let snowT = smoothstep(0.16, 0.02, temp + 0.08 * det - 0.18 * cn.gully * step(0.01, cn.h));
+    alb = mix(alb, G.pal[10].rgb, snowT * (1.0 - 0.5 * smoothstep(0.8, 1.6, slope)));
+    alb *= 0.88 + 0.24 * (hm.a + 0.1 * dd);
+    rough = mix(mix(0.85, 0.7, rockM), 0.45, snowT);
+    // Relief: Tangentialteil der Normale skalieren, Vulkane und Pixel-Detail dazu
+    let nt = nb - n0 * dot(nb, n0);
+    n = normalize(n0 * max(dot(nb, n0), 0.2) + nt * G.atm.z - cn.g * G.atm.z * 0.6 + nd * 0.02 * G.atm.z);
+  }
+  let v = -rd;
+  let cz = dot(n0, sun);
+  let Ts = sunTrans(0.0, cz);
+  let shadow = shadowAt(toW(n0));
+  let term = smoothstep(-0.03, 0.08, cz);
+  let lit = Ts * G.sunW.w * shadow * term;
+  var c = alb * max(dot(n, sun), 0.0) / PI * lit;
+  c += lit * ggx(n, v, sun, rough, f0) * max(dot(n, sun), 0.0);
+  c += alb * vec3f(0.3, 0.45, 0.8) * 0.03 * G.sunW.w * G.look.w * smoothstep(-0.1, 0.4, cz) * mix(1.0, shadow, 0.6);
+  c += LAVA * cn.glow * G.atm.w * 6.0 + emit;
+  return c;
 }
 
 @fragment
@@ -839,210 +843,192 @@ fn fs(@builtin(position) fc: vec4f) -> @location(0) vec4f {
   let rdW = normalize(G.fwd.xyz + uv.x * G.right.w * tH * G.right.xyz + uv.y * tH * G.up.xyz);
   let ro = toPl(G.cam.xyz); let rd = toPl(rdW);
   let sun = G.sunP.xyz;
-  let R = G.geo.x; let Htop = G.geo.y; let ex = G.geo.z;
-  let rTop = 1.0 + Htop * ex / R;
-  let dtV = (rTop - 1.0) * 1.5 / G.ash.z;   // senkrechte Schrittweite
-  let rnd = rnd3(vec3f(fc.xy, G.res.z)).x;
-
-  // Hintergrund: Weltraum-Richtung (dreht nur mit der Kamera, nicht mit dem Planeten)
-  var bg = textureSampleLevel(nebT, smp, rdW, 0.0).rgb * G.misc.x + stars(rdW) * G.misc.y;
+  let R = G.geo.x; let ex = G.geo.z;
+  let rTop = 1.0 + G.geo.y * ex / R;
+  var bg = textureSampleLevel(nebT, smp, rdW, 0.0).rgb * G.part.w + stars(rdW) * G.res.z;
   let sd = dot(rdW, G.sunW.xyz);
   bg += vec3f(1.0, 0.97, 0.9) * (smoothstep(0.99996, 0.99998, sd) * 400.0 + pow(max(sd, 0.0), 2000.0) * 2.0);
-
   let hitA = sphere(ro, rd, rTop);
-  if (hitA.y <= 0.0) { return vec4f(tonemap(bg, fc.xy), 1.0); }
+  if (hitA.y <= 0.0) { return vec4f(bg, 1.0); }
   let hitG = sphere(ro, rd, 1.0);
   let ground = hitG.x > 0.0;
   let t0 = max(hitA.x, 0.0);
   let t1 = select(hitA.y, hitG.x, ground);
-
-  // Kandidaten-Säulen: Strahl gegen Hüllkugel jeder aktiven Säule
-  var cI: array<u32, 4>; var cA: array<f32, 4>; var cB: array<f32, 4>; var cF: array<f32, 4>; var nc = 0u;
-  let nv = u32(G.geo.w);
-  for (var i = 0u; i < nv; i++) {
-    let v = V[i];
-    if (v.e.w <= 0.001 || nc >= 4u) { continue; }
-    let Hh = v.e.y; let hr = Hh * ex / R;
-    let st = SH[i * 4u + 3u].xyz / R;
-    let bt = (v.f.x + 1.2 * v.f.y * Hh) * 3.4 / R;
-    let ctr = v.p.xyz * (1.0 + hr * 0.5) + st * 0.5;
-    let rad = length(vec2f(hr * 0.6, length(st) * 0.5)) + bt;
-    let h = sphere(ro - ctr, rd, rad);
-    if (h.y > t0 && h.x < t1) {
-      cI[nc] = i; cA[nc] = max(h.x, t0); cB[nc] = min(h.y, t1);
-      cF[nc] = max(min((v.f.x + 0.6 * v.f.y * Hh) / R * 0.35, dtV * 0.25), 1e-5);
-      nc++;
-    }
-  }
-
-  // Raymarch durch Luft und Asche (energieerhaltende Integration pro Schritt)
+  // Einfachstreuung Rayleigh + Mie, 16 Schritte (billig, keine Asche mehr im Strahl)
   let mu = dot(rd, sun);
   let phR = 3.0 / (16.0 * PI) * (1.0 + mu * mu);
   let gM = 0.76;
   let phM = 3.0 / (8.0 * PI) * ((1.0 - gM * gM) * (1.0 + mu * mu)) / ((2.0 + gM * gM) * pow(1.0 + gM * gM - 2.0 * gM * mu, 1.5));
-  let phA = mix(hg(mu, 0.65), hg(mu, -0.2), 0.3);
-  let sunI = G.sunW.w;
-  let kap = G.ash.x;
+  let k = G.look.w;
   let mPerU = R * 1000.0 / ex;
-  let steps = G.ash.z;
-  let dtC = (t1 - t0) / steps;
-  let sMax = 0.6 / (dtV * 0.25 * mPerU);   // höchstens τ ≈ 0,6 pro Feinschritt
+  let dt = (t1 - t0) / 16.0;
   var T = vec3f(1.0); var L = vec3f(0.0);
-  var tt = t0 + dtC * 0.3 * rnd;
-  var inAsh = false;
-  var dbgIt = 0; var dbgOd = -1.0;
-  for (var it = 0; it < 480; it++) {
-    if (tt >= t1) { break; }
-    dbgIt = it;
-    var dt = dtC;
-    var inCol = false;
-    for (var c = 0u; c < nc; c++) {
-      if (tt >= cA[c] && tt < cB[c]) { dt = min(dt, cF[c]); inCol = true; }
-      else if (tt < cA[c]) { dt = min(dt, cA[c] - tt + 1e-6); }
-    }
-    // Höhenauflösung halten: ein Schritt durchquert höchstens ~1,5 Schalen-Schichten senkrecht,
-    // sonst springen schräge Strahlen über dünne Ascheschichten hinweg
-    let pu = normalize(ro + rd * tt);
-    dt = min(dt, dtV / max(abs(dot(rd, pu)), 0.12));
-    // In der Asche feiner rechnen
-    if (!inCol && inAsh) { dt = min(dt, dtV * 0.25); }
-    dt = min(dt, t1 - tt);
-    let tm = tt + dt * rnd;
-    let p = ro + rd * tm;
-    let r = length(p); let n = p / r;
+  for (var i = 0; i < 16; i++) {
+    let p = ro + rd * (t0 + (f32(i) + 0.5) * dt);
+    let r = length(p);
     let altkm = max((r - 1.0) * R / ex, 0.0);
-    let ds = dt * mPerU;
-    let rhoR = exp(-altkm / G.atm.x); let rhoM = exp(-altkm / G.atm.y);
-
-    // Asche: Gitter (mit fließender Feinstruktur) + analytische Säulen
-    var ash = textureSampleLevel(ashT, ashS, gridUVW(n, altkm), 0.0).xy;
-    inAsh = kap * (ash.x + 2.0 * ash.y) * dtV * mPerU > 0.02;
-    if (ash.x + ash.y > 1e-7 && G.ash.y > 0.0) {
-      // Feinstruktur verschiebt die Wolke senkrecht (Quellkuppen, Wellen) und dünnt sie aus (Fetzen)
-      let nd = ashDetail(n, altkm) - 0.5;
-      ash = textureSampleLevel(ashT, ashS, gridUVW(n, altkm - G.ash.y * 5.0 * nd), 0.0).xy;
-      ash *= max(0.0, 1.0 + G.ash.y * nd * 1.6);
-    }
-    var glow = 0.0;
-    for (var c = 0u; c < nc; c++) {
-      if (tm >= cA[c] && tm <= cB[c]) { let cc = column(cI[c], p, r); ash.x += cc.x; glow += cc.y; }
-    }
-    let sR = BR * rhoR; let sM = BM * rhoM;
-    // feine Asche: mehr Fläche pro Masse. Weiche Sättigung σ → σ_max·(1 − e^(−σ/σ_max)): eine Aschewolke ist
-    // nach wenigen Metern undurchsichtig; die Obergrenze macht ihre Oberfläche mit km-Schritten auflösbar.
-    let aC0 = kap * ash.x; let aF0 = kap * ash.y * 2.0;
-    let sA0 = aC0 + aF0;
-    let sA = sMax * (1.0 - exp(-sA0 / sMax));
-    let aF = aF0 * sA / max(sA0, 1e-20);
-    let ext = sR + vec3f(sM * 1.11 + sA);
-    let cz = dot(n, sun);
-    var Ts = sunTrans(altkm, cz);
-    var Sc = sR * phR + vec3f(sM * phM);
-    if (sA > 1e-9) {
-      // Ascheschatten: kurzer Marsch zur Sonne durch Gitter und Säulen
-      var od = 0.0; var st = dtV * 0.25;
-      var q = p;
-      for (var k = 0; k < 6; k++) {
-        q += sun * st;
-        let rq = length(q);
-        if (rq > rTop) { break; }
-        var a2 = ashAt(q);
-        if (k < 2 && a2.x + a2.y > 1e-7 && G.ash.y > 0.0) {
-          let zq = (rq - 1.0) * R / ex;
-          let nd = ashDetail(q / rq, zq) - 0.5;
-          a2 = textureSampleLevel(ashT, ashS, gridUVW(q / rq, zq - G.ash.y * 5.0 * nd), 0.0).xy * max(0.0, 1.0 + G.ash.y * nd * 1.6);
-        }
-        for (var c = 0u; c < nc; c++) { a2.x += column(cI[c], q, rq).x; }
-        od += sMax * (1.0 - exp(-kap * (a2.x + 2.0 * a2.y) / sMax)) * st * mPerU;
-        st *= 2.0;
-      }
-      if (dbgOd < 0.0) { dbgOd = od; }
-      let alb = mix(vec3f(0.34, 0.31, 0.28), vec3f(0.8, 0.8, 0.82), aF / sA);
-      // Mehrfachstreuung (Wrenninge 2013): Σ aⁱ·σ·p(cⁱμ)·e^(−bⁱτ)
-      var ms = 0.0; var aa = 1.0; var bb = 1.0; var cc2 = 1.0;
-      for (var o = 0; o < 3; o++) { ms += aa * mix(hg(mu * cc2, 0.65 * cc2), hg(mu * cc2, -0.2 * cc2), 0.3) * exp(-bb * od); aa *= 0.5; bb *= 0.4; cc2 *= 0.5; }
-      let powder = 1.0 - 0.6 * exp(-2.0 * sA * 400.0);
-      Sc += alb * sA * ms * powder;
-      // Himmelslicht von oben
-      L += T * alb * (1.0 - exp(-sA * ds)) * vec3f(0.35, 0.5, 0.8) * 0.05 * sunI * smoothstep(-0.2, 0.3, cz) * Ts;
-    }
-    let Tstep = exp(-ext * ds);
-    // Glut von unten: die dichte Säulenbasis streut das Licht des Lavasees
-    L += T * (1.0 - exp(-sA * ds)) * LAVA * glow * G.atm.w * 2.0;
-    L += T * Ts * sunI * Sc * (1.0 - Tstep) / max(ext, vec3f(1e-12));
+    let sR = BR * k * exp(-altkm / G.atm.x); let sM = BM * k * exp(-altkm / G.atm.y);
+    let ext = sR + vec3f(sM * 1.11);
+    let Ts = sunTrans(altkm, dot(p / r, sun));
+    let Tstep = exp(-ext * dt * mPerU);
+    L += T * Ts * G.sunW.w * (sR * phR + vec3f(sM * phM)) * (1.0 - Tstep) / max(ext, vec3f(1e-12));
     T *= Tstep;
-    if (max(T.x, max(T.y, T.z)) < 0.003) { break; }
-    tt += dt;
   }
-
-  if (G.misc.z > 0.5) {   // Prüfansichten: 1 Durchlässigkeit, 2 Schritte, 3 Schattentiefe am ersten Aschetreffer
-    if (G.misc.z < 1.5) { return vec4f(T, 1.0); }
-    if (G.misc.z < 2.5) { return vec4f(vec3f(f32(dbgIt) / 200.0), 1.0); }
-    return vec4f(vec3f(exp(-dbgOd)), 1.0);
-  }
-  var col: vec3f;
-  if (ground) {
-    col = shadeGround(ro + rd * hitG.x, rd, hitG.x) * T + L;
-  } else {
-    col = bg * T + L;
-  }
-  return vec4f(tonemap(col, fc.xy), 1.0);
+  var col = bg;
+  if (ground) { col = shadeGround(ro + rd * hitG.x, rd, hitG.x); }
+  col = col * T + L;
+  return vec4f(col, 1.0);
 }
+`;
 
-fn shadeGround(pg: vec3f, rd: vec3f, t: f32) -> vec3f {
-  let n0 = normalize(pg);
-  let sun = G.sunP.xyz;
+// Partikel zeichnen: weiche Quellwolken mit Pseudo-Kugelnormale, gewichtete OIT
+const SMOKE = NOISE + VOLC + RU_DECL + /* wgsl */`
+@group(0) @binding(1) var<storage, read> P: array<vec4f>;
+@group(0) @binding(2) var<storage, read> M: array<vec4f>;
+@group(0) @binding(3) var<storage, read> V: array<Volc>;
+@group(0) @binding(4) var shD: texture_depth_2d;
+struct VO {
+  @builtin(position) pos: vec4f,
+  @location(0) uv: vec2f,
+  @location(1) col: vec3f,
+  @location(2) a: f32,
+  @location(3) glow: vec3f,
+  @location(4) z: f32,
+}
+const CORNERS = array<vec2f, 6>(vec2f(-1, -1), vec2f(1, -1), vec2f(-1, 1), vec2f(-1, 1), vec2f(1, -1), vec2f(1, 1));
+struct Puff { w: vec3f, rad: f32, a: f32, pl: vec3f, z: f32, glowK: f32, vid: u32 }
+fn puff(ii: u32) -> Puff {
+  var o: Puff; o.a = 0.0;
+  let p = P[ii]; let m = M[ii];
+  if (p.w < 0.0 || m.z < 0.1) { return o; }
+  let v = V[u32(m.z)];
   let R = G.geo.x;
-  // Pixel-Fußabdruck auf der Kugel für anisotrope Filterung ohne implizite Ableitungen
-  let px = G.sunP.w;
-  let dRx = toPl(G.right.xyz) * px; let dRy = toPl(G.up.xyz) * px;
-  let dn = min(dot(n0, rd), -0.05);
-  let dPx = t * (dRx - rd * dot(n0, dRx) / dn);
-  let dPy = t * (dRy - rd * dot(n0, dRy) / dn);
-  let a = textureSampleGrad(albT, smp, n0, dPx, dPy);
-  var alb = a.rgb * a.rgb;
-  var nb = textureSampleGrad(nrmT, smp, n0, dPx, dPy).xyz;
-  // Relief: Tangentialteil der Normale skalieren
-  let nt = nb - n0 * dot(nb, n0);
-  var n = normalize(n0 * max(dot(nb, n0), 0.2) + nt * G.atm.z);
-  // Vulkane darüberlegen
-  let cn = cones(n0);
-  let hkm = (a.a - 0.5) / 1.5 * 6.0 + cn.h;
-  var water = a.a < 0.5 && hkm < 0.0;
-  if (a.a < 0.5 && hkm >= 0.0) {    // Vulkaninsel aus dem Meer
-    alb = mix(vec3f(0.55, 0.5, 0.38), vec3f(0.12, 0.11, 0.1), smoothstep(0.0, 0.3, hkm));
-  }
-  alb = mix(alb, vec3f(0.07, 0.065, 0.06), cn.basalt * select(1.0, 0.0, water));
-  n = normalize(n - cn.g * G.atm.z * 0.8);
-  if (water) { n = n0; }
-  let cz = dot(n0, sun);
-  let Ts = sunTrans(0.0, cz);
-  // Ascheschatten auf dem Boden
-  var od = 0.0; var st = 0.03 * G.geo.y * G.geo.z / R; var q = n0 * 1.0005;
-  for (var k = 0; k < 6; k++) { q += sun * st; od += G.ash.x * dot(ashAt(q), vec2f(1.0, 2.0)) * st * R * 1000.0 / G.geo.z; st *= 1.6; }
-  let shadow = exp(-od);
-  let term = smoothstep(-0.03, 0.08, cz);
-  let lit = Ts * G.sunW.w * shadow * term;
-  var c = alb * max(dot(n, sun), 0.0) / PI * lit;
-  c += alb * vec3f(0.3, 0.45, 0.8) * 0.03 * G.sunW.w * smoothstep(-0.1, 0.4, cz) * mix(1.0, shadow, 0.6);
-  if (water) {
-    // GGX-Glanz mit Schlick-Fresnel
-    let v = -rd; let hv = normalize(sun + v);
-    let nh = max(dot(n, hv), 0.0); let r2 = 0.09 * 0.09;
-    let D = r2 / (PI * pow(nh * nh * (r2 - 1.0) + 1.0, 2.0));
-    let F = 0.02 + 0.98 * pow(1.0 - max(dot(hv, v), 0.0), 5.0);
-    c += lit * D * F * 0.25 * max(dot(n, sun), 0.0);
-    c += vec3f(0.2, 0.35, 0.6) * 0.02 * G.sunW.w * (0.02 + 0.98 * pow(1.0 - max(dot(n, v), 0.0), 5.0)) * term;
-  }
-  c += LAVA * cn.glow * G.atm.w * 6.0;
-  return c;
+  let z = p.w;
+  o.pl = p.xyz * (1.0 + z * G.geo.z / R);
+  o.w = toW(o.pl);
+  o.z = z;
+  o.vid = u32(m.z);
+  // Größe: im Aufstieg ~ halber Säulenradius, danach turbulente Diffusion r² = r₀² + 4K·t
+  let b = v.f.x + 0.12 * min(z, m.w);
+  let r0 = (0.3 + 0.5 * rnd3(vec3f(f32(ii), 9.0, 2.0)).x) * b + 0.2;   // Ballen verschieden groß: knubbelig statt Wurst
+  let rk = sqrt(r0 * r0 + 4.0 * G.part.y * m.x);
+  o.rad = rk / R;
+  // Masse bleibt, Fläche wächst: Deckkraft ∝ (r₀/r)², ein- und ausblenden
+  let fade = smoothstep(0.0, 60.0, m.x) * (1.0 - smoothstep(0.7, 1.0, m.x / m.y));
+  o.a = clamp(G.part.x * 0.9 * pow(r0 / rk, 1.0), 0.0, 0.95) * fade;
+  o.glowK = exp(-z / 1.5) * v.e.w * smoothstep(900.0, 0.0, m.x);
+  return o;
 }
+@vertex
+fn vs(@builtin(vertex_index) vi: u32, @builtin(instance_index) ii: u32) -> VO {
+  var o: VO;
+  o.pos = vec4f(2.0, 2.0, 2.0, 1.0);
+  let pf = puff(ii);
+  if (pf.a < 0.003) { return o; }
+  let eye = G.cam.xyz;
+  let d = pf.w - eye;
+  let zc = dot(d, G.fwd.xyz);
+  if (zc < 1e-4) { return o; }
+  // vom Planeten verdeckt?
+  let dl = length(d);
+  let hp = sphere(eye, d / dl, 1.0);
+  if (hp.x > 0.0 && hp.x < dl - pf.rad) { return o; }
+  var rad = pf.rad; var a = pf.a;
+  let pxr = G.sunP.w * zc * 0.8;
+  if (rad < pxr) { a *= (rad / pxr) * (rad / pxr); rad = pxr; }
+  if (a < 0.002) { return o; }
+  let c = CORNERS[vi];
+  let wp = pf.w + (G.right.xyz * c.x + G.up.xyz * c.y) * rad;
+  let q = wp - eye;
+  let x = dot(q, G.right.xyz); let y = dot(q, G.up.xyz); let zz = dot(q, G.fwd.xyz);
+  o.pos = vec4f(x / (G.cam.w * G.right.w), y / G.cam.w, zz - 1e-4, zz);
+  o.uv = c;
+  // Licht am Teilchen: Sonne durch die Luft, Planetenschatten, Himmelslicht
+  let n = normalize(pf.pl);
+  let cz = dot(n, G.sunP.xyz);
+  // Selbstschatten: optische Tiefe der Rauchsäule in Sonnenrichtung an dieser Stelle; etwa die Hälfte
+  // liegt zwischen Ballen und Sonne. Macht Unterseiten und sonnenabgewandte Flanken dunkel.
+  // Tiefenkarte in Sonnenrichtung: wie weit liegt dieser Ballen unter der obersten beschienenen Rauchschicht?
+  let suv = vec2f(dot(pf.w, G.shx.xyz), dot(pf.w, G.shy.xyz)) / 1.3 * vec2f(0.5, -0.5) + 0.5;
+  let top = textureLoad(shD, vec2i(clamp(suv, vec2f(0.0), vec2f(0.9999)) * 2048.0), 0);
+  let depthKm = ((0.5 - dot(pf.w, G.sunW.xyz) / 2.6) - top) * 2.6 * G.geo.x;
+  // Mehrfachstreuung hellt den Kern auf (Untergrenze 0,25); flache Sonne: zwei Ballenradien Spielraum
+  let selfSh = mix(0.25, 1.0, exp(-max(depthKm - 2.0 * pf.rad * G.geo.x, 0.0) * G.part.x / 8.0));
+  let Ts = sunTrans(pf.z, cz) * smoothstep(-0.06, 0.02, cz) * selfSh;
+  let hv = rnd3(vec3f(f32(ii), 3.0, 1.0));
+  // Asche: graubraun wie auf Satellitenbildern (Klyuchevskoy, Cleveland), einzelne hellere Dampfballen
+  let alb = mix(vec3f(0.3, 0.25, 0.19), vec3f(0.5, 0.45, 0.38), hv.x);
+  o.col = alb * (Ts * G.sunW.w / PI * 0.75) + alb * vec3f(0.3, 0.42, 0.7) * 0.04 * G.sunW.w * smoothstep(-0.15, 0.3, cz);
+  o.glow = LAVA * pf.glowK * G.atm.w * 3.0;
+  o.a = a;
+  o.z = zz;
+  return o;
+}
+struct FO { @location(0) accum: vec4f, @location(1) reveal: vec4f }
+@fragment
+fn fs(i: VO) -> FO {
+  let r2 = dot(i.uv, i.uv);
+  if (r2 > 1.0) { discard; }
+  // Pseudo-Kugelnormale: die Quellwolke ist hell auf der Sonnenseite, dunkel im eigenen Schatten
+  let nz = sqrt(1.0 - r2);
+  let nw = normalize(G.right.xyz * i.uv.x + G.up.xyz * i.uv.y - G.fwd.xyz * nz);
+  let l = dot(nw, G.sunW.xyz);
+  let diff = max(l * 0.65 + 0.35, 0.0) * mix(0.55, 1.0, nz);
+  let c = i.col * diff + i.glow * (0.4 + 0.6 * nz);
+  let a = i.a * pow(1.0 - r2, 1.2);
+  // Gewicht nach Tiefe (nahe zählt mehr); klein genug, dass der 16-bit-Puffer bei Hunderten Ballen nicht überläuft
+  let w = a * clamp(1.0 / (0.05 + pow(i.z / G.fwd.w, 3.0)), 0.05, 12.0);
+  var o: FO;
+  o.accum = vec4f(c * a, a) * w;
+  o.reveal = vec4f(a);
+  return o;
+}
+// Schattenkarte: optische Tiefe der Quellwolken in Sonnenrichtung (orthografisch)
+struct SO { @builtin(position) pos: vec4f, @location(0) uv: vec2f, @location(1) a: f32 }
+@vertex
+fn vsShadow(@builtin(vertex_index) vi: u32, @builtin(instance_index) ii: u32) -> SO {
+  var o: SO;
+  o.pos = vec4f(2.0, 2.0, 2.0, 1.0);
+  let pf = puff(ii);
+  if (pf.a < 0.003 || dot(normalize(pf.w), G.sunW.xyz) < -0.05) { return o; }
+  let c = CORNERS[vi];
+  let rad = max(pf.rad, 1.3 * 1.5 / 2048.0);
+  let a = pf.a * min(1.0, pow(pf.rad / rad, 2.0));
+  let uv = (vec2f(dot(pf.w, G.shx.xyz), dot(pf.w, G.shy.xyz)) + c * rad) / 1.3;
+  o.pos = vec4f(uv, 0.5 - dot(pf.w, G.sunW.xyz) / 2.6 - rad * 0.3, 1.0);
+  o.uv = c; o.a = a;
+  return o;
+}
+@fragment
+fn fsDepth(i: SO) {
+  if (dot(i.uv, i.uv) > 0.6 || i.a < 0.15) { discard; }
+}
+@fragment
+fn fsShadow(i: SO) -> @location(0) vec4f {
+  let r2 = dot(i.uv, i.uv);
+  if (r2 > 1.0) { discard; }
+  return vec4f(-log(1.0 - min(i.a * pow(1.0 - r2, 1.2), 0.95)), 0.0, 0.0, 0.0);
+}
+`;
 
-fn tonemap(c0: vec3f, fc: vec2f) -> vec3f {
-  let x = c0 * G.up.w * 0.55;
-  let m = clamp((x * (2.51 * x + 0.03)) / (x * (2.43 * x + 0.59) + 0.14), vec3f(0.0), vec3f(1.0));
-  let dith = (fract(sin(dot(fc, vec2f(12.9898, 78.233))) * 43758.5453) - 0.5) / 255.0;
-  return pow(m, vec3f(1.0 / 2.2)) + dith;
+// Zusammensetzen: Planet (HDR) hinter den Partikeln (OIT), Tonemapping
+const COMP = RU_DECL + /* wgsl */`
+@group(0) @binding(1) var hdrT: texture_2d<f32>;
+@group(0) @binding(2) var accT: texture_2d<f32>;
+@group(0) @binding(3) var revT: texture_2d<f32>;
+@vertex fn vs(@builtin(vertex_index) i: u32) -> @builtin(position) vec4f {
+  let p = vec2f(f32((i << 1u) & 2u), f32(i & 2u));
+  return vec4f(p * 2.0 - 1.0, 0.0, 1.0);
+}
+@fragment
+fn fs(@builtin(position) fc: vec4f) -> @location(0) vec4f {
+  let ip = vec2i(fc.xy);
+  let bg = textureLoad(hdrT, ip, 0).rgb;
+  let acc = textureLoad(accT, ip, 0);
+  let rev = textureLoad(revT, ip, 0).r;
+  let smoke = acc.rgb / max(acc.a, 1e-6);
+  let c = bg * rev + smoke * (1.0 - rev);
+  return vec4f(tonemap(c, fc.xy), 1.0);
 }
 `;
 
@@ -1067,6 +1053,7 @@ function palette(r) {
   });
 }
 
+
 // ---------------------------------------------------------------------------
 // Start
 // ---------------------------------------------------------------------------
@@ -1082,8 +1069,10 @@ async function start() {
   if (!navigator.gpu) { fail(t('<b>WebGPU fehlt in diesem Browser.</b> Nimm Chrome oder Edge ab 113, Safari ab 26 oder Firefox ab 141.', '<b>This browser has no WebGPU.</b> Use Chrome or Edge 113+, Safari 26+ or Firefox 141+.')); return; }
   const adapter = await navigator.gpu.requestAdapter({ powerPreference: 'high-performance' });
   if (!adapter) { fail(t('<b>Keine WebGPU-Grafikkarte gefunden.</b>', '<b>No WebGPU graphics adapter found.</b>')); return; }
-  const device = await adapter.requestDevice({ requiredLimits: { maxStorageBuffersPerShaderStage: Math.min(8, adapter.limits.maxStorageBuffersPerShaderStage) } });
+  const lim = adapter.limits;
+  const device = await adapter.requestDevice({ requiredLimits: { maxBufferSize: lim.maxBufferSize, maxStorageBufferBindingSize: lim.maxStorageBufferBindingSize } });
   device.lost.then((i) => fail(`<b>${t('Grafikkarte verloren', 'GPU device lost')}:</b> ${i.message}`));
+  const maxCount = Math.floor(Math.min(lim.maxStorageBufferBindingSize, lim.maxBufferSize) / 16);
   const format = navigator.gpu.getPreferredCanvasFormat();
   const ctx = OFFSCREEN ? null : canvas.getContext('webgpu');
   if (ctx) ctx.configure({ device, format, alphaMode: 'opaque' });
@@ -1093,28 +1082,38 @@ async function start() {
     m.getCompilationInfo().then((i) => { const e = i.messages.filter((x) => x.type === 'error'); if (e.length) fail(`<b>Shader ${label}:</b> ` + e.map((x) => `${x.lineNum}: ${x.message}`).join('<br>')); });
     return m;
   };
-  const bakeMod = mk(BAKE, 'bake'), nebMod = mk(NEB, 'nebula'), prepMod = mk(PREP, 'prep'), simMod = mk(SIM, 'sim'), renMod = mk(RENDER, 'render');
+  const bakeMod = mk(BAKE, 'bake'), nebMod = mk(NEB, 'nebula'), partMod = mk(PART, 'particles'), planetMod = mk(PLANET, 'planet'), smokeMod = mk(SMOKE, 'smoke'), compMod = mk(COMP, 'composite');
   const mipMods = { rgba8unorm: mk(MIP('rgba8unorm'), 'mip8'), rgba8snorm: mk(MIP('rgba8snorm'), 'mip8s') };
   const bakePipe = device.createComputePipeline({ layout: 'auto', compute: { module: bakeMod, entryPoint: 'bake' } });
   const nebPipe = device.createComputePipeline({ layout: 'auto', compute: { module: nebMod, entryPoint: 'neb' } });
-  const prepPipe = device.createComputePipeline({ layout: 'auto', compute: { module: prepMod, entryPoint: 'prep' } });
-  const simPipe = device.createComputePipeline({ layout: 'auto', compute: { module: simMod, entryPoint: 'advect' } });
+  const partPipe = device.createComputePipeline({ layout: 'auto', compute: { module: partMod, entryPoint: 'update' } });
   const mipPipes = Object.fromEntries(Object.entries(mipMods).map(([f, m]) => [f, device.createComputePipeline({ layout: 'auto', compute: { module: m, entryPoint: 'mip' } })]));
-  const renPipe = device.createRenderPipeline({ layout: 'auto', vertex: { module: renMod, entryPoint: 'vs' }, fragment: { module: renMod, entryPoint: 'fs', targets: [{ format }] } });
+  const HDR = 'rgba16float';
+  const planetPipe = device.createRenderPipeline({ layout: 'auto', vertex: { module: planetMod, entryPoint: 'vs' }, fragment: { module: planetMod, entryPoint: 'fs', targets: [{ format: HDR }] } });
+  const add = { color: { srcFactor: 'one', dstFactor: 'one' }, alpha: { srcFactor: 'one', dstFactor: 'one' } };
+  const mulInv = { color: { srcFactor: 'zero', dstFactor: 'one-minus-src' }, alpha: { srcFactor: 'zero', dstFactor: 'one-minus-src' } };
+  const smokePipe = device.createRenderPipeline({ layout: 'auto', vertex: { module: smokeMod, entryPoint: 'vs' },
+    fragment: { module: smokeMod, entryPoint: 'fs', targets: [{ format: HDR, blend: add }, { format: 'r8unorm', blend: mulInv }] } });
+  const shadowPipe = device.createRenderPipeline({ layout: 'auto', vertex: { module: smokeMod, entryPoint: 'vsShadow' },
+    fragment: { module: smokeMod, entryPoint: 'fsShadow', targets: [{ format: 'r16float', blend: add }] } });
+  const depthPipe = device.createRenderPipeline({ layout: 'auto', vertex: { module: smokeMod, entryPoint: 'vsShadow' },
+    fragment: { module: smokeMod, entryPoint: 'fsDepth', targets: [] }, depthStencil: { format: 'depth32float', depthWriteEnabled: true, depthCompare: 'less' } });
+  const compPipe = device.createRenderPipeline({ layout: 'auto', vertex: { module: compMod, entryPoint: 'vs' }, fragment: { module: compMod, entryPoint: 'fs', targets: [{ format }] } });
 
   const U = (size) => device.createBuffer({ size, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
-  const bakeU = U(16 * 16), nebU = U(6 * 16), simU = U(7 * 16), renU = U(15 * 16);
+  const bakeU = U(4 * 16), nebU = U(6 * 16), partU = U(7 * 16), renU = U(26 * 16);
   const MAXV = 64;
   const volcBuf = device.createBuffer({ size: MAXV * 64, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST });
-  const shiftBuf = device.createBuffer({ size: MAXV * 64, usage: GPUBufferUsage.STORAGE });
+  const cwBuf = device.createBuffer({ size: MAXV * 4, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST });
   const smp = device.createSampler({ magFilter: 'linear', minFilter: 'linear', mipmapFilter: 'linear', maxAnisotropy: 16 });
-  const ashS = device.createSampler({ magFilter: 'linear', minFilter: 'linear', addressModeU: 'repeat', addressModeV: 'clamp-to-edge', addressModeW: 'clamp-to-edge' });
+  const shDepth = device.createTexture({ size: [2048, 2048], format: 'depth32float', usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING });
+  const shTex = device.createTexture({ size: [2048, 2048], format: 'r16float', usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING });
 
-  // --- Würfeltexturen
-  let alb = null, nrm = null, neb = null, bakeToken = 0, baked = false;
+  // --- Gelände
+  let hm = null, nrm = null, neb = null, bakeToken = 0, texN = 256;
+  let hdr = null, accT = null, revT = null, planetBG = null, compBG = null, size = [0, 0];
   const cubeTex = (N, fmt, mips) => device.createTexture({ size: [N, N, 6], format: fmt, mipLevelCount: mips, usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.STORAGE_BINDING });
-  function genMips(tex, fmt, N, levels) {
-    const enc = device.createCommandEncoder();
+  function genMips(enc, tex, fmt, N, levels) {
     for (let l = 1; l < levels; l++) {
       const n = Math.max(1, N >> l);
       const bg = device.createBindGroup({ layout: mipPipes[fmt].getBindGroupLayout(0), entries: [
@@ -1123,30 +1122,26 @@ async function start() {
       const pass = enc.beginComputePass(); pass.setPipeline(mipPipes[fmt]); pass.setBindGroup(0, bg);
       pass.dispatchWorkgroups(Math.ceil(n / 8), Math.ceil(n / 8), 6); pass.end();
     }
-    device.queue.submit([enc.finish()]);
   }
-  async function bake() {
+  async function bake(N) {
     const token = ++bakeToken;
-    const N = S.res;
     const levels = Math.log2(N) + 1;
-    const a2 = cubeTex(N, 'rgba8unorm', levels), n2 = cubeTex(N, 'rgba8snorm', levels);
+    const h2 = cubeTex(N, 'rgba8unorm', levels), n2 = cubeTex(N, 'rgba8snorm', levels);
     const r = mulberry(S.seed);
-    const pal = palette(r);
     const off = [r() * 200 - 100, r() * 200 - 100, r() * 200 - 100];
     const oct = Math.max(8, Math.min(16, Math.log2(N) + 2));
-    const data = new Float32Array(16 * 4);
-    data.set([0, 0, N, oct, ...off, S.sea, S.cont, S.warp, S.mount, S.erosion, 1.6, S.climate, S.moist, 0.05 * (N / 2048) ** 0.3], 0);
-    pal.forEach((c, i) => data.set([...c, 1], 16 + i * 4));
+    const data = new Float32Array(16);
+    data.set([0, 0, N, oct, ...off, 0, S.cont, S.warp, S.mount, S.erosion, 0, 0, 0, 0.05 * (N / 2048) ** 0.3]);
     const bg = device.createBindGroup({ layout: bakePipe.getBindGroupLayout(0), entries: [
       { binding: 0, resource: { buffer: bakeU } },
-      { binding: 1, resource: a2.createView({ dimension: '2d-array', baseMipLevel: 0, mipLevelCount: 1 }) },
+      { binding: 1, resource: h2.createView({ dimension: '2d-array', baseMipLevel: 0, mipLevelCount: 1 }) },
       { binding: 2, resource: n2.createView({ dimension: '2d-array', baseMipLevel: 0, mipLevelCount: 1 }) }] });
-    // In Streifen backen: jede Übergabe bleibt kurz (kein Watchdog-Abbruch), Fortschritt sichtbar
-    const band = Math.max(8, Math.min(N, Math.floor((1 << 20) / N / 8) * 8));
+    // In Streifen backen: kurze Übergaben (kein Watchdog), Bilder laufen dazwischen weiter
+    const band = Math.max(8, Math.min(N, Math.floor((1 << 19) / N / 8) * 8));
     let done = 0; const total = 6 * Math.ceil(N / band);
     for (let f = 0; f < 6; f++) {
       for (let y0 = 0; y0 < N; y0 += band) {
-        if (token !== bakeToken) { a2.destroy(); n2.destroy(); return; }
+        if (token !== bakeToken) { h2.destroy(); n2.destroy(); return false; }
         data[0] = f; data[1] = y0;
         device.queue.writeBuffer(bakeU, 0, data);
         const enc = device.createCommandEncoder();
@@ -1154,16 +1149,19 @@ async function start() {
         pass.dispatchWorkgroups(Math.ceil(N / 8), Math.ceil(Math.min(band, N - y0) / 8), 1); pass.end();
         device.queue.submit([enc.finish()]);
         done++;
-        if (done % 2 === 0 || done === total) { busyEl.textContent = `${t('Planet wird gebacken', 'Baking planet')} ${Math.round((done / total) * 100)} %`; await device.queue.onSubmittedWorkDone(); }
+        if (N > 512 && (done % 2 === 0 || done === total)) { busyEl.textContent = `${t('Gelände', 'Terrain')} ${Math.round((done / total) * 100)} %`; await device.queue.onSubmittedWorkDone(); }
       }
     }
-    genMips(a2, 'rgba8unorm', N, levels); genMips(n2, 'rgba8snorm', N, levels);
+    const enc = device.createCommandEncoder();
+    genMips(enc, h2, 'rgba8unorm', N, levels); genMips(enc, n2, 'rgba8snorm', N, levels);
+    device.queue.submit([enc.finish()]);
     await device.queue.onSubmittedWorkDone();
-    if (token !== bakeToken) { a2.destroy(); n2.destroy(); return; }
-    const oa = alb, on = nrm;
-    alb = a2; nrm = n2; baked = true; renderBG = null;
-    if (oa) oa.destroy(); if (on) on.destroy();
+    if (token !== bakeToken) { h2.destroy(); n2.destroy(); return false; }
+    const oh = hm, on = nrm;
+    hm = h2; nrm = n2; texN = N; planetBG = null;
+    if (oh) oh.destroy(); if (on) on.destroy();
     busyEl.textContent = '';
+    return true;
   }
   async function bakeNebula() {
     const N = 1024;
@@ -1179,98 +1177,85 @@ async function start() {
     const enc = device.createCommandEncoder();
     const pass = enc.beginComputePass(); pass.setPipeline(nebPipe); pass.setBindGroup(0, bg); pass.dispatchWorkgroups(N / 8, N / 8, 6); pass.end();
     device.queue.submit([enc.finish()]);
-    renderBG = null;
+  }
+  let pal = palette(mulberry(S.seed));
+
+  // --- Partikel
+  let pBuf = null, mBuf = null, count = 0, partBG = null, smokeBG = null, resetFlag = true;
+  function makeParticles() {
+    count = Math.min(S.count, maxCount);
+    if (pBuf) { pBuf.destroy(); mBuf.destroy(); }
+    pBuf = device.createBuffer({ size: count * 16, usage: GPUBufferUsage.STORAGE });
+    mBuf = device.createBuffer({ size: count * 16, usage: GPUBufferUsage.STORAGE });
+    partBG = device.createBindGroup({ layout: partPipe.getBindGroupLayout(0), entries: [
+      { binding: 0, resource: { buffer: partU } }, { binding: 1, resource: { buffer: pBuf } }, { binding: 2, resource: { buffer: mBuf } },
+      { binding: 3, resource: { buffer: volcBuf } }, { binding: 4, resource: { buffer: cwBuf } }] });
+    smokeBG = null; resetFlag = true;
   }
 
-  // --- Aschegitter (Ping-Pong)
-  let ash = [], gridDims = GRIDS[S.grid], simBG = [], ping = 0;
-  function makeGrid() {
-    for (const g of ash) g.destroy();
-    gridDims = GRIDS[S.grid];
-    ash = [0, 1].map(() => device.createTexture({ size: gridDims, dimension: '3d', format: 'rgba16float', usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.COPY_SRC }));
-    simBG = [0, 1].map((i) => device.createBindGroup({ layout: simPipe.getBindGroupLayout(0), entries: [
-      { binding: 0, resource: { buffer: simU } }, { binding: 1, resource: ash[i].createView() }, { binding: 2, resource: ashS },
-      { binding: 3, resource: ash[1 - i].createView() }, { binding: 4, resource: { buffer: volcBuf } }, { binding: 5, resource: { buffer: shiftBuf } }] }));
-    ping = 0; renderBG = null; clearFlag = 2;
-  }
-  const prepBG = device.createBindGroup({ layout: prepPipe.getBindGroupLayout(0), entries: [{ binding: 0, resource: { buffer: simU } }, { binding: 4, resource: { buffer: volcBuf } }, { binding: 5, resource: { buffer: shiftBuf } }] });
-  let renderBG = null;
-  const getRenderBG = () => renderBG ??= device.createBindGroup({ layout: renPipe.getBindGroupLayout(0), entries: [
-    { binding: 0, resource: { buffer: renU } }, { binding: 1, resource: alb.createView({ dimension: 'cube' }) }, { binding: 2, resource: nrm.createView({ dimension: 'cube' }) },
-    { binding: 3, resource: smp }, { binding: 4, resource: ash[ping].createView() }, { binding: 5, resource: ashS },
-    { binding: 6, resource: neb.createView({ dimension: 'cube' }) }, { binding: 7, resource: { buffer: volcBuf } }, { binding: 8, resource: { buffer: shiftBuf } }] });
-
-  // --- Simulation
-  let simT = 0, superT = 0, clearFlag = 2, spinA = 0;
-  const vdata = new Float32Array(MAXV * 16);
+  // --- Vulkane pro Bild
+  let simT = 0, superT = 0, spinA = 0, visT = 0, frameNo = 0;
+  const vdata = new Float32Array(MAXV * 16), cw = new Float32Array(MAXV);
+  let totalW = 0;
   function updateVolcanoes() {
-    const Hs = scaleHeight(), Nb = bruntN();
-    vdata.fill(0);
+    const Nb = bruntN();
+    vdata.fill(0); totalW = 0;
     volcs.slice(0, MAXV).forEach((v, i) => {
-      let act = 0, onset = 0, mer = v.mer;
+      let act = 0, onset = 0, mer;
       if (v.super) {
         mer = Math.pow(10, S.sMer + v.merJ);
         onset = superT;
         act = S.superOn ? Math.min(1, Math.max(0, (simT - superT) / 1800)) : 0;
       } else {
-        const x = (simT / v.period + v.phase) % 1;
+        const x = (((simT / v.period + v.phase) % 1) + 1) % 1;
         const duty = S.vAct;
         onset = simT - x * v.period;
-        act = duty <= 0 ? 0 : x < duty ? Math.min(1, x * v.period / 1800, (duty - x) * v.period / 3600) : 0;
+        act = duty <= 0 ? 0 : x < duty ? Math.min(1, (x * v.period) / 1800, ((duty - x) * v.period) / 3600) : 0;
         mer = Math.pow(10, S.vMer + v.merJ);
       }
       const merNow = mer * Math.max(act, 1e-3);
       const W = Math.min(250, Math.max(5, 30 * Math.pow(merNow / 1e8, 0.25)));
       const Hfull = plumeHeight(merNow);
-      const Hh = Math.max(0.3, Math.min(Hfull, (W * Math.max(simT - onset, 0)) / 1000 + 0.3));
-      const b0 = v.super ? v.rc * 0.5 : Math.max(0.3, v.rc * 0.6);
-      const q = 136 * Math.pow(merNow, 0.75) / Math.pow(Nb, 1.25);           // Costa et al. 2013, m³/s
-      const k = Math.cbrt((3 * 0.2 * Nb * q) / (2 * Math.PI));                  // Woods & Kienle 1994
-      const Rmax = Math.min(2500, Math.max(30, ((2 / 3) * Math.pow(k, 1.5) / 4) ** 2 / 1000));
-      const infl = Math.max(v.Rb, Rmax * 1.2 + Hh * 3 + 200);
-      vdata.set([...v.dir, v.Rb, v.Hc, v.rc, v.type, infl, act > 0 ? merNow : 0, Hh, W, act, b0, 0.1, k, Rmax], i * 16);
+      const Hh = Math.max(0.5, Math.min(Hfull, (W * Math.max(simT - onset, 0)) / 1000 + 0.5));
+      const b0 = v.super ? v.rc * 0.5 : Math.max(0.3, v.rc * 0.5);
+      const q = (136 * Math.pow(merNow, 0.75)) / Math.pow(Nb, 1.25);            // Costa et al. 2013, m³/s
+      const k = Math.cbrt((3 * 0.2 * Nb * q) / (2 * Math.PI));                    // Woods & Kienle 1994
+      const Rmax = Math.min(2500, Math.max(20, (((2 / 3) * Math.pow(k, 1.5)) / 4) ** 2 / 1000));
+      // Emissionsgewicht: sublinear im Massenstrom, damit kleine Vulkane sichtbar bleiben
+      const wgt = act > 0 ? Math.pow(merNow, 0.45) : 0;
+      totalW += wgt; cw[i] = totalW;
+      vdata.set([...v.dir, v.Rb, v.Hc, v.rc, v.type, wgt, act > 0 ? merNow : 0, Hh, W, act, b0, 0, k, Rmax], i * 16);
       v.now = { act, H: Hh, mer: merNow };
     });
     device.queue.writeBuffer(volcBuf, 0, vdata);
+    device.queue.writeBuffer(cwBuf, 0, cw);
   }
-  const sdata = new Float32Array(7 * 4);
-  function windParams(arr, o) {
-    arr.set([S.windU, S.circ, S.shear, S.strat, S.turb, S.preU, (S.preDir * Math.PI) / 180, 0.12 * S.atm, simT, S.atm, 0, 0], o);
+  const pdata = new Float32Array(7 * 4);
+  function stepParticles(dt) {
+    pdata.set([dt, simT, S.radius, Math.min(volcs.length, MAXV), count, (Math.random() * 1e9) | 0, S.life * 3600, 0, S.settle, totalW, resetFlag ? 1 : 0, 0,
+      S.windU, S.circ, S.shear, S.strat, S.turb, S.preU, (S.preDir * Math.PI) / 180, 0.12 * S.atm, simT, S.atm, 0, 0]);
+    // Zufall als Bitmuster weitergeben
+    new Uint32Array(pdata.buffer, 5 * 4, 1)[0] = (Math.random() * 4294967295) >>> 0;
+    device.queue.writeBuffer(partU, 0, pdata);
+    const enc = device.createCommandEncoder();
+    const pass = enc.beginComputePass(); pass.setPipeline(partPipe); pass.setBindGroup(0, partBG);
+    pass.dispatchWorkgroups(Math.ceil(count / 256)); pass.end();
+    device.queue.submit([enc.finish()]);
+    resetFlag = false;
   }
-  function simStep(enc, dt) {
-    sdata.set([...gridDims, dt, S.radius, S.atm, Math.min(volcs.length, MAXV), simT, S.fallC, S.fallC / 40, 2 * 86400, S.lifeF * 86400, 1, clearFlag > 0 ? 1 : 0, 0, 0], 0);
-    windParams(sdata, 16);
-    device.queue.writeBuffer(simU, 0, sdata);
-    const pass = enc.beginComputePass();
-    pass.setPipeline(prepPipe); pass.setBindGroup(0, prepBG); pass.dispatchWorkgroups(1);
-    pass.setPipeline(simPipe); pass.setBindGroup(0, simBG[ping]);
-    pass.dispatchWorkgroups(Math.ceil(gridDims[0] / 8), Math.ceil(gridDims[1] / 8), Math.ceil(gridDims[2] / 4));
-    pass.end();
-    ping = 1 - ping; renderBG = null;
-    if (clearFlag > 0) clearFlag--;
-  }
-  // Mehrere Schritte: jeder in eigener Übergabe, weil die Uniforms pro Schritt wechseln
-  async function advance(seconds, maxDt = 600, report) {
-    const n = Math.ceil(seconds / maxDt);
+  async function advance(seconds, report) {
+    const n = Math.ceil(seconds / 120);
     for (let i = 0; i < n; i++) {
-      const dt = seconds / n;
-      updateVolcanoes();
-      const enc = device.createCommandEncoder(); simStep(enc, dt); device.queue.submit([enc.finish()]);
-      simT += dt;
-      if (report && i % 6 === 5) { report(i / n); await device.queue.onSubmittedWorkDone(); }
+      updateVolcanoes(); stepParticles(seconds / n); simT += seconds / n;
+      if (i % 10 === 9) { if (report) report(i / n); await device.queue.onSubmittedWorkDone(); }
     }
-  }
-  async function warmUp() {
-    busyEl.textContent = t('Vorlauf …', 'Warm-up …');
-    await advance(S.warm * 3600, 900, (f) => { busyEl.textContent = `${t('Vorlauf', 'Warm-up')} ${Math.round(f * 100)} %`; });
     await device.queue.onSubmittedWorkDone();
-    busyEl.textContent = '';
   }
 
   // --- Kamera
   const cam = { yaw: 0.6, pitch: 0.18, alt: 9000 };
   const ptrs = new Map(); let pinch = 0;
-  const zoom = (f) => { cam.alt = Math.min(60000, Math.max(80, cam.alt * f)); };
+  const zoom = (f) => { cam.alt = Math.min(60000, Math.max(20, cam.alt * f)); };
   canvas.addEventListener('pointerdown', (e) => { canvas.setPointerCapture(e.pointerId); ptrs.set(e.pointerId, [e.clientX, e.clientY]); });
   const end = (e) => { ptrs.delete(e.pointerId); pinch = 0; };
   canvas.addEventListener('pointerup', end); canvas.addEventListener('pointercancel', end);
@@ -1283,78 +1268,112 @@ async function start() {
       const el = document.getElementById('c-tilt'); if (el) { el.value = S.tilt; el.dispatchEvent(new Event('input')); }
       return;
     }
-    const k = 0.005 * Math.min(1, (cam.alt / S.radius) * 0.8 + 0.08);
+    const k = 0.005 * Math.min(1, (cam.alt / S.radius) * 0.8 + 0.02);
     cam.yaw -= (e.clientX - p[0]) * k; cam.pitch = Math.max(-1.5, Math.min(1.5, cam.pitch + (e.clientY - p[1]) * k));
   });
   canvas.addEventListener('contextmenu', (e) => e.preventDefault());
   canvas.addEventListener('wheel', (e) => { e.preventDefault(); zoom(Math.exp(e.deltaY * 0.0012)); }, { passive: false });
 
-  // --- Schwere Änderungen
-  let pending = new Set(), busy = false;
-  onHeavy = (key, light) => {
-    if (light) return;
-    pending.add(key);
-    if (!busy) runPending();
-  };
-  async function runPending() {
-    busy = true;
-    while (pending.size) {
-      const keys = [...pending]; pending.clear();
-      if (keys.includes('clear')) { clearFlag = 2; }
-      if (keys.includes('erupt')) { S.superOn = true; superT = simT; }
-      if (keys.some((k) => HEAVY.grid.has(k))) makeGrid();
-      if (keys.some((k) => HEAVY.volc.has(k) || k === 'seed')) genVolcanoes();
-      if (keys.includes('seed')) bakeNebula();
-      if (keys.some((k) => HEAVY.bake.has(k))) await bake();
-    }
-    busy = false;
+  // --- Änderungen: sofort, Vorschau oder schwer
+  let bakeBusy = false, bakeWant = 0;
+  async function runBake() {
+    if (bakeBusy) return;
+    bakeBusy = true;
+    while (bakeWant) { const N = bakeWant; bakeWant = 0; await bake(N); }
+    bakeBusy = false;
   }
+  onChange = (key, kind) => {
+    if (key === 'clear') { resetFlag = true; return; }
+    if (key === 'erupt') { S.superOn = true; superT = simT; return; }
+    if (['vCount', 'vSize', 'sCount', 'sSize', 'vSeed'].includes(key)) genVolcanoes();
+    if (key === 'style') pal = palette(mulberry(S.seed));
+    if (key === 'count') makeParticles();
+    if (key === 'seed') { pal = palette(mulberry(S.seed)); genVolcanoes(); bakeNebula(); bakeWant = 256; runBake().then(() => { bakeWant = S.res; runBake(); }); }
+    if (key === 'res') { bakeWant = S.res; runBake(); }
+    if (kind === 'preview') { if (!bakeWant || bakeWant === 256) { bakeWant = 256; runBake(); } }
+    if (kind === 'shape') { bakeWant = S.res; runBake(); }
+  };
 
   genVolcanoes();
-  makeGrid();
+  makeParticles();
   await bakeNebula();
-  await bake();
-  await warmUp();
+  await bake(256);
+  if (S.res > 256) await bake(S.res);
+  busyEl.textContent = t('Vorlauf …', 'Warm-up …');
+  await advance(S.warm * 3600, (f) => { busyEl.textContent = `${t('Vorlauf', 'Warm-up')} ${Math.round(f * 100)} %`; });
+  busyEl.textContent = '';
 
-  const rdata = new Float32Array(15 * 4);
-  let last = performance.now(), acc = 0, frames = 0, frameNo = 0, visT = 0, autoScale = 1;
+  // --- Zeichnen
+  function targets(w, h) {
+    if (size[0] === w && size[1] === h) return;
+    for (const x of [hdr, accT, revT]) if (x) x.destroy();
+    const mk2 = (f) => device.createTexture({ size: [w, h], format: f, usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING });
+    hdr = mk2(HDR); accT = mk2(HDR); revT = mk2('r8unorm');
+    size = [w, h]; compBG = null;
+  }
+  const rdata = new Float32Array(26 * 4);
   function writeRender(w, h) {
     const dist = 1 + cam.alt / S.radius;
     const cy = Math.cos(cam.pitch);
     const eye = [Math.sin(cam.yaw) * cy * dist, Math.sin(cam.pitch) * dist, Math.cos(cam.yaw) * cy * dist];
     const fwd = eye.map((x) => -x / dist);
     const right = [-fwd[2], 0, fwd[0]].map((x, _, a) => x / Math.hypot(...a));
-    const up0 = [right[1] * fwd[2] - right[2] * fwd[1], right[2] * fwd[0] - right[0] * fwd[2], right[0] * fwd[1] - right[1] * fwd[0]];
-    // Blickneigung: vom Planetenmittelpunkt Richtung Horizont kippen (Säulen von der Seite sehen)
-    const ti = (S.tilt * Math.PI) / 180 * Math.min(1, Math.asin(Math.min(1, 1 / dist)) / 0.9);
-    for (let k = 0; k < 3; k++) { const f = fwd[k], u = up0[k]; fwd[k] = f * Math.cos(ti) + u * Math.sin(ti); up0[k] = u * Math.cos(ti) - f * Math.sin(ti); }
-    const up = up0;
+    const up = [right[1] * fwd[2] - right[2] * fwd[1], right[2] * fwd[0] - right[0] * fwd[2], right[0] * fwd[1] - right[1] * fwd[0]];
+    const ti = ((S.tilt * Math.PI) / 180) * Math.min(1, Math.asin(Math.min(1, 1 / dist)) / 0.9);
+    for (let k = 0; k < 3; k++) { const f = fwd[k], u = up[k]; fwd[k] = f * Math.cos(ti) + u * Math.sin(ti); up[k] = u * Math.cos(ti) - f * Math.sin(ti); }
     const tanH = Math.tan(0.5 * 0.75);
     const az = (S.sunAz * Math.PI) / 180, el = (S.sunEl * Math.PI) / 180;
     const sunW = [Math.cos(el) * Math.sin(az), Math.sin(el), Math.cos(el) * Math.cos(az)];
     const c = Math.cos(spinA), s = Math.sin(spinA);
     const sunP = [c * sunW[0] + s * sunW[2], sunW[1], -s * sunW[0] + c * sunW[2]];
+    // Achsen der Schattenkarte senkrecht zur Sonne
+    const hx = Math.abs(sunW[1]) > 0.9 ? [1, 0, 0] : [0, 1, 0];
+    let sx = [hx[1] * sunW[2] - hx[2] * sunW[1], hx[2] * sunW[0] - hx[0] * sunW[2], hx[0] * sunW[1] - hx[1] * sunW[0]];
+    const ls = Math.hypot(...sx); sx = sx.map((x) => x / ls);
+    const sy = [sunW[1] * sx[2] - sunW[2] * sx[1], sunW[2] * sx[0] - sunW[0] * sx[2], sunW[0] * sx[1] - sunW[1] * sx[0]];
     const HR = scaleHeight(), HM = HR * 0.14;
-    rdata.set([...eye, tanH, ...right, w / h, ...up, S.exposure, ...fwd, 0, ...sunW, 22, ...sunP, (2 * tanH) / h,
+    rdata.set([...eye, tanH, ...right, w / h, ...up, S.exposure, ...fwd, dist, ...sunW, 22, ...sunP, (2 * tanH) / h,
       c, s, visT, simT, S.radius, S.atm, S.exag, Math.min(volcs.length, MAXV), HR, HM, S.relief, S.glow,
-      S.kappa, S.detail, S.steps, 0, S.nebula, S.stars, S.debug, 0, w, h, frameNo % 64, gridDims[0]], 0);
-    windParams(rdata, 48);
+      S.sea, S.climate, S.moist, S.haze, S.opacity, S.spread * 0.02, S.style, S.nebula, w, h, S.stars, texN, ...sx, 0, ...sy, 0], 0);
+    pal.forEach((col, i) => rdata.set([...col, 1], 56 + i * 4));
     device.queue.writeBuffer(renU, 0, rdata);
   }
-  function drawTo(enc, view) {
-    const rp = enc.beginRenderPass({ colorAttachments: [{ view, loadOp: 'clear', storeOp: 'store', clearValue: [0, 0, 0, 1] }] });
-    rp.setPipeline(renPipe); rp.setBindGroup(0, getRenderBG()); rp.draw(3); rp.end();
+  function drawTo(enc, view, w, h) {
+    targets(w, h);
+    planetBG ??= device.createBindGroup({ layout: planetPipe.getBindGroupLayout(0), entries: [
+      { binding: 0, resource: { buffer: renU } }, { binding: 1, resource: hm.createView({ dimension: 'cube' }) }, { binding: 2, resource: nrm.createView({ dimension: 'cube' }) },
+      { binding: 3, resource: smp }, { binding: 4, resource: neb.createView({ dimension: 'cube' }) }, { binding: 5, resource: { buffer: volcBuf } }, { binding: 6, resource: shTex.createView() }] });
+    smokeBG ??= device.createBindGroup({ layout: smokePipe.getBindGroupLayout(0), entries: [
+      { binding: 0, resource: { buffer: renU } }, { binding: 1, resource: { buffer: pBuf } }, { binding: 2, resource: { buffer: mBuf } }, { binding: 3, resource: { buffer: volcBuf } },
+      { binding: 4, resource: shDepth.createView() }] });
+    compBG ??= device.createBindGroup({ layout: compPipe.getBindGroupLayout(0), entries: [
+      { binding: 0, resource: { buffer: renU } }, { binding: 1, resource: hdr.createView() }, { binding: 2, resource: accT.createView() }, { binding: 3, resource: revT.createView() }] });
+    const shadowBG = device.createBindGroup({ layout: shadowPipe.getBindGroupLayout(0), entries: [
+      { binding: 0, resource: { buffer: renU } }, { binding: 1, resource: { buffer: pBuf } }, { binding: 2, resource: { buffer: mBuf } }, { binding: 3, resource: { buffer: volcBuf } }] });
+    let rp = enc.beginRenderPass({ colorAttachments: [{ view: shTex.createView(), loadOp: 'clear', storeOp: 'store', clearValue: [0, 0, 0, 0] }] });
+    rp.setPipeline(shadowPipe); rp.setBindGroup(0, shadowBG); rp.draw(6, count); rp.end();
+    const depthBG = device.createBindGroup({ layout: depthPipe.getBindGroupLayout(0), entries: [
+      { binding: 0, resource: { buffer: renU } }, { binding: 1, resource: { buffer: pBuf } }, { binding: 2, resource: { buffer: mBuf } }, { binding: 3, resource: { buffer: volcBuf } }] });
+    rp = enc.beginRenderPass({ colorAttachments: [], depthStencilAttachment: { view: shDepth.createView(), depthClearValue: 1, depthLoadOp: 'clear', depthStoreOp: 'store' } });
+    rp.setPipeline(depthPipe); rp.setBindGroup(0, depthBG); rp.draw(6, count); rp.end();
+    rp = enc.beginRenderPass({ colorAttachments: [{ view: hdr.createView(), loadOp: 'clear', storeOp: 'store', clearValue: [0, 0, 0, 1] }] });
+    rp.setPipeline(planetPipe); rp.setBindGroup(0, planetBG); rp.draw(3); rp.end();
+    rp = enc.beginRenderPass({ colorAttachments: [
+      { view: accT.createView(), loadOp: 'clear', storeOp: 'store', clearValue: [0, 0, 0, 0] },
+      { view: revT.createView(), loadOp: 'clear', storeOp: 'store', clearValue: [1, 1, 1, 1] }] });
+    rp.setPipeline(smokePipe); rp.setBindGroup(0, smokeBG); rp.draw(6, count); rp.end();
+    rp = enc.beginRenderPass({ colorAttachments: [{ view, loadOp: 'clear', storeOp: 'store', clearValue: [0, 0, 0, 1] }] });
+    rp.setPipeline(compPipe); rp.setBindGroup(0, compBG); rp.draw(3); rp.end();
   }
-  // Ohne Fenster (Tests, KI-Augen): Bild in eine Textur rechnen und zurücklesen, keine Swapchain
+  // Ohne Fenster (Tests): in eine Textur rechnen und zurücklesen, keine Swapchain
   async function capture(w, h) {
     updateVolcanoes();
-    const enc0 = device.createCommandEncoder(); simStep(enc0, 1); device.queue.submit([enc0.finish()]);
     writeRender(w, h);
     const tex = device.createTexture({ size: [w, h], format, usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.COPY_SRC });
     const bpr = Math.ceil((w * 4) / 256) * 256;
     const buf = device.createBuffer({ size: bpr * h, usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ });
     const enc = device.createCommandEncoder();
-    drawTo(enc, tex.createView());
+    drawTo(enc, tex.createView(), w, h);
     enc.copyTextureToBuffer({ texture: tex }, { buffer: buf, bytesPerRow: bpr }, [w, h]);
     device.queue.submit([enc.finish()]);
     await buf.mapAsync(GPUMapMode.READ);
@@ -1371,35 +1390,21 @@ async function start() {
     return cv.toDataURL('image/png');
   }
   const api = window.volcanoPlanet = { S, cam, ready: true, frames: 0, capture,
-    advance: async (h) => { await advance(h * 3600, 900); await device.queue.onSubmittedWorkDone(); },
-    spin: (a) => { spinA = a; },
-    // Kamera auf Vulkan i richten (Planetensystem → Welt: Drehung um die Achse)
+    advance: (h) => advance(h * 3600),
+    spin: (a) => { spinA = a; }, trigger: () => onChange('erupt'), rebake: () => bake(S.res), regen: () => genVolcanoes(),
+    set: (k, v) => { S[k] = v; onChange(k, k === 'res' || k === 'count' ? 'heavy' : ['cont', 'warp', 'mount', 'erosion'].includes(k) ? 'shape' : undefined); },
     look: (i, alt) => { const d = volcs[i].dir, c = Math.cos(spinA), s = Math.sin(spinA); const w = [c * d[0] - s * d[2], d[1], s * d[0] + c * d[2]];
       cam.yaw = Math.atan2(w[0], w[2]); cam.pitch = Math.asin(w[1]); if (alt) cam.alt = alt; return volcs[i]; },
-    // Senkrechtes Profil des Aschegitters an Vulkan i, versetzt um dkm nach Osten (zum Prüfen)
-    profile: async (i, dkm = 0) => {
-      const [nx, ny, nz] = gridDims; const v = volcs[i].dir;
-      const lon = Math.atan2(v[2], v[0]) + dkm / S.radius / Math.max(0.1, Math.cos(Math.asin(v[1]))), lat = Math.asin(v[1]);
-      const x = Math.floor(((lon / (2 * Math.PI) + 0.5) % 1 + 1) % 1 * nx), y = Math.floor((lat / Math.PI + 0.5) * ny);
-      const buf = device.createBuffer({ size: 256 * nz, usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ });
-      const enc = device.createCommandEncoder();
-      enc.copyTextureToBuffer({ texture: ash[ping], origin: [x, y, 0] }, { buffer: buf, bytesPerRow: 256, rowsPerImage: 1 }, [1, 1, nz]);
-      device.queue.submit([enc.finish()]); await buf.mapAsync(GPUMapMode.READ);
-      const u16 = new Uint16Array(buf.getMappedRange().slice(0));
-      buf.unmap(); buf.destroy();
-      const f16 = (h) => { const e = (h >> 10) & 31, m = h & 1023, sg = h >> 15 ? -1 : 1; return e === 0 ? sg * m * 2 ** -24 : e === 31 ? NaN : sg * (1 + m / 1024) * 2 ** (e - 15); };
-      const out = []; for (let k = 0; k < nz; k++) out.push([f16(u16[k * 128]), f16(u16[k * 128 + 1])].map((q) => +q.toPrecision(3)));
-      return out;
-    },
-    volcs: () => volcs.map((v) => ({ super: v.super, Rb: v.Rb, now: v.now })), trigger: () => onHeavy('erupt'), rebake: () => bake(), regen: () => { genVolcanoes(); } };
+    volcs: () => volcs.map((v) => ({ super: v.super, Rb: v.Rb, now: v.now })) };
   if (OFFSCREEN) return;
+
+  let last = performance.now(), acc = 0, frames = 0, autoScale = 1;
   const frame = (now) => {
     const dtR = Math.min((now - last) / 1000, 0.1); last = now;
     acc += dtR; frames++; frameNo++; api.frames = frameNo;
     if (acc > 0.5) {
       const fps = frames / acc;
       document.getElementById('fps').textContent = `${Math.round(fps)} fps` + (S.auto && autoScale < 0.99 ? ` · ${Math.round(autoScale * 100)} %` : '');
-      // Automatik: nur die Pixelzahl ändert sich, nie die Physik
       if (S.auto && fps < 50) autoScale = Math.max(0.3, autoScale * Math.sqrt(fps / 58));
       else if (S.auto && fps > 58) autoScale = Math.min(1, autoScale * 1.05);
       if (!S.auto) autoScale = 1;
@@ -1407,35 +1412,31 @@ async function start() {
     }
     if (!paused) {
       const dtS = dtR * S.lapse;
-      const n = Math.min(4, Math.ceil(dtS / 900));
-      for (let i = 0; i < n; i++) {
-        updateVolcanoes();
-        const e2 = device.createCommandEncoder(); simStep(e2, dtS / n); device.queue.submit([e2.finish()]);
-        simT += dtS / n;
-      }
-      spinA += (dtS * 2 * Math.PI / 86400) * S.spin;
-      visT += dtR * Math.min(S.lapse, 240);
+      const n = Math.min(4, Math.ceil(dtS / 120));
+      for (let i = 0; i < n; i++) { updateVolcanoes(); stepParticles(dtS / n); simT += dtS / n; }
+      visT += dtR;
+      spinA += (dtR * S.spin * Math.PI) / 180;
     } else updateVolcanoes();
     const dpr = Math.min(devicePixelRatio || 1, 2) * S.scale * autoScale;
     const w = Math.max(1, Math.round(canvas.clientWidth * dpr)), h = Math.max(1, Math.round(canvas.clientHeight * dpr));
     if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; }
     writeRender(w, h);
     const enc = device.createCommandEncoder();
-    drawTo(enc, ctx.getCurrentTexture().createView());
+    drawTo(enc, ctx.getCurrentTexture().createView(), w, h);
     device.queue.submit([enc.finish()]);
-    // Steckbrief
     if (frameNo % 15 === 1) {
       const sv = volcs.find((v) => v.super && v.now && v.now.act > 0);
       const active = volcs.filter((v) => v.now && v.now.act > 0).length;
       const d = Math.floor(simT / 86400), hh = Math.floor((simT % 86400) / 3600);
-      factsEl.textContent = `${t('Höhe', 'Altitude')} ${Math.round(cam.alt).toLocaleString()} km · ${t('Tag', 'day')} ${d} ${hh}h · ${active} ${t('aktiv', 'active')}` +
+      factsEl.textContent = `${t('Höhe', 'Altitude')} ${Math.round(cam.alt).toLocaleString()} km · ${t('Tag', 'day')} ${d} ${hh}h · ${active} ${t('aktiv', 'active')} · ${(count / (1 << 20)).toFixed(count < 1 << 20 ? 2 : 0)} M ${t('Teilchen', 'particles')}` +
         (sv ? ` · ${t('Supervulkan', 'supervolcano')} ${sv.now.H.toFixed(0)} km` : '');
     }
     requestAnimationFrame(frame);
   };
   requestAnimationFrame(frame);
 }
-start().catch((e) => fail(String(e && e.stack || e)));
+start().catch((e) => fail(String((e && e.stack) || e)));
 </script>
+
 
 </html>
