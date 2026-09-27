@@ -11,8 +11,11 @@ Anyone redistributing this work or a derivative work must include this NOTICE fi
 
 Implemented with the help of Claude (Anthropic) as an AI programming assistant.
 
-The project contains no third-party source code. Adopted methods and ideas are listed
-with their sources in CREDITS.md.
+Third-party source code: demos/planets.html contains a GLSL port of 3D simplex noise from
+webgl-noise (MIT, Copyright 2011 Ashima Arts / 2011-2022 Stefan Gustavson) and the "Hash without
+Sine" functions (MIT, Copyright 2014 David Hoskins); their license text is included in that file.
+Everything else is written for this project. Adopted methods and ideas are listed with their
+sources in CREDITS.md.
 
 ---
 

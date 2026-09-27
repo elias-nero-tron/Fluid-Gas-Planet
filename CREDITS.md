@@ -65,6 +65,21 @@ The recording in `docs/media/` was made by elias-nero-tron on real hardware.
 Images from NASA, Juno, Hubble, games and the web were only used as references during development
 and are **not** part of the repository. Screenshots in `docs/images/` are renders of this project.
 
+### Procedural Planets (`demos/planets.html`)
+| Source | Used for |
+|---|---|
+| colordodge, [ProceduralPlanet](https://github.com/colordodge/ProceduralPlanet) (three.js, WTFPL); live at colordodge.com/procedural-planets | the whole method of the "Original 1:1" mode: cube sphere with per-face height and moisture maps from mixed fBm/ridged simplex noise, random biome image, normals from height + image brightness, roughness map reused as metalness, clouds, glow, nebula, stars, lens flare, seed in the URL. Rebuilt from the author's descriptions and screenshots, not copied |
+| Ashima Arts / Stefan Gustavson, [webgl-noise](https://github.com/stegu/webgl-noise) (MIT) | 3D simplex noise with analytic gradient (code included, license in the file) |
+| David Hoskins, *Hash without Sine* (MIT) | hash functions (code included, license in the file) |
+| F. K. Musgrave, *Texturing & Modeling* (1994) | ridged multifractal for mountain belts |
+| Clay John (2021) and Fewes (2023), eroded-terrain noise on Shadertoy | idea of gully stripes along r̂ × ∇h with branching; implemented anew in 3D on the sphere |
+| I. Quilez, domain warping and analytic noise derivatives | warped fBm for clouds and nebula, derivative-based normals |
+| E. Bruneton, *Precomputed Atmospheric Scattering: a New Implementation* (2017) | transmittance table parameterisation |
+| S. Hillaire, *A Scalable and Production Ready Sky and Atmosphere Rendering Technique* (EGSR 2020) | Rayleigh, Mie and ozone coefficients |
+| C. Cox & W. Munk (1954); R. Pope & E. Fry (1997) | sun-glint slope variance; absorption of pure water |
+| L. G. Henyey & J. L. Greenstein (1941) | cloud forward scattering |
+| B. Walter et al. (2007), GGX; K. Narkowicz, ACES fit (2016); J. Jimenez, bloom (2014) | specular highlights, film curve, bloom |
+
 ### Fonts and tools
 IBM Plex Sans/Mono (SIL OFL), Barlow Condensed (SIL OFL), loaded via Google Fonts.
 Vite, TypeScript, `@webgpu/types`, `vite-plugin-singlefile` (all MIT).

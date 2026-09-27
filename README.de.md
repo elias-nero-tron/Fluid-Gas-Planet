@@ -12,6 +12,7 @@ Zufallsplaneten laufen mit derselben Technik.
 </p>
 
 **▶ Sofort ausprobieren:** [Planeten-Simulator](https://raw.githack.com/elias-nero-tron/Fluid-Gas-Planet/main/demo/index.html) ·
+[Prozedurale Planeten](https://raw.githack.com/elias-nero-tron/Fluid-Gas-Planet/main/demo/planets.html) (WebGL2) ·
 [Wolken über Gelände (Vorschau)](https://raw.githack.com/elias-nero-tron/Fluid-Gas-Planet/main/demo/terrain.html) ·
 [Sahne im Kaffee](https://raw.githack.com/elias-nero-tron/Fluid-Gas-Planet/main/demo/coffee.html)
 (Browser mit WebGPU nötig) · oder [`demo/index.html`](demo/index.html) herunterladen und lokal öffnen.
@@ -60,6 +61,9 @@ Simulator öffentlich unter der Pages-Adresse dieses Repos, die Kaffee-Demo unte
   Smartphone bis zur High-End-GPU. Debug-Ansichten, Kartenansicht, **Filmstreifen-Aufnahme** (8 Bilder
   in einem PNG, für Rückmeldungen) und Kanten-Selbsttest.
 - **Darstellung:** Ellipsoid, Minnaert-Randverdunkelung, Relief, Dunstsaum, Ringe mit Schatten.
+- **Prozedurale Planeten** ([demos/planets.html](demos/planets.html)): Gesteinsplaneten nach colordodges
+  ProceduralPlanet, umschaltbar zwischen Original 1:1 und verbessert: Meeresspiegel live, erodiertes Gelände,
+  physikalisches Wasser, Luftstreuung, Wolken mit Zonalwinden und Wirbelstürmen.
 - **Wolken über Gelände** ([demos/terrain.html](demos/terrain.html)): Vorschau einer eigenen Schiene.
   Wolken entstehen, wo Wind Berge hinaufweht (w = u·∇h), auf einer echten Wolkenschicht mit Parallaxe und Schatten.
 - **Kaffee-Demo** ([demos/coffee.html](demos/coffee.html)): Sahne gießen und umrühren. Prüfstein
