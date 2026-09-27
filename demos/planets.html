@@ -138,14 +138,14 @@ const S = {
   seed: Q.get('seed') || (hashSeed ? hashSeed[1] : randomSeed()),
   style: Q.get('style') === 'orig' ? 'orig' : 'plus',
   res: Number(Q.get('res')) || (coarse ? 1024 : 2048),
-  palette: Q.get('palette') === 'earth' ? 'earth' : 'cd',
+  palette: Q.get('palette') === 'cd' ? 'cd' : 'earth',
   sea: -1,                                   // -1 = Wert des Planeten (aus dem Seed)
   // Original (Material/Lighting wie im three.js-Vorbild)
   nscale: 1.0, rough: 0.8, metal: 0.5, sunI: 1.6, ambient: 0.22, glow: 0.6, cloudOpO: 0.6,
   // Verbessert
   waves: 1.0, clarity: 1.0, foam: 0.7,
-  bump: 1.0, relief: 0.018, erosion: 1.0, terrace: 0.0, detail: 1.0, shadows: 1.0,
-  gloss: 0.6, exposure: 1.0, ambientP: 0.35,
+  bump: 1.5, relief: 0.018, erosion: 1.0, terrace: 0.0, detail: 1.0, shadows: 1.0,
+  gloss: 0.75, exposure: 1.0, ambientP: 0.35,
   cloudOp: 1.0, cloudH: 0.012, wind: 1.0, cloudShadow: 0.8,
   atmo: 1.0, thick: 2.5, haze: 1.0, bloom: 0.6,
   // gemeinsam
@@ -210,7 +210,7 @@ function controls() {
       { k: 'res', type: 'select', label: t('Kartenauflösung', 'Map resolution'), opts: [[512, '512'], [1024, '1024'], [2048, '2048'], [4096, t('4096 (~1 GB Grafikspeicher)', '4096 (~1 GB GPU memory)')]], regen: true,
         help: t('Pixel pro Würfelseite für Höhe, Feuchte und Relief (im Original "resolution"). Sechs Seiten ergeben die Kugel; 2048 sind rund um den Äquator 8192 Pixel.', 'Pixels per cube face for height, moisture and relief (the original\'s "resolution"). Six faces make the sphere; 2048 is 8192 pixels around the equator.'),
         fx: t('Speicher: 6·N²·8 Byte (+⅓ Mipmaps)', 'Memory: 6·N²·8 bytes (+⅓ mipmaps)') },
-      { k: 'palette', mode: 'plus', type: 'select', label: t('Farben', 'Colours'), opts: [['cd', t('Biom-Bild', 'Biome image')], ['earth', t('Erdähnlich', 'Earth-like')]],
+      { k: 'palette', mode: 'plus', type: 'select', label: t('Farben', 'Colours'), opts: [['earth', t('Erdähnlich', 'Earth-like')], ['cd', t('Original-Biombild', 'Original biome image')]],
         help: t('Biom-Bild: dieselben Zufallsfarben wie im Original, aber physikalisch beleuchtet. Erdähnlich: Klimazonen aus Breite, Höhe und Feuchte (Wüste, Steppe, Wald, Regenwald, Taiga, Tundra, Fels, Schnee).', 'Biome image: the same random colours as the original, but physically lit. Earth-like: climate zones from latitude, altitude and moisture (desert, steppe, forest, rainforest, taiga, tundra, rock, snow).'),
         fx: 'T = 1 − 1,25·|sin φ|^1,35 − 1,6·(h − s),  Biom = f(T, Feuchte, Hang)' },
     ] },
@@ -841,6 +841,12 @@ vec3 sunTrans(float r, float mu) {
 }
 `;
 
+// ---------------------------------------------------------------- Gelände-Uniforms (von Planet und Wolken gelesen)
+const TERR = `
+uniform sampler2DArray tHm;
+uniform float uN;
+uniform float uSea;
+`;
 // ---------------------------------------------------------------- Wolkendichte (Schale + Schatten)
 const CLOUDF = `
 uniform sampler2DArray tCloud;
@@ -900,6 +906,10 @@ float cloudDensity(vec3 d, float lod) {
     det += snoise(q * fq + float(i) * 3.3) * 0.22 * fade * (0.6 - 0.15 * float(i));
     fq *= 2.3;
   }
+  // Gebirge fangen Wolken (Stau), trockene Landflächen haben weniger
+  vec4 Tt = texDirLod(tHm, d, uN, lod + log2(uN / uNc) + 1.5);
+  float land = smoothstep(uSea - 0.01, uSea + 0.03, Tt.x);
+  c += smoothstep(uSea + 0.06, uSea + 0.35, Tt.x) * 0.2 + land * (Tt.y - 0.5) * 0.18;
   c += climate(lat) * 0.3 + (det - 0.5) * 0.3 + boost;
   float lo = 1.0 - uCl.x;
   float dn = smoothstep(lo, lo + 0.36, c);
@@ -928,14 +938,12 @@ void main() {
   gl_Position = uVP * vec4(vWorld, 1.0);
 }`;
 
-const PLANET_FS = HEAD + COMMON + NOISE + ATMO + CLOUDF + `
-uniform sampler2DArray tHm;
-uniform float uN;
+const PLANET_FS = HEAD + COMMON + NOISE + ATMO + TERR + CLOUDF + `
 uniform sampler2D tBiome;
 uniform int uMode, uPal, uView;
 uniform mat3 uModel;
 uniform vec3 uCam, uSun;
-uniform float uSea, uTime, uSunE;
+uniform float uTime, uSunE;
 uniform vec4 uO;      // Original: normalScale, roughness, metalness, ambient
 uniform float uSunI;  // Original: Sonnenlicht
 uniform vec4 uW;      // Wasser: Wellen, Klarheit, Brandung, -
@@ -1195,7 +1203,7 @@ void main() {
     vec3 bed = vec3(0.55, 0.49, 0.36);
     if (uPal == 0) {
       vec3 tint = toLin(texture(tBiome, vec2(T.y, max(uSea - 0.02, 0.0))).rgb);
-      deep = tint * 0.09 + vec3(0.001, 0.003, 0.008);
+      deep = mix(deep, tint * 0.06, 0.45);
       bed = toLin(texture(tBiome, vec2(T.y, uSea + 0.01)).rgb) * 0.9;
     }
     vec3 body = (bed * Tz + deep * (1.0 - Tz)) * Esh * max(muS, 0.0) / PI;
@@ -1223,8 +1231,10 @@ void main() {
     } else {
       // Bewuchs und Fels nach der Hangneigung im Größeren, nicht nach jeder kleinen Rinne
       vec4 Tb = texFaceLod(tHm, F, uN, lod + 2.0);
-      float slopeB = 1.0 - dot(normalize(d - kN * (Tb.z * F.jx + Tb.w * F.jy)), d);
-      earthBiome(d, h, mN, mix(slope, slopeB, 0.7), nz, alb, rough);
+      const float kB = 0.075;                     // feste Überhöhung: Relief-Regler ändert nur das Licht, nicht den Bewuchs
+      float slopeB = 1.0 - dot(normalize(d - kB * (Tb.z * F.jx + Tb.w * F.jy)), d);
+      float slope0 = 1.0 - dot(normalize(d - kB * g), d);
+      earthBiome(d, h, mN, mix(slope0, slopeB, 0.7), nz, alb, rough);
     }
     // Kavität: Täler dunkler, Grate heller (Differenz zu einer gröberen Mipmap)
     float hb = texFaceLod(tHm, F, uN, lod + 3.0).x;
@@ -1252,7 +1262,7 @@ void main() {
 }`;
 
 // ---------------------------------------------------------------- Wolkenschale
-const CLOUD_FS = HEAD + COMMON + NOISE + ATMO + CLOUDF + `
+const CLOUD_FS = HEAD + COMMON + NOISE + ATMO + TERR + CLOUDF + `
 uniform mat3 uModel;
 uniform vec3 uCam, uSun;
 uniform float uSunE, uSunI;
