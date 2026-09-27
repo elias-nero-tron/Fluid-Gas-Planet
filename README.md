@@ -12,7 +12,7 @@ Saturn, Neptune, Uranus, a hot Jupiter and random planets run on the same engine
 </p>
 
 **▶ Try it now:** [Planet simulator](https://raw.githack.com/elias-nero-tron/Fluid-Gas-Planet/main/demo/index.html) ·
-[Clouds over Terrain preview](https://raw.githack.com/elias-nero-tron/Fluid-Gas-Planet/main/demo/terrain.html) ·
+[Procedural Planets](https://raw.githack.com/elias-nero-tron/Fluid-Gas-Planet/main/demo/planets.html) ·
 [Cream in Coffee demo](https://raw.githack.com/elias-nero-tron/Fluid-Gas-Planet/main/demo/coffee.html)
 (needs a WebGPU browser: Chrome/Edge 113+, Safari 26+, Firefox 141+, Android Chrome 121+).
 Or download [`demo/index.html`](demo/index.html) and open it locally, no install needed.
@@ -52,8 +52,9 @@ Details, measured findings and open questions: [docs/STATUS.md](docs/STATUS.md).
   classes from smartphone to high-end GPU. Debug views for wind, vorticity and pressure, a map view,
   a **film-strip recorder** (8 frames in one PNG, for bug reports) and a seam self-test.
 - **Rendering:** oblate ellipsoid, Minnaert limb darkening, cloud relief, haze rim, rings with shadows.
-- **Clouds over Terrain** ([demos/terrain.html](demos/terrain.html)): preview of a separate track,
-  clouds forming where wind climbs mountains (w = u·∇h), on a real cloud layer with parallax and shadows.
+- **Procedural Planets** ([demos/planets.html](demos/planets.html)): rocky planets after colordodge's
+  ProceduralPlanet, switchable between an original 1:1 look and an improved mode with live sea level,
+  eroded terrain, physical water, atmospheric scattering and clouds driven by zonal winds and cyclones.
 - **Cream in Coffee** ([demos/coffee.html](demos/coffee.html)): pour and stir. A test bench for three
   building blocks the planet still lacks: sources, moving obstacles and sharp transport.
 

@@ -11,7 +11,6 @@ can continue without reading the original development conversation. German origi
 | v0.2.0 (pre-release): everything after | `main` | **unverified**: checked only in a headless browser with software rendering (SwiftShader). |
 | v0.2.3 | `main` before v0.3 | **tested by the author**: ~240 fps on an RTX 5080 (desktop), “current state is really good”, missing: grandeur/scale. Observations listed as findings 9–15. |
 | v0.3.0: tracks, film strips, device classes, terrain preview | `main` | **unverified**: software renderer only. |
-| `demos/terrain.html` (clouds over terrain) | `main` | **unverified**: preview, software renderer only. |
 | `demos/coffee.html` (cream in coffee) | `main` | **untested visually**: shaders compile; the rendered image has never been seen (headless Chromium loses the device when presenting to a canvas). |
 
 Author feedback on intermediate versions 2–3: visible “scar” lines, looked worse. The cause was found
@@ -141,4 +140,4 @@ h as cloud height).
 - Rings that look like a 3D belt of particles with a soft volumetric shadow (ROADMAP 8).
 - Moons on Kepler orbits with shadows (ROADMAP 9).
 - Instant start without visible spin-up (ROADMAP 10: cached settled state).
-- Continents under the atmosphere: first preview in `demos/terrain.html` (orographic clouds).
+- Continents under the atmosphere: first preview in the removed terrain sketch (orographic clouds).

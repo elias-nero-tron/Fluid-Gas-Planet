@@ -107,7 +107,7 @@ particles) per preset and settings in IndexedDB after the first spin-up and rest
 visit in milliseconds. For a game: settle once at build time and ship the state as data.
 
 ### 11. Terrain clouds (track, started in v0.3)
-`demos/terrain.html` shows orographic clouds (w = u·∇h) on a real cloud shell. **First next step:
+the removed terrain sketch shows orographic clouds (w = u·∇h) on a real cloud shell. **First next step:
 replace its hand-made ground colours with the biome-lookup surface of colordodge/ProceduralPlanet
 (WTFPL, code reusable; see RESEARCH D)**, and climate zones like Lagrange (temperature × humidity,
 ideas only because of its licence). Then: moisture as an
@@ -124,7 +124,7 @@ Plan, each step with film strips:
    E − P and the precipitation threshold (moist-convective RSW, RESEARCH G1–G4).
 3. Forcing: Held–Suarez temperature relaxation and prescribed Hadley/Ferrel/polar convergence.
 4. Rendering: volumetric cloud shell (Beer–Lambert, HG phase, powder, shadows) after three.js volume fire (MIT).
-`demos/terrain.html` stays as the v0.3 sketch until step 4 replaces it.
+the removed terrain sketch stays as the v0.3 sketch until step 4 replaces it.
 
 ### 7. Smaller wishes
 - ~~Random planet with more variety~~ done in v0.2.3; steerable (family, bands, storms, rings) in v0.3.

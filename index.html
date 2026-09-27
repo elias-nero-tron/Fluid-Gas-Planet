@@ -113,6 +113,7 @@
   #toolbar { display: flex; gap: 6px; flex: 1; flex-wrap: wrap; }
   #toolbar button { padding: 5px 8px; font-size: 12.5px; white-space: nowrap; }
   #lang { font: 600 12px var(--mono); letter-spacing: 0.08em; padding: 5px 9px; }
+  .switch { font: 12.5px var(--body, inherit); color: var(--text); white-space: nowrap; padding: 5px 9px; border: 1px solid var(--line); border-radius: 5px; text-decoration: none; }
   .fx { display: block; margin-top: 6px; font: 11.5px/1.45 var(--mono); color: #d9c7a6; white-space: normal; }
   .note.formula { margin-top: 0; }
   details { border-top: 1px solid var(--line); padding-block: 8px 10px; }
@@ -205,11 +206,19 @@
     <div id="status" hidden></div>
   </div>
   <aside id="panel">
-    <div class="panel-head"><button id="panel-toggle" type="button" aria-expanded="false" aria-controls="panel-body"><span id="panel-title">Controls</span> <span aria-hidden="true">▴</span></button><div id="toolbar"></div><button id="lang" type="button">DE</button></div>
+    <div class="panel-head"><button id="panel-toggle" type="button" aria-expanded="false" aria-controls="panel-body"><span id="panel-title">Controls</span> <span aria-hidden="true">▴</span></button><div id="toolbar"></div><a id="to-planets" class="switch" href="demos/planets.html">Rocky planets</a><button id="lang" type="button">DE</button></div>
     <div id="panel-body"></div>
     <p class="credits" id="credits"></p>
   </aside>
 </div>
+<script>
+  // Wechsel zu den Gesteinsplaneten: in demo/ liegen beide Seiten nebeneinander, im Quellbaum unter demos/
+  (() => {
+    const a = document.getElementById('to-planets');
+    if (/\/demo\/[^/]*$/.test(location.pathname)) a.href = 'planets.html';
+    if ((navigator.language || '').toLowerCase().startsWith('de')) a.textContent = 'Gesteinsplaneten';
+  })();
+</script>
 <script>
   (function () {
     var aside = document.getElementById('panel');
