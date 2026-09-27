@@ -1,0 +1,2041 @@
+<title>Procedural Planets</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500&display=swap">
+<style>
+  /* Prozedurale Planeten: eigene Seite, teilt keinen Code mit dem Gasplaneten. Bewusst nur dunkel (Weltraum). */
+  :root {
+    color-scheme: dark;
+    --bg: #04050a;
+    --panel: rgba(13, 14, 20, 0.95);
+    --field: #0c0d12;
+    --line: #262833;
+    --text: #ece8e1;
+    --muted: #9a968f;
+    --accent: #e0a36a;
+    --ink: #1a1208;
+    --focus: #f3cf9c;
+    --cool: #8fb8d8;
+    --display: 'Barlow Condensed', 'Arial Narrow', sans-serif;
+    --body: 'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+    --mono: 'IBM Plex Mono', ui-monospace, Menlo, monospace;
+  }
+  html, body { height: 100%; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.45 var(--body); overflow: hidden; }
+  #app { height: 100%; display: grid; grid-template-columns: minmax(0, 1fr) 340px; }
+  #stage { position: relative; min-width: 0; min-height: 0; background: #000; }
+  #view { display: block; width: 100%; height: 100%; touch-action: none; cursor: grab; }
+  #view.drag { cursor: grabbing; }
+  .hud { position: absolute; left: 16px; right: 16px; top: calc(12px + env(safe-area-inset-top, 0px)); pointer-events: none; text-shadow: 0 1px 3px #000; }
+  .hud h1 { margin: 0; font: 600 26px/1.05 var(--display); letter-spacing: 0.04em; text-transform: uppercase; text-wrap: balance; }
+  .hud p { margin: 2px 0 0; font: 12px var(--mono); color: var(--muted); }
+  #fps { color: var(--accent); font-variant-numeric: tabular-nums; }
+  #mode-tag { color: var(--cool); }
+  #genbar { position: absolute; left: 16px; bottom: calc(16px + env(safe-area-inset-bottom, 0px)); width: min(320px, calc(100% - 32px)); font: 12px var(--mono); color: var(--muted); pointer-events: none; text-shadow: 0 1px 3px #000; }
+  #genbar .track { height: 3px; margin-top: 4px; background: var(--line); border-radius: 2px; overflow: hidden; }
+  #genbar .fill { height: 100%; width: 0; background: var(--accent); }
+  #status { position: absolute; left: 16px; right: 16px; bottom: 16px; max-width: 560px; padding: 12px 14px; background: #2a1512; border: 1px solid #7a3326; border-radius: 6px; white-space: pre-wrap; font: 12.5px/1.45 var(--mono); }
+  aside {
+    background: var(--panel); border-left: 1px solid var(--line); overflow-y: auto;
+    padding-inline: 16px; padding-block: calc(12px + env(safe-area-inset-top, 0px)) calc(20px + env(safe-area-inset-bottom, 0px));
+  }
+  .head { display: flex; gap: 8px; align-items: stretch; margin-bottom: 10px; }
+  .seg { display: flex; flex: 1; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+  .seg button { flex: 1; border: 0; border-radius: 0; padding: 7px 6px; background: #16171d; color: var(--muted); font: 600 14px var(--display); letter-spacing: 0.06em; text-transform: uppercase; }
+  .seg button[aria-pressed="true"] { background: var(--accent); color: var(--ink); }
+  button, select { font: 13px var(--body); color: var(--text); background: #1b1c22; border: 1px solid var(--line); border-radius: 5px; padding: 6px 9px; cursor: pointer; }
+  #lang { font: 600 12px var(--mono); letter-spacing: 0.08em; }
+  .seedrow { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 6px; align-items: center; margin-bottom: 10px; }
+  .seedrow label { font: 12px var(--mono); color: var(--muted); }
+  .seedrow input { width: 100%; box-sizing: border-box; padding: 6px 8px; font: 13px var(--mono); color: var(--accent); background: var(--field); border: 1px solid var(--line); border-radius: 5px; }
+  .help { position: sticky; top: 0; z-index: 1; margin: 0 0 10px; padding: 10px 12px; height: 8.8em; overflow-y: auto; box-sizing: border-box; border: 1px solid var(--line); border-radius: 6px; background: var(--field); color: var(--muted); font-size: 12.5px; }
+  .help b { color: var(--text); font-weight: 500; }
+  .fx { display: block; margin-top: 6px; font: 11.5px/1.45 var(--mono); color: #d9c7a6; }
+  details { border-top: 1px solid var(--line); }
+  summary { display: flex; justify-content: space-between; align-items: baseline; padding: 9px 0 7px; cursor: pointer; list-style: none; font: 600 15px var(--display); letter-spacing: 0.08em; text-transform: uppercase; }
+  summary::-webkit-details-marker { display: none; }
+  summary::after { content: '+'; color: var(--muted); font-family: var(--mono); }
+  details[open] > summary::after { content: '\2212'; }
+  .row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 8px; align-items: center; padding-block: 4px; }
+  .row label { font-size: 13px; }
+  .row output { font: 12px var(--mono); color: var(--accent); font-variant-numeric: tabular-nums; }
+  .row input[type=range] { grid-column: 1 / -1; width: 100%; margin: 0; height: 22px; accent-color: var(--accent); }
+  .row-select { grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr); }
+  .row-check { grid-template-columns: minmax(0, 1fr) auto; }
+  .row input[type=checkbox] { width: 18px; height: 18px; accent-color: var(--accent); }
+  .tag { margin-left: 6px; padding: 0 4px; border: 1px solid #2b3a47; border-radius: 3px; font: 10.5px var(--mono); color: var(--cool); vertical-align: 1px; }
+  #lut { display: block; width: 100%; max-width: 100%; height: auto; aspect-ratio: 1; margin: 6px 0 4px; border: 1px solid var(--line); border-radius: 4px; image-rendering: auto; }
+  .note { margin: 12px 0 0; font-size: 12px; color: var(--muted); }
+  a { color: var(--muted); }
+  :focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+  @media (max-width: 760px) {
+    #app { grid-template-columns: 1fr; grid-template-rows: 56% 44%; }
+    aside { border-left: 0; border-top: 1px solid var(--line); }
+    .help { height: 7em; }
+    .hud h1 { font-size: 21px; }
+  }
+</style>
+
+<div id="app">
+  <div id="stage">
+    <canvas id="view"></canvas>
+    <div class="hud">
+      <h1 id="t-title">Procedural Planets</h1>
+      <p><span id="fps">– fps</span> · <span id="mode-tag"></span> · <span id="t-hint"></span></p>
+    </div>
+    <div id="genbar" hidden><span id="gen-text"></span><div class="track"><div class="fill" id="gen-fill"></div></div></div>
+    <div id="status" hidden></div>
+  </div>
+  <aside>
+    <div class="head">
+      <div class="seg" role="group" id="style-group">
+        <button id="st-orig" type="button" aria-pressed="false">Original 1:1</button>
+        <button id="st-plus" type="button" aria-pressed="true">+20 %</button>
+      </div>
+      <button id="lang" type="button">DE</button>
+    </div>
+    <div class="seedrow">
+      <label for="seed">seed</label>
+      <input id="seed" type="text" inputmode="numeric" autocomplete="off" spellcheck="false">
+      <button id="rnd" type="button"></button>
+    </div>
+    <p class="help" id="help"></p>
+    <div id="controls"></div>
+    <p class="note" id="t-foot"></p>
+  </aside>
+</div>
+
+<script type="module">
+// ============================================================================================
+// Prozedurale Planeten, nachgebaut nach colordodge "ProceduralPlanet" (three.js, WTFPL) und erweitert.
+//
+// Verfahren des Originals (so übernommen):
+//   Würfel-Kugel: sechs Würfelseiten, jede bekommt eigene Karten. Höhe und Feuchte sind je eine
+//   Mischung aus zwei fBm-Feldern (Simplex, 16 Oktaven, wahlweise "ridged") mit einem dritten Feld
+//   als Mischmaske. Ein zufällig gemaltes Biom-Bild (x = Feuchte, y = Höhe; Farbverläufe, Kreise,
+//   Wasser-, Strand- und Binnenland-Band) färbt. Normalen: Sobel über Höhe + Bildhelligkeit,
+//   Wasser glatt. Rauigkeit und Metall aus der Wasserlinie. Dazu Wolken, Leuchtsaum, Nebel,
+//   Sterne, Sonne mit Blendenflecken, dat.GUI-Ordner Lighting/Camera/Material/Debug/Environment.
+//
+// "+20 %" (Verbessert):
+//   Meeresspiegel als Regler (fehlte), live. Wasser mit Beer-Lambert-Tiefenfarbe, GGX-Sonnenglitzern,
+//   Fresnel, Wellen und Brandung. Erosionsrinnen (Gavoronoise nach Clay John / Fewes, auf die Kugel
+//   übertragen), Detail-Oktaven zur Laufzeit, Geländeschatten, Terrassen. Atmosphäre mit Rayleigh-,
+//   Mie- und Ozon-Streuung (Transmissions-Tabelle nach Bruneton). Wolken mit Zonalwinden
+//   (Passat/Westwind/polare Ostwinde), Klimabändern, Wolkenschatten und Vorwärtsstreuung.
+//   Nebel und Sterne bleiben stehen, nur der Planet dreht sich, ruhig.
+// ============================================================================================
+
+let lang = (() => { try { const v = localStorage.getItem('fgp-lang'); if (v === 'de' || v === 'en') return v; } catch {} return (navigator.language || 'en').toLowerCase().startsWith('de') ? 'de' : 'en'; })();
+const t = (de, en) => (lang === 'de' ? de : en);
+const Q = new URLSearchParams(location.search);
+const coarse = matchMedia('(max-width: 760px), (pointer: coarse)').matches;
+
+// ------------------------------------------------------------------ Zustand & Voreinstellungen
+const randomSeed = () => String(Math.floor(10000000 + Math.random() * 89999999));
+const hashSeed = /^#?(\d{3,12})$/.exec(location.hash);
+const S = {
+  seed: Q.get('seed') || (hashSeed ? hashSeed[1] : randomSeed()),
+  style: Q.get('style') === 'orig' ? 'orig' : 'plus',
+  res: Number(Q.get('res')) || (coarse ? 1024 : 2048),
+  palette: Q.get('palette') === 'earth' ? 'earth' : 'cd',
+  sea: -1,                                   // -1 = Wert des Planeten (aus dem Seed)
+  // Original (Material/Lighting wie im three.js-Vorbild)
+  nscale: 1.0, rough: 0.8, metal: 0.5, sunI: 1.6, ambient: 0.22, glow: 1.0, cloudOpO: 0.9,
+  // Verbessert
+  waves: 1.0, clarity: 1.0, foam: 0.7,
+  bump: 1.0, relief: 0.018, erosion: 1.0, terrace: 0.0, detail: 1.0, shadows: 1.0,
+  gloss: 0.6, exposure: 1.0, ambientP: 0.35,
+  cloudOp: 1.0, cloudH: 0.012, wind: 1.0, cloudShadow: 0.8,
+  atmo: 1.0, thick: 2.5, haze: 1.0, bloom: 0.6,
+  // gemeinsam
+  sunAz: -58, sunEl: 12, cover: 0.5,
+  nebula: 1.0, stars: 1.0, flare: 0.5,
+  rotate: true, spin: 1.5, tilt: 23, fov: 36,
+  view: 0,
+};
+const DEF = { ...S };
+const numQ = (k) => { const v = Q.get(k); if (v !== null && v !== '' && !isNaN(Number(v)) && k in S) S[k] = Number(v); };
+for (const k of Object.keys(S)) if (typeof S[k] === 'number' && k !== 'res') numQ(k);
+const cloudRes = Number(Q.get('cres')) || (coarse ? 512 : 1024);
+const nebRes = Number(Q.get('nres')) || (coarse ? 512 : 1024);
+
+// ------------------------------------------------------------------ Zufall (seedString wie im Original)
+function xmur3(str) {
+  let h = 1779033703 ^ str.length;
+  for (let i = 0; i < str.length; i++) { h = Math.imul(h ^ str.charCodeAt(i), 3432918353); h = (h << 13) | (h >>> 19); }
+  return () => { h = Math.imul(h ^ (h >>> 16), 2246822507); h = Math.imul(h ^ (h >>> 13), 3266489909); return (h ^= h >>> 16) >>> 0; };
+}
+function rng(seed) {
+  const s = xmur3(String(seed));
+  let a = s(), b = s(), c = s(), d = s();
+  return () => {
+    a >>>= 0; b >>>= 0; c >>>= 0; d >>>= 0;
+    let x = (a + b) | 0; a = b ^ (b >>> 9); b = (c + (c << 3)) | 0; c = (c << 21) | (c >>> 11); d = (d + 1) | 0; x = (x + d) | 0; c = (c + x) | 0;
+    return (x >>> 0) / 4294967296;
+  };
+}
+const clamp = (x, a, b) => Math.min(b, Math.max(a, x));
+
+// Planet-Parameter aus dem Seed. Wie im Original zufällig und (bis auf den Meeresspiegel) nicht als Regler sichtbar.
+function planetParams(seed) {
+  const R = rng(seed + '|planet');
+  const rr = (a, b) => a + (b - a) * R();
+  const field = () => ({ res1: rr(0.35, 1.2), res2: rr(0.2, 1.0), resMix: rr(0.3, 1.1), mixScale: rr(0.5, 1.0), type: Math.floor(rr(0, 4)) });
+  return {
+    noiseSeed: rr(0, 400),
+    h: field(),
+    m: field(),
+    water: rr(0.3, 0.72),        // Wasseranteil (Original: zufälliger waterLevel ohne Regler)
+    cloudSeed: rr(0, 400),
+    cloudCover: rr(0.35, 0.62),
+    nebSeed: rr(0, 400),
+    nebHue: R(), nebHue2: R(), nebSat: rr(0.45, 0.9), nebBright: rr(0.5, 1.2),
+    moistM: rr(0.8, 1.2),
+  };
+}
+let PP = planetParams(S.seed);
+
+// ------------------------------------------------------------------ Oberfläche (Texte, Regler)
+const $ = (id) => document.getElementById(id);
+const help = $('help');
+const tag = (m) => (m === 'orig' ? ` <span class="tag">1:1</span>` : m === 'plus' ? ` <span class="tag">+20 %</span>` : '');
+const pct = (v) => `${Math.round(v * 100)} %`;
+
+function controls() {
+  return [
+    { id: 'planet', title: t('Planet', 'Planet'), open: true, items: [
+      { k: 'res', type: 'select', label: t('Kartenauflösung', 'Map resolution'), opts: [[512, '512'], [1024, '1024'], [2048, '2048'], [4096, t('4096 (~1 GB Grafikspeicher)', '4096 (~1 GB GPU memory)')]], regen: true,
+        help: t('Pixel pro Würfelseite für Höhe, Feuchte und Relief (im Original "resolution"). Sechs Seiten ergeben die Kugel; 2048 sind rund um den Äquator 8192 Pixel.', 'Pixels per cube face for height, moisture and relief (the original\'s "resolution"). Six faces make the sphere; 2048 is 8192 pixels around the equator.'),
+        fx: t('Speicher: 6·N²·8 Byte (+⅓ Mipmaps)', 'Memory: 6·N²·8 bytes (+⅓ mipmaps)') },
+      { k: 'palette', mode: 'plus', type: 'select', label: t('Farben', 'Colours'), opts: [['cd', t('Biom-Bild (wie Original)', 'Biome image (as original)')], ['earth', t('Erdähnlich', 'Earth-like')]],
+        help: t('Biom-Bild: dieselben Zufallsfarben wie im Original, aber physikalisch beleuchtet. Erdähnlich: Klimazonen aus Breite, Höhe und Feuchte (Wüste, Steppe, Wald, Regenwald, Taiga, Tundra, Fels, Schnee).', 'Biome image: the same random colours as the original, but physically lit. Earth-like: climate zones from latitude, altitude and moisture (desert, steppe, forest, rainforest, taiga, tundra, rock, snow).'),
+        fx: 'T = 1 − 1,25·|sin φ|^1,35 − 1,6·(h − s),  Biom = f(T, Feuchte, Hang)' },
+    ] },
+    { id: 'sea', title: t('Meer', 'Sea'), open: true, items: [
+      { k: 'sea', min: 0, max: 1, step: 0.005, label: t('Meeresspiegel', 'Sea level'), fmt: (v) => `${pct(v)} ${t('Wasser', 'water')}`,
+        help: t('Fehlte im Original (dort zufällig, ohne Regler). Bestimmt, welcher Anteil der Oberfläche unter Wasser liegt. Küsten, Strände, Relief und Farben folgen sofort, ohne Neuberechnung.', 'Missing in the original (random there, no control). Sets how much of the surface is under water. Coasts, beaches, relief and colours follow instantly, without recomputing.'),
+        fx: t('s = Quantil der Höhen: P(h < s) = Wasseranteil', 's = height quantile: P(h < s) = water fraction') },
+      { k: 'waves', mode: 'plus', min: 0, max: 3, step: 0.01, label: t('Wind & Wellen', 'Wind & waves'),
+        help: t('Wellenneigung. Aus der Nähe siehst du einzelne Wellen, aus der Ferne werden sie zur Rauigkeit des Sonnenglitzerns, so wie auf Satellitenbildern.', 'Wave slope. Up close you see single waves; from afar they become the roughness of the sun glint, as in satellite images.'),
+        fx: 'σ² = 0,003 + 0,00512·W (Cox–Munk),  α = √(α₀² + σ²_subpixel)' },
+      { k: 'clarity', mode: 'plus', min: 0.2, max: 3, step: 0.01, label: t('Klarheit', 'Clarity'),
+        help: t('Wie tief man ins Wasser sieht. Flaches Wasser über Sand wird türkis, tiefes dunkelblau, weil Rot zuerst verschluckt wird.', 'How deep you can see into the water. Shallow water over sand turns turquoise, deep water navy, because red is absorbed first.'),
+        fx: 'T = exp(−κ·z·(1/μᵥ + 1/μₛ)),  κ = (0,45; 0,065; 0,021) m⁻¹ / ' + t('Klarheit', 'clarity') },
+      { k: 'foam', mode: 'plus', min: 0, max: 2, step: 0.01, label: t('Brandung', 'Surf'),
+        help: t('Schaumlinien an der Küste, die mit den Wellen auf den Strand laufen.', 'Foam lines at the coast that run up the beach with the waves.'),
+        fx: 'Schaum = (1 − z/z_b)·smoothstep(0,55; 0,95; ½ + ½ sin(2π·3z/z_b − ωt))' },
+    ] },
+    { id: 'terrain', title: t('Gelände', 'Terrain'), open: true, items: [
+      { k: 'nscale', mode: 'orig', min: 0, max: 4, step: 0.01, label: t('Normalenstärke', 'Normal scale'),
+        help: t('Wie im Original (Material → normalScale): Stärke der Normal-Karte aus Höhe + Bildhelligkeit. Daher die feinen Höhenlinien-Stufen.', 'As in the original (Material → normalScale): strength of the normal map from height + image brightness. Hence the fine contour steps.'),
+        fx: 'n = normalize(−s·Sobel(h₈ + Y(biom)), 1),  h₈ = ⌊255·h⌋/255' },
+      { k: 'bump', mode: 'plus', min: 0, max: 3, step: 0.01, label: t('Relief-Schärfe', 'Relief sharpness'),
+        help: t('Wie steil Hänge im Licht wirken. Die Normalen kommen hier exakt aus dem Rauschen (Ableitung), ohne Stufen.', 'How steep slopes look in the light. Normals come exactly from the noise derivative here, without steps.'),
+        fx: 'n = normalize(r̂ − k·∇ₛh)' },
+      { k: 'relief', mode: 'plus', min: 0, max: 0.08, step: 0.001, label: t('Relief-Höhe', 'Relief height'),
+        help: t('Echte Verschiebung der Oberfläche. Berge ragen am Rand über die Kugel hinaus und werfen Schatten.', 'Real displacement of the surface. Mountains rise above the limb and cast shadows.'),
+        fx: 'r = 1 + k_r·max(h − s, 0)' },
+      { k: 'erosion', mode: 'plus', min: 0, max: 3, step: 0.01, label: t('Erosion', 'Erosion'), regen: true,
+        help: t('Rinnen und Grate, die hangabwärts laufen und sich verzweigen, wie von Regen ausgewaschen. Formel von Clay John / Fewes (2D), hier auf die Kugel übertragen.', 'Gullies and ridges that run downhill and branch, as if washed out by rain. Formula by Clay John / Fewes (2D), carried over to the sphere here.'),
+        fx: 'Δh = −½D·Σᵢ aᵢ(1 − Σ_c w_c cos 2π(q−c)·(r̂×∇h)),  aᵢ = 2⁻ⁱ' },
+      { k: 'terrace', mode: 'plus', min: 0, max: 1, step: 0.01, label: t('Terrassen', 'Terraces'),
+        help: t('Gesteinsschichten als Stufen, bewusst und glatt statt als 8-Bit-Treppe wie im Original.', 'Rock strata as steps, deliberate and smooth instead of the original\'s 8-bit staircase.'),
+        fx: 'h′ = s + Δ(⌊x⌋ + smoothstep(½−w, ½+w, x−⌊x⌋)),  x = (h−s)/Δ' },
+      { k: 'detail', mode: 'plus', min: 0, max: 2.5, step: 0.01, label: t('Feindetail', 'Fine detail'),
+        help: t('Weitere Oktaven, live im Pixel gerechnet: beim Heranzoomen wird die Oberfläche immer feiner, ohne Pixelblöcke.', 'More octaves computed live per pixel: zooming in keeps adding detail, without pixel blocks.'),
+        fx: 'Σ_{f > N/2π} snoise(f·p)·A/f,  ' + t('ausgeblendet unter 3 px', 'faded below 3 px') },
+      { k: 'shadows', mode: 'plus', min: 0, max: 1, step: 0.01, label: t('Geländeschatten', 'Terrain shadows'),
+        help: t('Berge werfen Schatten, bei flacher Sonne lang. Der Strahl zur Sonne wird über die Höhenkarte verfolgt.', 'Mountains cast shadows, long at low sun. The ray to the sun is traced over the height map.'),
+        fx: t('Schatten, wenn z(q) > z₀ + s·tan ε + s²/2', 'shadow if z(q) > z₀ + s·tan ε + s²/2') },
+    ] },
+    { id: 'material', title: 'Material', items: [
+      { k: 'rough', mode: 'orig', min: 0, max: 1, step: 0.01, label: 'roughness',
+        help: t('Wie im Original. Die Rauigkeits-Karte (Land hoch, Wasser niedrig) wird damit multipliziert.', 'As in the original. The roughness map (land high, water low) is multiplied by it.'), fx: 'α = (roughness·map)²,  D_GGX = α²/(π((n·h)²(α²−1)+1)²)' },
+      { k: 'metal', mode: 'orig', min: 0, max: 1, step: 0.01, label: 'metalness',
+        help: t('Wie im Original: dieselbe Karte dient auch als Metall-Karte. Deshalb glänzt das Land dort metallisch.', 'As in the original: the same map also serves as metalness map. That is why the land has a metallic sheen.'), fx: 'F₀ = mix(0,04; Albedo; metalness·map)' },
+      { k: 'gloss', mode: 'plus', min: 0, max: 1, step: 0.01, label: t('Glanz (Land)', 'Gloss (land)'),
+        help: t('Glanzlichter auf Fels und Hängen. Wasser glänzt immer nach seiner eigenen Physik.', 'Highlights on rock and slopes. Water always shines by its own physics.'), fx: 'α_Land = α_Material·(1 − 0,55·Glanz)' },
+    ] },
+    { id: 'light', title: t('Licht', 'Lighting'), items: [
+      { k: 'sunAz', min: -180, max: 180, step: 1, label: t('Sonne: Richtung', 'Sun: direction'), fmt: (v) => `${Math.round(v)}°`,
+        help: t('Seitliches Licht zeigt das Relief am stärksten. Der Planet dreht sich, die Sonne steht fest.', 'Side light shows the relief best. The planet turns, the sun stays fixed.') },
+      { k: 'sunEl', min: -60, max: 60, step: 1, label: t('Sonne: Höhe', 'Sun: height'), fmt: (v) => `${Math.round(v)}°` },
+      { k: 'sunI', mode: 'orig', min: 0, max: 4, step: 0.01, label: t('Sonnenlicht', 'Sun light'), help: t('Wie im Original (Lighting).', 'As in the original (Lighting).') },
+      { k: 'ambient', mode: 'orig', min: 0, max: 1, step: 0.01, label: t('Umgebungslicht', 'Ambient light'), help: t('Wie im Original (Lighting): hellt auch die Nachtseite auf.', 'As in the original (Lighting): also lights the night side.') },
+      { k: 'exposure', mode: 'plus', min: 0.2, max: 3, step: 0.01, label: t('Belichtung', 'Exposure'),
+        help: t('Kamera-Belichtung. Danach ACES-Filmkurve, damit Glanzlichter nicht ausfressen.', 'Camera exposure, followed by the ACES film curve so highlights do not clip.'), fx: 'c = ACES(E·L)^(1/2,2)' },
+      { k: 'ambientP', mode: 'plus', min: 0, max: 1.5, step: 0.01, label: t('Himmelslicht', 'Skylight'),
+        help: t('Streulicht des Himmels auf der Tagseite. Die Nachtseite bleibt dunkel, wie im All.', 'Scattered skylight on the day side. The night side stays dark, as in space.') },
+    ] },
+    { id: 'clouds', title: t('Wolken', 'Clouds'), items: [
+      { k: 'cover', min: 0, max: 1, step: 0.01, label: t('Bedeckung', 'Cover'), fmt: pct,
+        help: t('Anteil des Himmels mit Wolken. 0 schaltet die Wolken aus.', 'Share of the sky with clouds. 0 turns clouds off.') },
+      { k: 'cloudOpO', mode: 'orig', min: 0, max: 1, step: 0.01, label: t('Deckkraft', 'Opacity') },
+      { k: 'cloudOp', mode: 'plus', min: 0, max: 2, step: 0.01, label: t('Dichte', 'Density'),
+        help: t('Optische Dicke. Am Planetenrand schaut man schräg durch die Schicht, dort werden Wolken dichter.', 'Optical thickness. At the limb you look through the layer at a slant, so clouds get denser there.'), fx: 'α = 1 − exp(−τ/μᵥ)' },
+      { k: 'cloudH', mode: 'plus', min: 0.002, max: 0.04, step: 0.001, label: t('Höhe', 'Height'),
+        help: t('Abstand der Wolkenschicht zum Boden in Planetenradien. Echte Höhe: die Schatten fallen versetzt.', 'Distance of the cloud layer above ground in planet radii. Real height: shadows fall offset.') },
+      { k: 'wind', mode: 'plus', min: 0, max: 4, step: 0.01, label: t('Wind', 'Wind'),
+        help: t('Wolken ziehen in Breitenbändern wie auf der Erde: Passat nach Westen, Westwinde in mittleren Breiten, polare Ostwinde. Sie entstehen und vergehen dabei.', 'Clouds drift in latitude bands as on Earth: trade winds to the west, westerlies at mid latitudes, polar easterlies. They form and dissolve on the way.'),
+        fx: 'u(φ) = −0,9·sin 6|φ| + 0,35·e^(−((|φ|−0,75)/0,18)²)' },
+      { k: 'cloudShadow', mode: 'plus', min: 0, max: 1, step: 0.01, label: t('Wolkenschatten', 'Cloud shadows') },
+    ] },
+    { id: 'atmo', title: t('Atmosphäre', 'Atmosphere'), items: [
+      { k: 'glow', mode: 'orig', min: 0, max: 3, step: 0.01, label: t('Leuchtsaum', 'Glow'), help: t('Wie im Original: Fresnel-Leuchtsaum um den Planeten.', 'As in the original: Fresnel glow around the planet.'), fx: 'I = (c − n·v)^p' },
+      { k: 'atmo', mode: 'plus', min: 0, max: 3, step: 0.01, label: t('Luftdichte', 'Air density'),
+        help: t('Rayleigh-Streuung: kurzes Blau streut stärker, deshalb der blaue Rand und die rötliche Tag-Nacht-Grenze.', 'Rayleigh scattering: short blue scatters more, hence the blue limb and the reddish terminator.'),
+        fx: 'β_R = (5,8; 13,6; 33,1)·10⁻⁶ m⁻¹,  P_R = 3/(16π)·(1 + cos²θ)' },
+      { k: 'thick', mode: 'plus', min: 1, max: 6, step: 0.01, label: t('Schichtdicke', 'Layer thickness'), fmt: (v) => `×${v.toFixed(1)}`,
+        help: t('Überhöhung der Lufthülle für die Sichtbarkeit. ×1 ist die echte Erde (8 km Skalenhöhe).', 'Exaggeration of the air layer for visibility. ×1 is the real Earth (8 km scale height).') },
+      { k: 'haze', mode: 'plus', min: 0, max: 4, step: 0.01, label: t('Dunst', 'Haze'),
+        help: t('Mie-Streuung an Staub und Tröpfchen: heller Schein, wenn die Sonne hinter dem Planeten steht.', 'Mie scattering by dust and droplets: bright halo when the sun is behind the planet.'),
+        fx: 'P_M = 3/(8π)·(1−g²)(1+cos²θ)/((2+g²)(1+g²−2g cos θ)^1,5), g = 0,8' },
+    ] },
+    { id: 'env', title: t('Umgebung', 'Environment'), items: [
+      { k: 'nebula', min: 0, max: 3, step: 0.01, label: t('Nebel', 'Nebula'),
+        help: t('Hintergrundnebel aus verzerrtem fBm, bei jedem Seed anders gefärbt. Er steht fest und dreht sich nicht mit dem Planeten.', 'Background nebula from warped fBm, coloured differently per seed. It stays fixed and does not spin with the planet.') },
+      { k: 'stars', min: 0, max: 3, step: 0.01, label: t('Sterne', 'Stars') },
+      { k: 'flare', min: 0, max: 2, step: 0.01, label: t('Blendenflecke', 'Lens flare') },
+      { k: 'bloom', mode: 'plus', min: 0, max: 2, step: 0.01, label: t('Überstrahlung', 'Bloom'),
+        help: t('Helles Glitzern und die Sonne strahlen weich über, wie bei einer echten Linse.', 'Bright glints and the sun bleed softly, as in a real lens.') },
+    ] },
+    { id: 'motion', title: t('Drehung & Kamera', 'Spin & camera'), items: [
+      { k: 'rotate', type: 'check', label: t('Drehen', 'Rotate') },
+      { k: 'spin', min: 0, max: 12, step: 0.1, label: t('Drehgeschwindigkeit', 'Spin speed'), fmt: (v) => `${v.toFixed(1)}°/s`,
+        help: t('Ruhig und mächtig: 1,5°/s ist eine Umdrehung in 4 Minuten. Nebel und Sterne drehen nicht mit.', 'Calm and majestic: 1.5°/s is one turn in 4 minutes. Nebula and stars do not turn with it.'),
+        fx: 'T = 360° / ω' },
+      { k: 'tilt', min: 0, max: 90, step: 1, label: t('Achsneigung', 'Axial tilt'), fmt: (v) => `${Math.round(v)}°` },
+      { k: 'fov', min: 15, max: 75, step: 1, label: t('Blickwinkel', 'Field of view'), fmt: (v) => `${Math.round(v)}°` },
+    ] },
+    { id: 'debug', title: 'Debug', items: [
+      { k: 'view', type: 'select', label: t('Anzeige', 'Display'), opts: [[0, t('Farbe', 'Colour')], [1, t('Höhe', 'Height')], [2, t('Feuchte', 'Moisture')], [3, t('Normalen', 'Normals')], [4, t('Rauigkeit', 'Roughness')], [5, t('Albedo', 'Albedo')]],
+        help: t('Die einzelnen Karten wie im Debug-Ordner des Originals. Darunter das Biom-Bild dieses Planeten (x = Feuchte, y = Höhe).', 'The individual maps as in the original\'s Debug folder. Below it, this planet\'s biome image (x = moisture, y = height).') },
+    ] },
+  ];
+}
+
+const openState = {};
+function showHelp(it) {
+  const h = it.help || '';
+  help.innerHTML = `<b>${it.label}.</b> ${h}${it.fx ? `<code class="fx">${it.fx}</code>` : ''}`;
+}
+function fmtVal(it, v) { return it.fmt ? it.fmt(v) : Number(v).toFixed(it.step < 0.01 ? 3 : it.step < 1 ? 2 : 0); }
+
+function buildUI() {
+  const box = $('controls');
+  box.innerHTML = '';
+  for (const sec of controls()) {
+    const det = document.createElement('details');
+    det.open = sec.id in openState ? openState[sec.id] : !!sec.open;
+    det.addEventListener('toggle', () => { openState[sec.id] = det.open; });
+    const sum = document.createElement('summary');
+    sum.textContent = sec.title;
+    det.append(sum);
+    for (const it of sec.items) {
+      if (it.mode && it.mode !== S.style) continue;
+      const row = document.createElement('div');
+      row.className = 'row';
+      const lab = document.createElement('label');
+      lab.innerHTML = it.label + tag(it.mode);
+      lab.htmlFor = 'ctl-' + it.k;
+      const show = () => showHelp(it);
+      row.addEventListener('pointerenter', show);
+      row.addEventListener('focusin', show);
+      lab.title = t('Doppelklick: zurücksetzen', 'Double-click: reset');
+      lab.addEventListener('dblclick', () => { S[it.k] = it.k === 'sea' ? PP.water : DEF[it.k]; changed(it); buildUI(); });
+      if (it.type === 'select') {
+        row.classList.add('row-select');
+        const sel = document.createElement('select');
+        sel.id = 'ctl-' + it.k;
+        for (const [v, txt] of it.opts) { const o = document.createElement('option'); o.value = v; o.textContent = txt; sel.append(o); }
+        sel.value = String(S[it.k]);
+        sel.addEventListener('change', () => { S[it.k] = isNaN(Number(sel.value)) ? sel.value : Number(sel.value); changed(it); });
+        row.append(lab, sel);
+      } else if (it.type === 'check') {
+        row.classList.add('row-check');
+        const cb = document.createElement('input');
+        cb.type = 'checkbox'; cb.id = 'ctl-' + it.k; cb.checked = !!S[it.k];
+        cb.addEventListener('change', () => { S[it.k] = cb.checked; changed(it); });
+        row.append(lab, cb);
+      } else {
+        const out = document.createElement('output');
+        const inp = document.createElement('input');
+        inp.type = 'range'; inp.id = 'ctl-' + it.k; inp.min = it.min; inp.max = it.max; inp.step = it.step; inp.value = S[it.k];
+        out.textContent = fmtVal(it, S[it.k]);
+        inp.addEventListener('input', () => { S[it.k] = Number(inp.value); out.textContent = fmtVal(it, S[it.k]); if (!it.regen) changed(it); });
+        inp.addEventListener('change', () => { if (it.regen) changed(it); });
+        row.append(lab, out, inp);
+      }
+      det.append(row);
+    }
+    if (sec.id === 'debug') det.append(lutCanvas);
+    box.append(det);
+  }
+  help.innerHTML = t('Fahre über einen Regler: Hier steht, was er bewirkt und welche Formel dahintersteht. Ziehen dreht die Ansicht, Mausrad oder zwei Finger zoomen.',
+    'Hover a control: this box explains what it does and which formula is behind it. Drag to turn the view, scroll or pinch to zoom.');
+  $('t-hint').textContent = t('ziehen: drehen · Rad: zoomen', 'drag: turn · wheel: zoom');
+  $('rnd').textContent = t('Zufall', 'Randomize');
+  $('lang').textContent = lang === 'de' ? 'EN' : 'DE';
+  $('st-plus').textContent = t('+20 % besser', '+20 % better');
+  $('st-orig').textContent = 'Original 1:1';
+  $('st-orig').setAttribute('aria-pressed', String(S.style === 'orig'));
+  $('st-plus').setAttribute('aria-pressed', String(S.style === 'plus'));
+  $('style-group').setAttribute('aria-label', t('Stil', 'Style'));
+  $('mode-tag').textContent = S.style === 'orig' ? t('Original 1:1 (colordodge)', 'Original 1:1 (colordodge)') : t('verbessert', 'improved');
+  $('seed').value = S.seed;
+  $('t-foot').innerHTML = t(
+    'Verfahren nach <a href="https://github.com/colordodge/ProceduralPlanet" target="_blank" rel="noopener">colordodge/ProceduralPlanet</a> (WTFPL), nachgebaut in WebGL2. Teil von <a href="https://github.com/elias-nero-tron/Fluid-Gas-Planet" target="_blank" rel="noopener">Fluid Gas Planet</a>, Idee: elias-nero-tron.',
+    'Method after <a href="https://github.com/colordodge/ProceduralPlanet" target="_blank" rel="noopener">colordodge/ProceduralPlanet</a> (WTFPL), rebuilt in WebGL2. Part of <a href="https://github.com/elias-nero-tron/Fluid-Gas-Planet" target="_blank" rel="noopener">Fluid Gas Planet</a>, idea: elias-nero-tron.');
+  document.documentElement.lang = lang;
+}
+
+// Biom-Bild (wie im Original als 2D-Canvas gemalt), auch im Debug-Ordner sichtbar
+const lutCanvas = document.createElement('canvas');
+lutCanvas.id = 'lut';
+lutCanvas.width = 512; lutCanvas.height = 512;
+lutCanvas.setAttribute('aria-label', 'Biome image');
+
+// ------------------------------------------------------------------ WebGL2
+const canvas = $('view');
+function fail(msg) { const el = $('status'); el.hidden = false; el.textContent = msg; throw new Error(msg); }
+const gl = canvas.getContext('webgl2', { antialias: false, alpha: false, depth: false, stencil: false, premultipliedAlpha: false, powerPreference: 'high-performance', preserveDrawingBuffer: !!Q.get('keep') });
+if (!gl) fail(t('Dieser Browser kann kein WebGL2. Bitte einen aktuellen Chrome, Edge, Firefox oder Safari nehmen.', 'This browser has no WebGL2. Please use a current Chrome, Edge, Firefox or Safari.'));
+if (!gl.getExtension('EXT_color_buffer_float') && !gl.getExtension('EXT_color_buffer_half_float'))
+  fail(t('Diese Grafikkarte kann nicht in Gleitkomma-Texturen zeichnen (EXT_color_buffer_float fehlt).', 'This GPU cannot render to floating-point textures (EXT_color_buffer_float missing).'));
+gl.getExtension('OES_texture_float_linear');
+const extAniso = gl.getExtension('EXT_texture_filter_anisotropic');
+const maxTex = gl.getParameter(gl.MAX_TEXTURE_SIZE);
+if (S.res > maxTex) S.res = maxTex;
+
+const HEAD = `#version 300 es
+precision highp float;
+precision highp int;
+precision highp sampler2D;
+precision highp sampler2DArray;
+precision highp samplerCube;
+`;
+
+const COMMON = `
+const float PI = 3.14159265359;
+const float QPI = 0.785398163397;
+// Würfelseiten: Richtung = em + st.x·ex + st.y·ey, st = tan((2uv − 1)·π/4) (winkeltreu)
+void faceBasis(int f, out vec3 ex, out vec3 ey, out vec3 em) {
+  if (f == 0) { ex = vec3(0.0, 0.0, -1.0); ey = vec3(0.0, 1.0, 0.0); em = vec3(1.0, 0.0, 0.0); }
+  else if (f == 1) { ex = vec3(0.0, 0.0, 1.0); ey = vec3(0.0, 1.0, 0.0); em = vec3(-1.0, 0.0, 0.0); }
+  else if (f == 2) { ex = vec3(1.0, 0.0, 0.0); ey = vec3(0.0, 0.0, -1.0); em = vec3(0.0, 1.0, 0.0); }
+  else if (f == 3) { ex = vec3(1.0, 0.0, 0.0); ey = vec3(0.0, 0.0, 1.0); em = vec3(0.0, -1.0, 0.0); }
+  else if (f == 4) { ex = vec3(1.0, 0.0, 0.0); ey = vec3(0.0, 1.0, 0.0); em = vec3(0.0, 0.0, 1.0); }
+  else { ex = vec3(-1.0, 0.0, 0.0); ey = vec3(0.0, 1.0, 0.0); em = vec3(0.0, 0.0, -1.0); }
+}
+int majorFace(vec3 d) {
+  vec3 a = abs(d);
+  if (a.x >= a.y && a.x >= a.z) return d.x > 0.0 ? 0 : 1;
+  if (a.y >= a.z) return d.y > 0.0 ? 2 : 3;
+  return d.z > 0.0 ? 4 : 5;
+}
+vec3 faceDir(int f, vec2 uv) {
+  vec3 ex, ey, em;
+  faceBasis(f, ex, ey, em);
+  vec2 st = tan((uv * 2.0 - 1.0) * QPI);
+  return normalize(em + st.x * ex + st.y * ey);
+}
+// Richtung -> Seite, uv, uv-Ableitungen im Bild (für saubere Mipmaps ohne Nahtlinien) und Jacobi-Zeilen
+struct Face { int f; vec2 uv; vec2 gx; vec2 gy; vec3 jx; vec3 jy; };
+Face toFace(vec3 d, vec3 ddx, vec3 ddy) {
+  Face r;
+  r.f = majorFace(d);
+  vec3 ex, ey, em;
+  faceBasis(r.f, ex, ey, em);
+  float m = dot(d, em);
+  vec2 st = vec2(dot(d, ex), dot(d, ey)) / m;
+  vec2 k = 0.5 / (QPI * (1.0 + st * st));
+  r.uv = atan(st) / QPI * 0.5 + 0.5;
+  r.jx = (ex - st.x * em) * (k.x / m);
+  r.jy = (ey - st.y * em) * (k.y / m);
+  r.gx = vec2(dot(r.jx, ddx), dot(r.jy, ddx));
+  r.gy = vec2(dot(r.jx, ddy), dot(r.jy, ddy));
+  return r;
+}
+// Texel-Mitten liegen exakt auf den Würfelkanten (keine Nähte)
+vec3 faceTc(Face F, float n) { return vec3(F.uv * ((n - 1.0) / n) + 0.5 / n, float(F.f)); }
+vec4 texFace(sampler2DArray tx, Face F, float n) { float s = (n - 1.0) / n; return textureGrad(tx, faceTc(F, n), F.gx * s, F.gy * s); }
+vec4 texFaceLod(sampler2DArray tx, Face F, float n, float lod) { return textureLod(tx, faceTc(F, n), lod); }
+vec4 texDirLod(sampler2DArray tx, vec3 d, float n, float lod) { Face F = toFace(d, vec3(0.0), vec3(0.0)); return textureLod(tx, faceTc(F, n), lod); }
+vec3 hash33(vec3 p3) { p3 = fract(p3 * vec3(0.1031, 0.1030, 0.0973)); p3 += dot(p3, p3.yxz + 33.33); return fract((p3.xxy + p3.yxx) * p3.zyx); }
+float hash13(vec3 p3) { p3 = fract(p3 * 0.1031); p3 += dot(p3, p3.zyx + 31.32); return fract((p3.x + p3.y) * p3.z); }
+vec3 rotY(vec3 p, float a) { float c = cos(a), s = sin(a); return vec3(c * p.x + s * p.z, p.y, -s * p.x + c * p.z); }
+`;
+
+const NOISE = `
+vec3 mod289(vec3 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
+vec4 mod289(vec4 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
+vec4 permute(vec4 x) { return mod289(((x * 34.0) + 10.0) * x); }
+vec4 taylorInvSqrt(vec4 r) { return 1.79284291400159 - 0.85373472095314 * r; }
+// 3D-Simplexrauschen mit exaktem Gradienten (Ashima Arts / Stefan Gustavson, MIT-Lizenz)
+float snoise(vec3 v, out vec3 grad) {
+  const vec2 C = vec2(1.0 / 6.0, 1.0 / 3.0);
+  const vec4 D = vec4(0.0, 0.5, 1.0, 2.0);
+  vec3 i = floor(v + dot(v, C.yyy));
+  vec3 x0 = v - i + dot(i, C.xxx);
+  vec3 g = step(x0.yzx, x0.xyz);
+  vec3 l = 1.0 - g;
+  vec3 i1 = min(g.xyz, l.zxy);
+  vec3 i2 = max(g.xyz, l.zxy);
+  vec3 x1 = x0 - i1 + C.xxx;
+  vec3 x2 = x0 - i2 + C.yyy;
+  vec3 x3 = x0 - D.yyy;
+  i = mod289(i);
+  vec4 p = permute(permute(permute(i.z + vec4(0.0, i1.z, i2.z, 1.0)) + i.y + vec4(0.0, i1.y, i2.y, 1.0)) + i.x + vec4(0.0, i1.x, i2.x, 1.0));
+  float n_ = 0.142857142857;
+  vec3 ns = n_ * D.wyz - D.xzx;
+  vec4 j = p - 49.0 * floor(p * ns.z * ns.z);
+  vec4 x_ = floor(j * ns.z);
+  vec4 y_ = floor(j - 7.0 * x_);
+  vec4 x = x_ * ns.x + ns.yyyy;
+  vec4 y = y_ * ns.x + ns.yyyy;
+  vec4 h = 1.0 - abs(x) - abs(y);
+  vec4 b0 = vec4(x.xy, y.xy);
+  vec4 b1 = vec4(x.zw, y.zw);
+  vec4 s0 = floor(b0) * 2.0 + 1.0;
+  vec4 s1 = floor(b1) * 2.0 + 1.0;
+  vec4 sh = -step(h, vec4(0.0));
+  vec4 a0 = b0.xzyw + s0.xzyw * sh.xxyy;
+  vec4 a1 = b1.xzyw + s1.xzyw * sh.zzww;
+  vec3 p0 = vec3(a0.xy, h.x);
+  vec3 p1 = vec3(a0.zw, h.y);
+  vec3 p2 = vec3(a1.xy, h.z);
+  vec3 p3 = vec3(a1.zw, h.w);
+  vec4 norm = taylorInvSqrt(vec4(dot(p0, p0), dot(p1, p1), dot(p2, p2), dot(p3, p3)));
+  p0 *= norm.x; p1 *= norm.y; p2 *= norm.z; p3 *= norm.w;
+  vec4 m = max(0.5 - vec4(dot(x0, x0), dot(x1, x1), dot(x2, x2), dot(x3, x3)), 0.0);
+  vec4 m2 = m * m;
+  vec4 m4 = m2 * m2;
+  vec4 pdotx = vec4(dot(p0, x0), dot(p1, x1), dot(p2, x2), dot(p3, x3));
+  vec4 tmp = m2 * m * pdotx;
+  grad = -8.0 * (tmp.x * x0 + tmp.y * x1 + tmp.z * x2 + tmp.w * x3);
+  grad += m4.x * p0 + m4.y * p1 + m4.z * p2 + m4.w * p3;
+  grad *= 105.0;
+  return 105.0 * dot(m4, pdotx);
+}
+float snoise(vec3 v) { vec3 g; return snoise(v, g); }
+float fbmS(vec3 p, int oct) {
+  float n = 0.0, a = 0.5;
+  for (int i = 0; i < 12; i++) { if (i >= oct) break; n += a * snoise(p); p = p * 2.02 + vec3(1.7, 9.2, 3.1); a *= 0.5; }
+  return n;
+}
+`;
+
+const FULL_VS = HEAD + `
+out vec2 vUv;
+void main() {
+  vec2 p = vec2(float((gl_VertexID << 1) & 2), float(gl_VertexID & 2));
+  vUv = p;
+  gl_Position = vec4(p * 2.0 - 1.0, 0.0, 1.0);
+}`;
+
+// ---------------------------------------------------------------- Karten: Höhe, Feuchte, Gradient
+const GEN_FS = HEAD + COMMON + NOISE + `
+uniform int uFace;
+uniform float uN;
+uniform int uMode;          // 0 = Original, 1 = verbessert
+uniform vec4 uH; uniform vec2 uHx;   // Höhe: res1, res2, resMix, mixScale | Typ, Seed
+uniform vec4 uM; uniform vec2 uMx;   // Feuchte
+uniform vec4 uEro;          // Stärke, Kacheln, Hangfaktor, Verzweigung
+uniform float uEroOct;
+uniform float uSea;
+out vec4 oC;
+
+float simplex01(vec3 p, out vec3 g) { float n = snoise(p, g); g *= 0.5; return n * 0.5 + 0.5; }
+float ridged01(vec3 p, out vec3 g) { float n = snoise(p, g); g *= (n < 0.0 ? 1.0 : -1.0); return 1.0 - abs(n); }
+vec3 octOff(float seed, int i) { return (hash33(vec3(seed * 0.1373, float(i) * 1.7311 + 3.1, seed * 0.0719 + 11.0)) - 0.5) * 120.0; }
+// Original: immer 16 Oktaven. Verbessert: nur bis zur Nyquist-Grenze der Karte, der Rest kommt live im Pixel.
+int octFor(float frq) {
+  if (uMode == 0) return 16;
+  return clamp(int(floor(log2(uN * frq / 6.2832))) + 1, 2, 16);
+}
+// baseNoise / ridgedNoise des Originals: Σ simplex(p·2ⁱ/frq)·½/2ⁱ, danach Kontrast ×2 bzw. hoch 4
+float fbm(vec3 p, float frq, float seed, bool ridged, int oct, out vec3 g) {
+  float n = 0.0, gain = 1.0;
+  g = vec3(0.0);
+  for (int i = 0; i < 16; i++) {
+    if (i >= oct) break;
+    vec3 gi;
+    vec3 q = p * (gain / frq) + octOff(seed, i);
+    float s = ridged ? ridged01(q, gi) : simplex01(q, gi);
+    n += s * 0.5 / gain;
+    g += gi * (0.5 / frq);
+    gain *= 2.0;
+  }
+  if (ridged) { float n3 = n * n * n; g *= 4.0 * n3; n *= n3; }
+  else { n = (n - 0.5) * 2.0 + 0.5; g *= 2.0; }
+  return n;
+}
+float composite(vec3 p, vec4 prm, vec2 px, out vec3 g) {
+  float type = px.x, seed = px.y;
+  bool r1 = type > 1.5;
+  bool r2 = (type > 0.5 && type < 1.5) || type > 2.5;
+  vec3 g1, g2, g3;
+  float s1 = fbm(p, prm.x, seed + 11.437, r1, octFor(prm.x), g1);
+  float s2 = fbm(p, prm.y, seed + 93.483, r2, octFor(prm.y), g2);
+  float s3 = fbm(p, prm.z, seed + 23.675, false, min(octFor(prm.z), 6), g3);
+  float k = 1.0 + 3.0 * prm.w;
+  float tm = (s3 - 0.5) * k + 0.5;
+  float tt = clamp(tm, 0.0, 1.0);
+  vec3 gt = (tm > 0.0 && tm < 1.0) ? g3 * k : vec3(0.0);
+  g = mix(g1, g2, tt) + (s2 - s1) * gt;
+  return mix(s1, s2, tt);
+}
+mat3 octRot(int o) {
+  float a = float(o) * 2.39996 + 0.7, b = float(o) * 1.1 + 0.3;
+  float ca = cos(a), sa = sin(a), cb = cos(b), sb = sin(b);
+  return mat3(ca, sa, 0.0, -sa, ca, 0.0, 0.0, 0.0, 1.0) * mat3(1.0, 0.0, 0.0, 0.0, cb, sb, 0.0, -sb, cb);
+}
+// Erosionsrinnen: Streifen quer zur Hangrichtung dir = r̂ × ∇h (laufen also hangabwärts),
+// weich gemittelt über 27 zufällig verschobene Zellen ("Gavoronoise", 3D).
+vec4 gullies(vec3 q, vec3 dir) {
+  vec3 ip = floor(q + 0.5);
+  vec4 va = vec4(0.0);
+  float wt = 0.0;
+  for (int k = -1; k <= 1; k++)
+  for (int j = -1; j <= 1; j++)
+  for (int i = -1; i <= 1; i++) {
+    vec3 c = ip + vec3(float(i), float(j), float(k));
+    vec3 pp = q - c - (hash33(c) - 0.5) * 0.3;
+    float w = max(0.0, 1.0 - dot(pp, pp) * 0.64);
+    w *= w * w;
+    float ph = dot(pp, dir) * 6.2831853;
+    va += vec4(cos(ph), -sin(ph) * 6.2831853 * dir) * w;
+    wt += w;
+  }
+  return va / max(wt, 1e-6);
+}
+void main() {
+  vec2 uv = floor(gl_FragCoord.xy) / (uN - 1.0);
+  vec3 ex, ey, em;
+  faceBasis(uFace, ex, ey, em);
+  vec2 st = tan((uv * 2.0 - 1.0) * QPI);
+  vec3 P = em + st.x * ex + st.y * ey;
+  float il = inversesqrt(dot(P, P));
+  vec3 d = P * il;
+  vec3 gh, gm;
+  float h = composite(d, uH, uHx, gh);
+  float m = composite(d, uM, uMx, gm);
+  gh -= d * dot(gh, d);
+  if (uMode == 1 && uEro.x > 0.0) {
+    vec3 dir0 = cross(d, gh) * uEro.z;
+    float a = smoothstep(uSea - 0.06, uSea + 0.12, h);
+    float f = 1.0, sumA = 0.0;
+    vec4 acc = vec4(0.0);
+    for (int o = 0; o < 8; o++) {
+      if (float(o) >= uEroOct) break;
+      vec3 dir = dir0 + cross(d, acc.yzw) * (uEro.w / (6.2831853 * uEro.y));
+      mat3 R = octRot(o);
+      vec4 e = gullies(R * (d * (uEro.y * f)) + float(o) * 19.19, R * dir);
+      acc += vec4(e.x, transpose(R) * e.yzw * (uEro.y * f)) * a;
+      sumA += a;
+      a *= 0.5;
+      f *= 2.0;
+    }
+    float depth = uEro.x * 0.03;
+    h += (acc.x - sumA) * 0.5 * depth;
+    vec3 ge = acc.yzw * 0.5 * depth;
+    gh += ge - d * dot(ge, d);
+  }
+  // Gradient in Seitenkoordinaten (∂h/∂u, ∂h/∂v) speichern
+  vec3 dPu = (ex - d * dot(d, ex)) * il * (2.0 * QPI * (1.0 + st.x * st.x));
+  vec3 dPv = (ey - d * dot(d, ey)) * il * (2.0 * QPI * (1.0 + st.y * st.y));
+  oC = vec4(h, m, dot(gh, dPu), dot(gh, dPv));
+}`;
+
+// ---------------------------------------------------------------- Wolkenkarten
+const CLOUDGEN_FS = HEAD + COMMON + NOISE + `
+uniform int uFace; uniform float uN; uniform float uSeed;
+out vec4 oC;
+// Original-Stil: sin(5·n) über viele Oktaven gibt die zelligen Schlieren
+float hisCloud(vec3 p, float seed) {
+  float n = 0.0, gain = 1.0;
+  for (int i = 0; i < 10; i++) {
+    float s = sin(snoise(p * gain * 1.3 + seed + float(i) * 10.0) * 5.0) * 0.5 + 0.5;
+    n += s * 0.5 / gain;
+    gain *= 2.0;
+  }
+  return clamp((n - 0.5) * 2.0 + 0.5, 0.0, 1.0);
+}
+void main() {
+  vec2 uv = floor(gl_FragCoord.xy) / (uN - 1.0);
+  vec3 d = faceDir(uFace, uv);
+  vec3 p = d * vec3(2.3, 3.8, 2.3) + uSeed;      // nord-süd gestaucht: Wolkenbänder ziehen sich ost-westlich
+  vec3 w = vec3(fbmS(p + 1.3, 4), fbmS(p + 7.1, 4), fbmS(p + 3.7, 4));
+  float A = fbmS(p + w * 1.2, 8);
+  float B = fbmS(p * 1.07 + w.zxy * 1.2 + 21.0, 8);
+  float H = hisCloud(d, uSeed);
+  float Dt = 1.0 - abs(fbmS(d * vec3(22.0, 30.0, 22.0) + uSeed * 1.3, 5));
+  oC = vec4(A * 0.8 + 0.5, B * 0.8 + 0.5, H, Dt);
+}`;
+
+// ---------------------------------------------------------------- Nebel (Würfelkarte, steht fest im Raum)
+const NEBGEN_FS = HEAD + COMMON + NOISE + `
+uniform int uFace; uniform float uN; uniform float uSeed;
+uniform vec3 uC0; uniform vec3 uC1; uniform vec3 uC2;
+out vec4 oC;
+vec3 cubeDir(int f, vec2 uv) {
+  vec2 s = uv * 2.0 - 1.0;
+  if (f == 0) return vec3(1.0, -s.y, -s.x);
+  if (f == 1) return vec3(-1.0, -s.y, s.x);
+  if (f == 2) return vec3(s.x, 1.0, s.y);
+  if (f == 3) return vec3(s.x, -1.0, -s.y);
+  if (f == 4) return vec3(s.x, -s.y, 1.0);
+  return vec3(-s.x, -s.y, -1.0);
+}
+void main() {
+  vec3 d = normalize(cubeDir(uFace, gl_FragCoord.xy / uN));
+  vec3 p = d * 1.7 + uSeed;
+  vec3 w = vec3(fbmS(p, 5), fbmS(p + 5.2, 5), fbmS(p + 9.7, 5));
+  float n = fbmS(p + w * 1.6, 8);
+  float n2 = fbmS(p * 2.1 - w * 0.9 + 31.0, 6);
+  float dust = smoothstep(-0.05, 0.35, fbmS(p * 3.3 + w * 0.6 + 17.0, 7));
+  float neb = pow(clamp(n * 1.1 + 0.42, 0.0, 1.5), 2.6);
+  vec3 col = mix(uC0, uC1, smoothstep(-0.35, 0.35, n2));
+  col = mix(col, uC2, smoothstep(0.25, 0.65, n + 0.35 * n2));
+  col *= neb * (1.0 - 0.75 * dust);
+  col += uC0 * 0.03;
+  oC = vec4(col, 1.0);
+}`;
+
+// ---------------------------------------------------------------- Atmosphäre
+const TRANS_FS = HEAD + `
+uniform vec4 uAt;                 // R, R_oben, H_Rayleigh, H_Mie
+uniform vec3 uBR; uniform float uBMe; uniform vec3 uBO; uniform vec2 uOz;
+out vec4 oC;
+// Durchlässigkeit bis zum oberen Rand, Tabelle über (Höhe, Richtung) nach Bruneton (2017)
+void main() {
+  vec2 x = (gl_FragCoord.xy - 0.5) / vec2(255.0, 63.0);
+  float R = uAt.x, Rt = uAt.y;
+  float H = sqrt(Rt * Rt - R * R);
+  float rho = H * x.y;
+  float r = sqrt(rho * rho + R * R);
+  float dmin = Rt - r, dmax = rho + H;
+  float dd = dmin + x.x * (dmax - dmin);
+  float mu = dd <= 0.0 ? 1.0 : clamp((H * H - rho * rho - dd * dd) / (2.0 * r * dd), -1.0, 1.0);
+  vec3 od = vec3(0.0);
+  float dx = dd / 64.0;
+  for (int i = 0; i <= 64; i++) {
+    float s = float(i) * dx;
+    float ri = sqrt(s * s + 2.0 * r * mu * s + r * r);
+    float hh = max(ri - R, 0.0);
+    float w = (i == 0 || i == 64) ? 0.5 : 1.0;
+    od += w * dx * (uBR * exp(-hh / uAt.z) + vec3(uBMe) * exp(-hh / uAt.w) + uBO * max(0.0, 1.0 - abs(hh - uOz.x) / uOz.y));
+  }
+  oC = vec4(exp(-od), 1.0);
+}`;
+
+const ATMO = `
+uniform sampler2D tTrans;
+uniform vec4 uAt;
+vec3 transmittance(float r, float mu) {
+  float R = uAt.x, Rt = uAt.y;
+  r = clamp(r, R, Rt);
+  float H = sqrt(Rt * Rt - R * R);
+  float rho = sqrt(max(r * r - R * R, 0.0));
+  float disc = r * r * (mu * mu - 1.0) + Rt * Rt;
+  float d = max(-r * mu + sqrt(max(disc, 0.0)), 0.0);
+  float dmin = Rt - r, dmax = rho + H;
+  vec2 uv = vec2((d - dmin) / max(dmax - dmin, 1e-6), rho / H);
+  uv = vec2(0.5 / 256.0, 0.5 / 64.0) + uv * vec2(255.0 / 256.0, 63.0 / 64.0);
+  return texture(tTrans, uv).rgb;
+}
+// Sonnenlicht an einem Punkt: Luftweg + Planetenschatten mit weichem Rand (Sonnenscheibe)
+vec3 sunTrans(float r, float mu) {
+  float muH = -sqrt(max(1.0 - (uAt.x * uAt.x) / (r * r), 0.0));
+  return transmittance(r, mu) * smoothstep(muH - 0.006, muH + 0.006, mu);
+}
+`;
+
+// ---------------------------------------------------------------- Wolkendichte (Schale + Schatten)
+const CLOUDF = `
+uniform sampler2DArray tCloud;
+uniform float uNc;
+uniform vec4 uCl;      // Bedeckung, Phase (Zeit/Periode), Wind, Schattenstärke
+uniform vec4 uCl2;     // Höhe, starre Drehung (Original), Dichte/Deckkraft, Modus
+// Zonalwind als Winkelgeschwindigkeit: Passat (Ost), Westwinde, polare Ostwinde
+float windOmega(float lat) {
+  float a = abs(lat);
+  float u = -0.9 * sin(6.0 * a) + 0.35 * exp(-pow((a - 0.75) / 0.18, 2.0));
+  return u / max(cos(lat), 0.3);
+}
+// Klimabänder: feuchte ITCZ, trockene Rossbreiten, Sturmbahnen um 55–60°
+float climate(float lat) {
+  float a = abs(lat) * 57.2958;
+  return 0.5 * exp(-pow(a / 9.0, 2.0)) - 0.45 * exp(-pow((a - 24.0) / 9.0, 2.0)) + 0.35 * exp(-pow((a - 58.0) / 12.0, 2.0)) - 0.2 * smoothstep(75.0, 90.0, a);
+}
+float cloudDensity(vec3 d, float lod) {
+  if (uCl.x <= 0.0) return 0.0;
+  if (uCl2.w < 0.5) {
+    float c = texDirLod(tCloud, rotY(d, uCl2.y), uNc, lod).b;
+    return smoothstep(1.0 - uCl.x, 1.0 - uCl.x + 0.35, c);
+  }
+  float lat = asin(clamp(d.y, -1.0, 1.0));
+  float w = windOmega(lat) * uCl.z;
+  float ph = fract(uCl.y), ph2 = fract(uCl.y + 0.5);
+  vec4 A = texDirLod(tCloud, rotY(d, w * ph), uNc, lod);
+  vec4 B = texDirLod(tCloud, rotY(d, w * ph2), uNc, lod);
+  float wa = 1.0 - abs(2.0 * ph - 1.0), wb = 1.0 - wa;
+  // zwei Phasen überblenden, Varianz erhalten: Wolken entstehen und vergehen, statt zu pulsieren
+  float c = ((A.r - 0.5) * wa + (B.g - 0.5) * wb) * inversesqrt(wa * wa + wb * wb) + 0.5;
+  float det = A.a * wa + B.a * wb;
+  c += climate(lat) * 0.35 + (det - 0.5) * 0.14;
+  return smoothstep(1.0 - uCl.x, 1.0 - uCl.x + 0.3, c);
+}
+`;
+
+// ---------------------------------------------------------------- Planet
+const PLANET_VS = HEAD + COMMON + `
+layout(location = 0) in vec3 aPos;
+uniform mat4 uVP;
+uniform mat3 uModel;
+uniform sampler2DArray tHm;
+uniform float uN, uLodV, uRelief, uSea, uRadius;
+out vec3 vObj;
+out vec3 vWorld;
+void main() {
+  vec3 d = normalize(aPos);
+  float disp = 0.0;
+  if (uRelief > 0.0) disp = uRelief * max(texDirLod(tHm, d, uN, uLodV).x - uSea, 0.0);
+  vec3 p = d * (uRadius + disp);
+  vObj = d;
+  vWorld = uModel * p;
+  gl_Position = uVP * vec4(vWorld, 1.0);
+}`;
+
+const PLANET_FS = HEAD + COMMON + NOISE + ATMO + CLOUDF + `
+uniform sampler2DArray tHm;
+uniform float uN;
+uniform sampler2D tBiome;
+uniform int uMode, uPal, uView;
+uniform mat3 uModel;
+uniform vec3 uCam, uSun;
+uniform float uSea, uTime, uSunE;
+uniform vec4 uO;      // Original: normalScale, roughness, metalness, ambient
+uniform float uSunI;  // Original: Sonnenlicht
+uniform vec4 uW;      // Wasser: Wellen, Klarheit, Brandung, -
+uniform vec4 uL;      // Land: Relief-Schärfe, Glanz, Feindetail, Terrassen
+uniform vec4 uL2;     // Geländeschatten, Himmelslicht, -, -
+uniform vec2 uMq;     // Feuchte-Normierung
+in vec3 vObj;
+in vec3 vWorld;
+out vec4 oC;
+
+float ggxD(float NH, float a) { float a2 = a * a; float d = NH * NH * (a2 - 1.0) + 1.0; return a2 / (PI * d * d); }
+float smithVis(float NL, float NV, float a) {
+  float a2 = a * a;
+  float gv = NL * sqrt(a2 + (1.0 - a2) * NV * NV);
+  float gl = NV * sqrt(a2 + (1.0 - a2) * NL * NL);
+  return 0.5 / max(gv + gl, 1e-5);
+}
+vec3 toLin(vec3 c) { return pow(max(c, 0.0), vec3(2.2)); }
+float luma(vec3 c) { return dot(c, vec3(0.2126, 0.7152, 0.0722)); }
+
+// Weitere fBm-Oktaven oberhalb der Karten-Nyquistgrenze, weich ausgeblendet unter ~3 Pixeln
+vec4 detailNoise(vec3 d, float pix, float f0, float amp) {
+  vec4 acc = vec4(0.0);
+  float f = f0;
+  for (int i = 0; i < 5; i++) {
+    float fade = smoothstep(2.0, 5.0, 1.0 / (f * pix));
+    if (fade <= 0.0) break;
+    vec3 g;
+    float n = snoise(d * f + float(i) * 17.31, g);
+    float a = amp / f;
+    acc += vec4(n * a, g * (f * a)) * fade;
+    f *= 2.0;
+  }
+  return acc;
+}
+
+// Horizontverfolgung zur Sonne über die Höhenkarte (weiche Schatten)
+float terrainShadow(vec3 d, vec3 Lo, float h0, float k) {
+  float sinEl = dot(Lo, d);
+  if (sinEl < -0.2) return 0.0;
+  vec3 tv = Lo - d * sinEl;
+  float tl = length(tv);
+  if (tl < 1e-4) return 1.0;
+  tv /= tl;
+  float tanEl = sinEl / tl;
+  float z0 = k * max(h0 - uSea, 0.0);
+  float sh = 1.0;
+  float s = 1.5 / uN;
+  for (int i = 0; i < 14; i++) {
+    vec3 q = d * cos(s) + tv * sin(s);
+    float lod = log2(max(s * uN / 1.5708 * 0.3, 1.0));
+    float zq = k * max(texDirLod(tHm, q, uN, lod).x - uSea, 0.0);
+    float zr = z0 + s * tanEl + 0.5 * s * s;
+    sh = min(sh, clamp((zr - zq) / (s * 0.035) + 0.5, 0.0, 1.0));
+    if (sh <= 0.0 || zr > k * 1.2) break;
+    s *= 1.5;
+  }
+  return sh;
+}
+
+// Klimazonen (erdähnliche Palette, lineare Albedo)
+void earthBiome(vec3 d, float h, float m, float slope, float nz, out vec3 alb, out float rough) {
+  float lat = abs(d.y);
+  float elev = max(h - uSea, 0.0);
+  float temp = 1.0 - 1.25 * pow(lat, 1.35) - elev * 1.6 + nz * 0.08;
+  float latDeg = asin(lat) * 57.2958;
+  float circ = 0.35 * exp(-pow(latDeg / 10.0, 2.0)) - 0.35 * exp(-pow((latDeg - 25.0) / 9.0, 2.0)) + 0.15 * exp(-pow((latDeg - 55.0) / 12.0, 2.0));
+  float moist = clamp(m * 0.8 + circ + 0.08 - elev * 0.3 + nz * 0.05, 0.0, 1.0);
+  vec3 desert = mix(vec3(0.56, 0.41, 0.25), vec3(0.45, 0.24, 0.12), clamp(nz * 0.8 + 0.5, 0.0, 1.0));
+  vec3 steppe = vec3(0.30, 0.26, 0.14);
+  vec3 grass = vec3(0.12, 0.15, 0.055);
+  vec3 forest = vec3(0.04, 0.075, 0.028);
+  vec3 jungle = vec3(0.022, 0.055, 0.016);
+  vec3 taiga = vec3(0.035, 0.055, 0.042);
+  vec3 tundra = vec3(0.19, 0.18, 0.13);
+  vec3 warm = mix(desert, steppe, smoothstep(0.14, 0.3, moist));
+  warm = mix(warm, grass, smoothstep(0.3, 0.46, moist));
+  warm = mix(warm, forest, smoothstep(0.48, 0.64, moist));
+  warm = mix(warm, jungle, smoothstep(0.66, 0.85, moist) * smoothstep(0.55, 0.85, temp));
+  vec3 cold = mix(tundra, taiga, smoothstep(0.35, 0.55, moist));
+  alb = mix(cold, warm, smoothstep(0.12, 0.38, temp));
+  rough = 0.86;
+  float beach = (1.0 - smoothstep(0.002, 0.008, elev)) * smoothstep(0.1, 0.3, temp) * (1.0 - smoothstep(0.12, 0.3, slope));
+  alb = mix(alb, vec3(0.62, 0.55, 0.40), beach);
+  float rk = smoothstep(0.1, 0.28, slope + elev * 0.15);
+  vec3 rock = vec3(0.21, 0.19, 0.17) * (0.75 + 0.5 * fract(h * 131.0 + nz * 0.7));
+  alb = mix(alb, rock, rk);
+  rough = mix(rough, 0.6, rk);
+  float sn = smoothstep(0.02, -0.08, temp) * (1.0 - smoothstep(0.3, 0.55, slope));
+  alb = mix(alb, vec3(0.86, 0.88, 0.92), sn);
+  rough = mix(rough, 0.32, sn);
+}
+
+void main() {
+  vec3 d = normalize(vObj);
+  vec3 ddx = dFdx(d), ddy = dFdy(d);
+  Face F = toFace(d, ddx, ddy);
+  vec4 T = texFace(tHm, F, uN);
+  float h = T.x;
+  vec3 g = T.z * F.jx + T.w * F.jy;
+  float pix = max(max(length(ddx), length(ddy)), 1e-6);
+  float lod = log2(max(pix * uN / 1.5708, 1.0));
+  mat3 Mi = transpose(uModel);
+  vec3 Lo = Mi * uSun;
+  vec3 Vw = normalize(uCam - vWorld);
+  float muS = dot(d, Lo);
+
+  // ============================== Original 1:1 ==============================
+  if (uMode == 0) {
+    vec3 alb = texture(tBiome, vec2(T.y, h)).rgb;          // textureMap = biom(feuchte, höhe)
+    // normalMap: Sobel über 8-Bit-Höhe + Bildhelligkeit, Wasser glatt
+    float stp = exp2(max(floor(lod), 0.0)) / (uN - 1.0);
+    float gx = 0.0, gy = 0.0;
+    for (int j = -1; j <= 1; j++)
+    for (int i = -1; i <= 1; i++) {
+      if (i == 0 && j == 0) continue;
+      Face G = F;
+      G.uv = clamp(F.uv + vec2(float(i), float(j)) * stp, 0.0, 1.0);
+      vec4 Tn = texFaceLod(tHm, G, uN, floor(lod));
+      float hq = floor(Tn.x * 255.0) / 255.0;
+      float b = hq + 0.35 * luma(texture(tBiome, vec2(Tn.y, Tn.x)).rgb);
+      gx += float(i) * (j == 0 ? 2.0 : 1.0) * b;
+      gy += float(j) * (i == 0 ? 2.0 : 1.0) * b;
+    }
+    vec2 dB = vec2(gx, gy) / (8.0 * stp);
+    vec3 gB = dB.x * F.jx + dB.y * F.jy;
+    bool water = h < uSea;
+    vec3 nO = water ? d : normalize(d - uO.x * 0.0042 * gB);
+    float rmap = water ? 0.25 : 0.85;                      // roughnessMap (dient auch als metalnessMap)
+    float rough = clamp(uO.y * rmap, 0.04, 1.0);
+    float metal = clamp(uO.z * rmap, 0.0, 1.0);
+    vec3 N = normalize(uModel * nO);
+    vec3 L = uSun, V = Vw, Hh = normalize(L + V);
+    float NL = max(dot(N, L), 0.0), NV = max(dot(N, V), 1e-3), NH = max(dot(N, Hh), 0.0), VH = max(dot(V, Hh), 0.0);
+    vec3 diffC = alb * (1.0 - metal);
+    vec3 specC = mix(vec3(0.04), alb, metal);
+    float a = rough * rough;
+    vec3 Fr = specC + (1.0 - specC) * pow(1.0 - VH, 5.0);
+    vec3 col = NL * uSunI * (diffC + Fr * smithVis(NL, NV, a) * ggxD(NH, a) * PI);
+    col += uO.w * diffC;
+    if (uView == 1) col = vec3(h);
+    else if (uView == 2) col = vec3(T.y);
+    else if (uView == 3) col = nO * 0.5 + 0.5;
+    else if (uView == 4) col = vec3(rough);
+    else if (uView == 5) col = alb;
+    oC = vec4(col, 1.0);
+    return;
+  }
+
+  // ============================== Verbessert ==============================
+  float mN = clamp((T.y - uMq.x) / max(uMq.y - uMq.x, 1e-3), 0.0, 1.0);
+  float texAng = 1.5708 / uN;
+  if (uL.z > 0.0) {
+    vec4 det = detailNoise(d, pix, 0.16 / texAng, uL.z * 0.9);
+    float rug = clamp(length(g) * 0.12, 0.25, 1.6);
+    h += det.x * rug;
+    g += det.yzw * rug;
+  }
+  g -= d * dot(g, d);
+  float depth = uSea - h;
+  bool water = depth > 0.0;
+  // Terrassen (Gesteinsschichten) auf dem Land
+  if (!water && uL.w > 0.0) {
+    float step = 0.022;
+    float x = (h - uSea) / step + 0.25 * sin(T.y * 40.0);
+    float fl = floor(x), fr = x - fl;
+    float w = 0.5 - 0.42 * uL.w;
+    float tt = clamp((fr - 0.5 + w) / (2.0 * w), 0.0, 1.0);
+    float sm = tt * tt * (3.0 - 2.0 * tt);
+    float dsm = 6.0 * tt * (1.0 - tt) / (2.0 * w);
+    h = mix(h, uSea + (fl + sm) * step, uL.w);
+    g = mix(g, g * dsm, uL.w);
+  }
+  float kN = uL.x * 0.045;                          // Überhöhung für Normalen und Schatten
+  vec3 nL = normalize(d - kN * g);
+  float slope = 1.0 - dot(nL, d);
+  float nz = T.y * 3.0 - floor(T.y * 3.0) - 0.5;
+
+  // Licht an diesem Ort: Sonne durch die Luft, Wolken- und Geländeschatten
+  vec3 E = sunTrans(uAt.x, muS) * uSunE;
+  float cs = 1.0;
+  if (uCl.w > 0.0 && uCl.x > 0.0) {
+    vec3 tS = Lo - d * muS;
+    vec3 pc = normalize(d + tS * (uCl2.x / max(muS, 0.12)));
+    float cd = cloudDensity(pc, max(lod - 1.0, 0.0));
+    cs = mix(1.0, exp(-cd * 3.0 * uCl2.z), uCl.w);
+  }
+  float ts = (uL2.x > 0.0 && muS > -0.1) ? mix(1.0, terrainShadow(d, Lo, h, kN), uL2.x) : 1.0;
+  vec3 Esh = E * cs * ts;
+  vec3 up = uModel * d;
+  float day = smoothstep(-0.12, 0.25, muS);
+  vec3 skyAmb = vec3(0.30, 0.45, 0.75) * uL2.y * 0.25 * day * uSunE * transmittance(uAt.x, max(muS, 0.05));
+
+  vec3 col;
+  vec3 albOut = vec3(0.0);
+  float roughOut = 0.0;
+  vec3 nOut = nL;
+  if (water) {
+    // Wellen: Neigungen aus animiertem Rauschen; was unter ein Pixel fällt, wird Rauigkeit (Toksvig/Cox–Munk)
+    vec3 gw = vec3(0.0);
+    float varSub = 0.0;
+    float f = 700.0;
+    float sAmp = 0.05 * uW.x;
+    for (int i = 0; i < 4; i++) {
+      float fade = smoothstep(1.5, 4.0, 1.0 / (f * pix));
+      if (fade > 0.0) {
+        vec3 gi;
+        snoise(d * f + vec3(uTime * 0.21, uTime * 0.13, -uTime * 0.17) * (1.0 + float(i) * 0.6) + float(i) * 7.1, gi);
+        gw += (gi - d * dot(gi, d)) * (sAmp * fade * 0.6);
+      }
+      varSub += sAmp * sAmp * 0.36 * (1.0 - fade);
+      f *= 2.13;
+    }
+    vec3 nW = normalize(d - gw);
+    nOut = nW;
+    float alpha = sqrt(0.0025 + 0.003 * uW.x + varSub * 2.0);
+    vec3 N = normalize(uModel * nW);
+    vec3 V = Vw, L = uSun, Hh = normalize(V + L);
+    float NV = max(dot(N, V), 1e-3), NL = max(dot(N, L), 0.0), NH = max(dot(N, Hh), 0.0), VH = max(dot(V, Hh), 0.0);
+    float Fv = 0.02 + 0.98 * pow(1.0 - NV, 5.0);
+    float Fs = 0.02 + 0.98 * pow(1.0 - VH, 5.0);
+    vec3 spec = Esh * (ggxD(NH, alpha) * smithVis(NL, NV, alpha) * Fs * NL);
+    // Himmel spiegeln
+    vec3 Rw = reflect(-V, N);
+    float ru = clamp(dot(Rw, up), 0.0, 1.0);
+    vec3 sky = mix(vec3(0.55, 0.65, 0.8), vec3(0.12, 0.28, 0.65), sqrt(ru)) * E * 0.05;
+    // Wasserkörper: Beer–Lambert, Meeresboden scheint im Flachen durch
+    float z = depth * 6000.0;
+    vec3 kap = vec3(0.45, 0.065, 0.021) / max(uW.y, 0.05);
+    float muV = max(dot(nW, Mi * V), 0.05), muL = max(muS, 0.05);
+    vec3 Tz = exp(-kap * z * (1.0 / muV + 1.0 / muL));
+    vec3 deep = vec3(0.004, 0.014, 0.034);
+    vec3 bed = vec3(0.55, 0.49, 0.36);
+    if (uPal == 0) {
+      vec3 tint = toLin(texture(tBiome, vec2(T.y, max(uSea - 0.02, 0.0))).rgb);
+      deep = tint * 0.09 + vec3(0.001, 0.003, 0.008);
+      bed = toLin(texture(tBiome, vec2(T.y, uSea + 0.01)).rgb) * 0.9;
+    }
+    vec3 body = (bed * Tz + deep * (1.0 - Tz)) * Esh * max(muS, 0.0) / PI;
+    col = (1.0 - Fv) * body + Fv * sky + spec;
+    // Brandung: Schaumlinien laufen auf den Strand
+    if (uW.z > 0.0) {
+      float zb = depth / 0.006;
+      float band = 1.0 - smoothstep(0.0, 1.0, zb);
+      float wv = 0.5 + 0.5 * sin(zb * 18.85 - uTime * 1.3 + snoise(d * 900.0) * 2.5);
+      float foam = band * smoothstep(0.55, 0.95, wv) * 0.8 + (1.0 - smoothstep(0.0, 0.12, zb)) * 0.7;
+      foam *= uW.z * (0.6 + 0.4 * snoise(d * 2500.0 + uTime * 0.4));
+      col = mix(col, vec3(0.8) * Esh * max(muS, 0.0) / PI + skyAmb * 0.8, clamp(foam, 0.0, 1.0));
+    }
+    col += deep * skyAmb * 0.5;
+    albOut = deep;
+    roughOut = alpha;
+  } else {
+    vec3 alb;
+    float rough;
+    if (uPal == 0) {
+      alb = toLin(texture(tBiome, vec2(T.y, h)).rgb);
+      rough = 0.7;
+      float rk = smoothstep(0.12, 0.3, slope);
+      alb = mix(alb, alb * 0.7 + vec3(0.03), rk * 0.5);
+    } else {
+      earthBiome(d, h, mN, slope, nz, alb, rough);
+    }
+    // Kavität: Täler dunkler, Grate heller (Differenz zu einer gröberen Mipmap)
+    float hb = texFaceLod(tHm, F, uN, lod + 3.0).x;
+    float cav = clamp((T.x - hb) * 30.0, -1.0, 1.0);
+    float ao = clamp(1.0 + cav * 0.45, 0.45, 1.15);
+    rough = clamp(rough * (1.0 - 0.55 * uL.y), 0.08, 1.0);
+    vec3 N = normalize(uModel * nL);
+    vec3 V = Vw, L = uSun, Hh = normalize(V + L);
+    float NL = max(dot(N, L), 0.0), NV = max(dot(N, V), 1e-3), NH = max(dot(N, Hh), 0.0), VH = max(dot(V, Hh), 0.0);
+    float a = rough * rough;
+    float Fs = 0.04 + 0.96 * pow(1.0 - VH, 5.0);
+    vec3 diff = alb * (1.0 - Fs) / PI;
+    vec3 spec = vec3(ggxD(NH, a) * smithVis(NL, NV, a) * Fs);
+    col = Esh * NL * (diff + spec);
+    col += alb * skyAmb * ao * (0.6 + 0.4 * dot(nL, d));
+    albOut = alb;
+    roughOut = rough;
+  }
+  if (uView == 1) col = vec3(clamp(h, 0.0, 1.0)) * 0.3;
+  else if (uView == 2) col = vec3(mN) * 0.3;
+  else if (uView == 3) col = (nOut * 0.5 + 0.5) * 0.3;
+  else if (uView == 4) col = vec3(roughOut) * 0.3;
+  else if (uView == 5) col = albOut * 0.6;
+  oC = vec4(col, 1.0);
+}`;
+
+// ---------------------------------------------------------------- Wolkenschale
+const CLOUD_FS = HEAD + COMMON + ATMO + CLOUDF + `
+uniform mat3 uModel;
+uniform vec3 uCam, uSun;
+uniform float uSunE, uSunI;
+uniform vec4 uO;
+in vec3 vObj;
+in vec3 vWorld;
+out vec4 oC;
+void main() {
+  vec3 d = normalize(vObj);
+  float pix = max(max(length(dFdx(d)), length(dFdy(d))), 1e-6);
+  float lod = log2(max(pix * uNc / 1.5708, 1.0));
+  float dens = cloudDensity(d, lod);
+  if (dens <= 0.003) discard;
+  mat3 Mi = transpose(uModel);
+  vec3 Lo = Mi * uSun;
+  vec3 Vw = normalize(uCam - vWorld);
+  float muS = dot(d, Lo);
+  if (uCl2.w < 0.5) {
+    // Original: weiße, halbtransparente Schicht mit Standardmaterial
+    float NL = max(muS, 0.0);
+    float a = dens * uCl2.z;
+    vec3 col = vec3(1.0) * (NL * uSunI * 0.9 + uO.w);
+    oC = vec4(col * a, a);
+    return;
+  }
+  // Pseudo-Normale aus dem Dichtegradienten: quellende Oberseiten fangen Licht
+  vec3 t1 = normalize(cross(d, abs(d.y) < 0.9 ? vec3(0.0, 1.0, 0.0) : vec3(1.0, 0.0, 0.0)));
+  vec3 t2 = cross(d, t1);
+  float e = max(pix * 1.5, 1.0 / uNc);
+  float dx = cloudDensity(normalize(d + t1 * e), lod) - dens;
+  float dy = cloudDensity(normalize(d + t2 * e), lod) - dens;
+  vec3 nC = normalize(d - (t1 * dx + t2 * dy) * (0.006 / e));
+  vec3 E = sunTrans(uAt.x + uCl2.x, muS) * uSunE;
+  float tau = dens * 9.0 * uCl2.z;
+  float muV = max(dot(d, Mi * Vw), 0.03);
+  float alpha = 1.0 - exp(-tau / muV);
+  float NL = dot(nC, Lo);
+  float diffuse = clamp(NL * 0.65 + 0.35, 0.0, 1.0) * smoothstep(-0.2, 0.08, muS);
+  float cosT = dot(-Vw, uSun);
+  float g = 0.65;
+  float hg = (1.0 - g * g) / pow(max(1.0 + g * g - 2.0 * g * cosT, 1e-4), 1.5) / (4.0 * PI);
+  float thin = exp(-tau * 0.6);
+  vec3 col = E * (0.9 * diffuse / PI + hg * thin * 1.2);
+  col += vec3(0.25, 0.35, 0.5) * 0.03 * uSunE * smoothstep(-0.2, 0.3, muS);
+  oC = vec4(col * alpha, alpha);
+}`;
+
+// ---------------------------------------------------------------- Hintergrund: Nebel, Sterne, Sonne
+const BG_FS = HEAD + COMMON + `
+uniform samplerCube tNeb;
+uniform mat4 uIVP;
+uniform vec3 uCam, uSun;
+uniform float uNeb, uStars, uSunE, uSunR;
+uniform int uHasNeb;
+in vec2 vUv;
+out vec4 oC;
+vec3 stars(vec3 d, float pix) {
+  vec3 acc = vec3(0.0);
+  Face F = toFace(d, vec3(0.0), vec3(0.0));
+  for (int L = 0; L < 3; L++) {
+    float cells = 70.0 * exp2(float(L));
+    vec2 g = F.uv * cells;
+    vec2 id = floor(g);
+    vec3 h = hash33(vec3(id, float(F.f) * 17.0 + float(L) * 131.0));
+    float keep = L == 0 ? 0.42 : L == 1 ? 0.3 : 0.22;
+    if (h.z > keep) continue;
+    vec2 pos = id + 0.25 + 0.5 * h.xy;
+    float r = length(g - pos) / cells * 1.5708;
+    float b = hash13(vec3(id * 1.37, float(F.f) + float(L) * 7.0));
+    float flux = (pow(b, 16.0) * 5.0 + 0.03 * b * b) * (L == 0 ? 1.0 : L == 1 ? 0.55 : 0.3);
+    float sig = pix * 0.55;
+    float I = flux * exp(-r * r / (2.0 * sig * sig));
+    float tc = hash13(vec3(id, 5.0 + float(L)));
+    acc += I * mix(vec3(1.0, 0.78, 0.6), vec3(0.72, 0.82, 1.0), tc);
+  }
+  return acc;
+}
+void main() {
+  vec4 w = uIVP * vec4(vUv * 2.0 - 1.0, 1.0, 1.0);
+  vec3 dir = normalize(w.xyz / w.w - uCam);
+  float pix = max(length(fwidth(dir)), 1e-5);
+  vec3 col = uHasNeb == 1 ? texture(tNeb, dir).rgb * uNeb : vec3(0.0);
+  col += stars(dir, pix) * uStars;
+  float c = dot(dir, uSun);
+  float ang = acos(clamp(c, -1.0, 1.0));
+  float disc = 1.0 - smoothstep(uSunR - pix, uSunR + pix, ang);
+  float limb = sqrt(max(0.0, 1.0 - (ang / uSunR) * (ang / uSunR)));
+  vec3 sunCol = vec3(1.0, 0.96, 0.9);
+  col += sunCol * disc * (0.45 + 0.55 * limb) * uSunE * 40.0;
+  col += sunCol * uSunE * (0.012 * exp(-ang / 0.02) + 0.002 * exp(-ang / 0.15));
+  oC = vec4(col, 1.0);
+}`;
+
+// ---------------------------------------------------------------- Zusammensetzen: Luftstreuung bzw. Leuchtsaum
+const COMP_FS = HEAD + COMMON + ATMO + `
+uniform sampler2D tScene;
+uniform mat4 uIVP;
+uniform vec3 uCam, uSun;
+uniform float uSunE;
+uniform int uMode;
+uniform vec3 uBR; uniform float uBM; uniform float uBMe; uniform float uMieG; uniform vec3 uBO; uniform vec2 uOz;
+uniform vec4 uGlow;
+uniform float uSteps;
+in vec2 vUv;
+out vec4 oC;
+float ign(vec2 p) { return fract(52.9829189 * fract(dot(p, vec2(0.06711056, 0.00583715)))); }
+void main() {
+  vec3 col = texture(tScene, vUv).rgb;
+  vec4 w = uIVP * vec4(vUv * 2.0 - 1.0, 1.0, 1.0);
+  vec3 dir = normalize(w.xyz / w.w - uCam);
+  float b = dot(uCam, dir);
+  float c2 = dot(uCam, uCam);
+  if (uMode == 0) {
+    // Original: Leuchtsaum wie der three.js-glow-Shader, I = (c − n·v)^p
+    if (b < 0.0 && uGlow.w > 0.0) {
+      float imp = sqrt(max(c2 - b * b, 0.0));
+      vec3 pc = normalize(uCam - dir * b);
+      float lit = 0.35 + 0.65 * smoothstep(-0.4, 0.6, dot(pc, uSun));
+      float gl = imp < 1.0 ? pow(imp, 10.0) * 0.55 : pow(max(0.0, 1.0 - (imp - 1.0) / 0.09), 3.0) * 0.55;
+      col += uGlow.rgb * gl * lit * uGlow.w;
+    }
+    oC = vec4(col, 1.0);
+    return;
+  }
+  float R = uAt.x, Rt = uAt.y;
+  float disc = b * b - (c2 - Rt * Rt);
+  if (disc <= 0.0) { oC = vec4(col, 1.0); return; }
+  float sq = sqrt(disc);
+  float t0 = max(-b - sq, 0.0), t1 = -b + sq;
+  float dg = b * b - (c2 - R * R);
+  if (dg > 0.0) { float tg = -b - sqrt(dg); if (tg > 0.0) t1 = min(t1, tg); }
+  if (t1 <= t0) { oC = vec4(col, 1.0); return; }
+  int NS = int(uSteps);
+  float dt = (t1 - t0) / float(NS);
+  float jit = ign(gl_FragCoord.xy);
+  vec3 od = vec3(0.0), sR = vec3(0.0), sM = vec3(0.0);
+  for (int i = 0; i < 64; i++) {
+    if (i >= NS) break;
+    float tt = t0 + (float(i) + jit) * dt;
+    vec3 p = uCam + dir * tt;
+    float r = length(p);
+    float hh = max(r - R, 0.0);
+    float dR = exp(-hh / uAt.z), dM = exp(-hh / uAt.w);
+    float dO = max(0.0, 1.0 - abs(hh - uOz.x) / uOz.y);
+    vec3 ext = uBR * dR + vec3(uBMe) * dM + uBO * dO;
+    vec3 Tv = exp(-(od + ext * dt * 0.5));
+    vec3 Ts = sunTrans(r, dot(p, uSun) / r);
+    sR += Tv * Ts * dR * dt;
+    sM += Tv * Ts * dM * dt;
+    od += ext * dt;
+  }
+  float mu = dot(dir, uSun);
+  float pR = 3.0 / (16.0 * PI) * (1.0 + mu * mu);
+  float g = uMieG;
+  float pM = 3.0 / (8.0 * PI) * ((1.0 - g * g) * (1.0 + mu * mu)) / ((2.0 + g * g) * pow(max(1.0 + g * g - 2.0 * g * mu, 1e-4), 1.5));
+  vec3 Ls = uSunE * (sR * uBR * pR + sM * uBM * pM);
+  oC = vec4(col * exp(-od) + Ls, 1.0);
+}`;
+
+// ---------------------------------------------------------------- Überstrahlung, Filmkurve
+const DOWN_FS = HEAD + `
+uniform sampler2D tSrc;
+uniform vec2 uTexel;
+uniform float uThresh;
+uniform int uPre;
+in vec2 vUv;
+out vec4 oC;
+vec3 tp(vec2 o) { return texture(tSrc, vUv + o * uTexel).rgb; }
+void main() {
+  vec3 c = tp(vec2(0.0)) * 0.125
+    + (tp(vec2(-2.0, 2.0)) + tp(vec2(2.0, 2.0)) + tp(vec2(-2.0, -2.0)) + tp(vec2(2.0, -2.0))) * 0.03125
+    + (tp(vec2(0.0, 2.0)) + tp(vec2(-2.0, 0.0)) + tp(vec2(2.0, 0.0)) + tp(vec2(0.0, -2.0))) * 0.0625
+    + (tp(vec2(-1.0, 1.0)) + tp(vec2(1.0, 1.0)) + tp(vec2(-1.0, -1.0)) + tp(vec2(1.0, -1.0))) * 0.125;
+  if (uPre == 1) {
+    float br = max(c.r, max(c.g, c.b));
+    float soft = clamp(br - uThresh + 0.5, 0.0, 1.0);
+    soft = soft * soft * 0.5;
+    c *= max(soft, br - uThresh) / max(br, 1e-4);
+    c = min(c, vec3(60.0));
+  }
+  oC = vec4(c, 1.0);
+}`;
+const UP_FS = HEAD + `
+uniform sampler2D tSrc;
+uniform vec2 uTexel;
+in vec2 vUv;
+out vec4 oC;
+vec3 tp(vec2 o) { return texture(tSrc, vUv + o * uTexel).rgb; }
+void main() {
+  vec3 c = tp(vec2(0.0)) * 4.0
+    + (tp(vec2(-1.0, 0.0)) + tp(vec2(1.0, 0.0)) + tp(vec2(0.0, -1.0)) + tp(vec2(0.0, 1.0))) * 2.0
+    + tp(vec2(-1.0, -1.0)) + tp(vec2(1.0, -1.0)) + tp(vec2(-1.0, 1.0)) + tp(vec2(1.0, 1.0));
+  oC = vec4(c / 16.0, 1.0);
+}`;
+const FINAL_FS = HEAD + `
+uniform sampler2D tHdr;
+uniform sampler2D tBloom;
+uniform float uExposure, uBloom;
+uniform int uTone;
+uniform vec4 uFl;       // Sonne in uv, Stärke, Seitenverhältnis
+in vec2 vUv;
+out vec4 oC;
+vec3 aces(vec3 x) { return clamp((x * (2.51 * x + 0.03)) / (x * (2.43 * x + 0.59) + 0.14), 0.0, 1.0); }
+float hash12(vec2 p) { vec3 p3 = fract(vec3(p.xyx) * 0.1031); p3 += dot(p3, p3.yzx + 33.33); return fract((p3.x + p3.y) * p3.z); }
+vec3 flare(vec2 uv) {
+  vec2 s = uFl.xy - 0.5, p = uv - 0.5;
+  vec3 acc = vec3(0.0);
+  for (int i = 0; i < 6; i++) {
+    float k = i == 0 ? -0.28 : i == 1 ? -0.62 : i == 2 ? 0.22 : i == 3 ? 0.48 : i == 4 ? -1.15 : 0.85;
+    float rad = i == 0 ? 0.05 : i == 1 ? 0.025 : i == 2 ? 0.018 : i == 3 ? 0.07 : i == 4 ? 0.11 : 0.035;
+    vec3 c = i == 0 ? vec3(0.4, 0.6, 1.0) : i == 1 ? vec3(0.8, 0.5, 1.0) : i == 2 ? vec3(1.0, 0.8, 0.4) : i == 3 ? vec3(0.4, 1.0, 0.7) : i == 4 ? vec3(0.5, 0.6, 1.0) : vec3(1.0, 0.5, 0.4);
+    vec2 dv = (p - s * k) * vec2(uFl.w, 1.0);
+    float r = length(dv);
+    float disc = smoothstep(rad, rad * 0.7, r);
+    float ring = smoothstep(rad * 1.12, rad, r) * smoothstep(rad * 0.85, rad, r);
+    acc += c * (disc * 0.04 + ring * 0.07);
+  }
+  vec2 dv = (p - s) * vec2(uFl.w, 1.0);
+  float rs = length(dv);
+  acc += vec3(1.0, 0.9, 0.8) * (0.25 * exp(-rs * 18.0) + 0.05 * exp(-rs * 4.0));
+  return acc * uFl.z;
+}
+void main() {
+  vec3 c = texture(tHdr, vUv).rgb;
+  if (uBloom > 0.0) c += texture(tBloom, vUv).rgb * uBloom;
+  if (uFl.z > 0.0) c += flare(vUv);
+  c *= uExposure;
+  if (uTone == 1) c = pow(aces(c), vec3(1.0 / 2.2));
+  else c = clamp(c, 0.0, 1.0);
+  c += (hash12(gl_FragCoord.xy) - 0.5) / 255.0;
+  oC = vec4(c, 1.0);
+}`;
+
+// ------------------------------------------------------------------ GL-Hilfen
+function compile(type, src) {
+  const s = gl.createShader(type);
+  gl.shaderSource(s, src);
+  gl.compileShader(s);
+  if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) {
+    const log = gl.getShaderInfoLog(s);
+    console.error(log + '\n' + src.split('\n').map((l, i) => `${i + 1}: ${l}`).join('\n'));
+    throw new Error('Shader: ' + log);
+  }
+  return s;
+}
+const UNITS = { tHm: 0, tBiome: 1, tCloud: 2, tNeb: 3, tTrans: 4, tScene: 5, tSrc: 6, tBloom: 7, tHdr: 5 };
+function program(vs, fs) {
+  const p = gl.createProgram();
+  gl.attachShader(p, compile(gl.VERTEX_SHADER, vs));
+  gl.attachShader(p, compile(gl.FRAGMENT_SHADER, fs));
+  gl.linkProgram(p);
+  if (!gl.getProgramParameter(p, gl.LINK_STATUS)) throw new Error('Link: ' + gl.getProgramInfoLog(p));
+  const loc = new Map();
+  const L = (n) => { if (!loc.has(n)) loc.set(n, gl.getUniformLocation(p, n)); return loc.get(n); };
+  const o = {
+    use() { gl.useProgram(p); return o; },
+    i(n, v) { gl.uniform1i(L(n), v); return o; },
+    f(n, v) { gl.uniform1f(L(n), v); return o; },
+    v2(n, a, b) { gl.uniform2f(L(n), a, b); return o; },
+    v3(n, a) { gl.uniform3f(L(n), a[0], a[1], a[2]); return o; },
+    v4(n, a) { gl.uniform4f(L(n), a[0], a[1], a[2], a[3]); return o; },
+    m3(n, m) { gl.uniformMatrix3fv(L(n), false, m); return o; },
+    m4(n, m) { gl.uniformMatrix4fv(L(n), false, m); return o; },
+  };
+  gl.useProgram(p);
+  for (const [n, u] of Object.entries(UNITS)) { const l = L(n); if (l) gl.uniform1i(l, u); }
+  return o;
+}
+function tex2D(w, h, fmt, filter) {
+  gl.activeTexture(gl.TEXTURE8);
+  const tx = gl.createTexture();
+  gl.bindTexture(gl.TEXTURE_2D, tx);
+  gl.texStorage2D(gl.TEXTURE_2D, 1, fmt, w, h);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, filter || gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, filter || gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  return tx;
+}
+function texArray(N, fmt, levels) {
+  gl.activeTexture(gl.TEXTURE8);
+  const tx = gl.createTexture();
+  gl.bindTexture(gl.TEXTURE_2D_ARRAY, tx);
+  gl.texStorage3D(gl.TEXTURE_2D_ARRAY, levels, fmt, N, N, 6);
+  gl.texParameteri(gl.TEXTURE_2D_ARRAY, gl.TEXTURE_MIN_FILTER, levels > 1 ? gl.LINEAR_MIPMAP_LINEAR : gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D_ARRAY, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D_ARRAY, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D_ARRAY, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  if (extAniso && levels > 1) gl.texParameterf(gl.TEXTURE_2D_ARRAY, extAniso.TEXTURE_MAX_ANISOTROPY_EXT, Math.min(8, gl.getParameter(extAniso.MAX_TEXTURE_MAX_ANISOTROPY_EXT)));
+  if (gl.getError() === gl.OUT_OF_MEMORY) { gl.deleteTexture(tx); return null; }
+  return tx;
+}
+function fbo(tx, depthRb) {
+  const f = gl.createFramebuffer();
+  gl.bindFramebuffer(gl.FRAMEBUFFER, f);
+  gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, tx, 0);
+  if (depthRb) gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.RENDERBUFFER, depthRb);
+  return f;
+}
+const mipLevels = (n) => Math.floor(Math.log2(n)) + 1;
+
+let P;
+try {
+  P = {
+    gen: program(FULL_VS, GEN_FS),
+    cloudGen: program(FULL_VS, CLOUDGEN_FS),
+    nebGen: program(FULL_VS, NEBGEN_FS),
+    trans: program(FULL_VS, TRANS_FS),
+    bg: program(FULL_VS, BG_FS),
+    planet: program(PLANET_VS, PLANET_FS),
+    cloud: program(PLANET_VS, CLOUD_FS),
+    comp: program(FULL_VS, COMP_FS),
+    down: program(FULL_VS, DOWN_FS),
+    up: program(FULL_VS, UP_FS),
+    fin: program(FULL_VS, FINAL_FS),
+  };
+} catch (e) { fail(String(e.message || e)); }
+
+const emptyVao = gl.createVertexArray();
+const genFbo = gl.createFramebuffer();
+
+// Würfel-Kugel-Gitter (gleiche Seitenbasis wie im Shader, Kanten treffen sich exakt)
+const BASIS = [
+  [[0, 0, -1], [0, 1, 0], [1, 0, 0]], [[0, 0, 1], [0, 1, 0], [-1, 0, 0]],
+  [[1, 0, 0], [0, 0, -1], [0, 1, 0]], [[1, 0, 0], [0, 0, 1], [0, -1, 0]],
+  [[1, 0, 0], [0, 1, 0], [0, 0, 1]], [[-1, 0, 0], [0, 1, 0], [0, 0, -1]],
+];
+function cubeSphere(G) {
+  const nv = (G + 1) * (G + 1);
+  const pos = new Float32Array(6 * nv * 3);
+  const idx = new Uint32Array(6 * G * G * 6);
+  let vi = 0, ii = 0;
+  for (let f = 0; f < 6; f++) {
+    const [ex, ey, em] = BASIS[f];
+    const base = f * nv;
+    for (let j = 0; j <= G; j++) for (let i = 0; i <= G; i++) {
+      const s = Math.tan((i / G * 2 - 1) * Math.PI / 4), tt = Math.tan((j / G * 2 - 1) * Math.PI / 4);
+      const x = em[0] + s * ex[0] + tt * ey[0], y = em[1] + s * ex[1] + tt * ey[1], z = em[2] + s * ex[2] + tt * ey[2];
+      const l = Math.hypot(x, y, z);
+      pos[vi++] = x / l; pos[vi++] = y / l; pos[vi++] = z / l;
+    }
+    for (let j = 0; j < G; j++) for (let i = 0; i < G; i++) {
+      const a = base + j * (G + 1) + i, b = a + 1, c = a + G + 1, d = c + 1;
+      idx[ii++] = a; idx[ii++] = b; idx[ii++] = d;
+      idx[ii++] = a; idx[ii++] = d; idx[ii++] = c;
+    }
+  }
+  const vao = gl.createVertexArray();
+  gl.bindVertexArray(vao);
+  const vb = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, vb);
+  gl.bufferData(gl.ARRAY_BUFFER, pos, gl.STATIC_DRAW);
+  gl.enableVertexAttribArray(0);
+  gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 0, 0);
+  const ib = gl.createBuffer();
+  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, ib);
+  gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, idx, gl.STATIC_DRAW);
+  gl.bindVertexArray(null);
+  return { vao, count: idx.length, G };
+}
+const meshPlanet = cubeSphere(coarse ? 112 : 192);
+const meshCloud = cubeSphere(coarse ? 48 : 72);
+
+// ------------------------------------------------------------------ Ressourcen
+const RS = {
+  hmPrev: null, nPrev: 128,
+  hmFull: null, nFull: 0, fullReady: false,
+  cloud: null, cloudReady: false,
+  neb: null, nebReady: false,
+  biome: null,
+  trans: tex2D(256, 64, gl.RGBA16F),
+  transKey: '',
+  w: 0, h: 0,
+};
+RS.transFbo = fbo(RS.trans);
+RS.hmPrev = texArray(RS.nPrev, gl.RGBA16F, mipLevels(RS.nPrev));
+{
+  gl.activeTexture(gl.TEXTURE8);
+  RS.biome = gl.createTexture();
+  gl.bindTexture(gl.TEXTURE_2D, RS.biome);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+}
+
+// ------------------------------------------------------------------ Biom-Bild (Original-Algorithmus, 2D-Canvas)
+function hsl(h, s, l) {
+  h = ((h % 360) + 360) % 360 / 360;
+  const q = l < 0.5 ? l * (1 + s) : l + s - l * s, p = 2 * l - q;
+  const f = (tt) => { tt = (tt + 1) % 1; return tt < 1 / 6 ? p + (q - p) * 6 * tt : tt < 0.5 ? q : tt < 2 / 3 ? p + (q - p) * (2 / 3 - tt) * 6 : p; };
+  return [Math.round(f(h + 1 / 3) * 255), Math.round(f(h) * 255), Math.round(f(h - 1 / 3) * 255)];
+}
+function drawBiome(seed, wl) {
+  const R = rng(seed + '|biome');
+  const rr = (a, b) => a + (b - a) * R();
+  const ctx = lutCanvas.getContext('2d');
+  const W = 512, H = 512;
+  const base = { h: R() * 360, s: rr(0.2, 0.65), l: rr(0.3, 0.6) };
+  const colorAngle = rr(0.2, 0.4), satRange = rr(0.3, 0.5), lightRange = rr(0.3, 0.5), circleSize = rr(30, 250);
+  const rc = () => hsl(base.h + rr(-1, 1) * colorAngle * 180, clamp(base.s + rr(-satRange, satRange), 0, 1), clamp(base.l + rr(-lightRange, lightRange), 0.05, 0.92));
+  const css = (c, a) => `rgba(${c[0]},${c[1]},${c[2]},${a})`;
+  ctx.globalCompositeOperation = 'source-over';
+  ctx.fillStyle = css(hsl(base.h, base.s, base.l), 1);
+  ctx.fillRect(0, 0, W, H);
+  const strip = (x, y, w, h) => {
+    const g = ctx.createLinearGradient(rr(0, W), rr(0, H), rr(0, W), rr(0, H));
+    const c = rc();
+    g.addColorStop(rr(0, 0.5), css(c, 0));
+    g.addColorStop(0.5, css(c, 0.8));
+    g.addColorStop(rr(0.5, 1), css(c, 0));
+    ctx.fillStyle = g;
+    ctx.fillRect(x, y, w, h);
+  };
+  for (let i = 0; i < 5; i++) strip(0, 0, W, H);                       // drawBase
+  for (let i = 0; i < 100; i++) {                                       // randomGradientCircle ×100
+    const x = rr(0, W), y = rr(0, H) - H * wl, size = rr(10, circleSize);
+    const g = ctx.createRadialGradient(x, y, 0, x, y, size);
+    const c = rc();
+    g.addColorStop(0, css(c, 0.5));
+    g.addColorStop(1, css(c, 0));
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, W, H);
+  }
+  const landDetail = Math.round(rr(0, 5));                              // drawDetail
+  for (let i = 0; i < 5; i++) {
+    const x1 = rr(0, W), y1 = rr(0, H), x2 = rr(0, W), y2 = rr(0, H);
+    if (i < landDetail) strip(x1, y1, x2 - x1, y2 - y1); else { rc(); R(); R(); R(); R(); R(); R(); }
+  }
+  const band = (y1, h, c, a0, a1) => {                                  // drawInland / drawBeach
+    const g = ctx.createLinearGradient(0, y1, 0, y1 + h);
+    g.addColorStop(0, css(c, a0));
+    g.addColorStop(1, css(c, a1));
+    ctx.fillStyle = g;
+    ctx.fillRect(0, y1, W, h);
+  };
+  const yw = H - H * wl;
+  band(yw - 100, 100, rc(), 0, 0.5);
+  band(yw - 7, 7, rc(), 0, 0.3);
+  const wc = rc();                                                      // drawWater
+  const g = ctx.createLinearGradient(0, yw, 0, H);
+  const sc = (k) => [Math.min(255, Math.round(wc[0] * k)), Math.min(255, Math.round(wc[1] * k)), Math.min(255, Math.round(wc[2] * k))];
+  g.addColorStop(0, css(sc(1.3), 0.9));
+  g.addColorStop(0.2, css(sc(1.0), 0.9));
+  g.addColorStop(0.8, css(sc(0.7), 0.9));
+  ctx.fillStyle = g;
+  ctx.fillRect(0, yw, W, H - yw);
+  gl.activeTexture(gl.TEXTURE8);
+  gl.bindTexture(gl.TEXTURE_2D, RS.biome);
+  gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, gl.RGBA, gl.UNSIGNED_BYTE, lutCanvas);
+  gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
+}
+
+// ------------------------------------------------------------------ Erzeugung (in Kacheln, damit die Seite flüssig bleibt)
+let jobs = [], jobTotal = 0, jobDone = 0, genToken = 0;
+let cdf = null, moistQ = [0, 1];
+let seaH = 0.5;
+let lutDirty = false;
+
+function genUniforms(mode, N, erosion) {
+  const pr = P.gen.use();
+  const f = PP.h, m = PP.m;
+  pr.f('uN', N).i('uMode', mode)
+    .v4('uH', [f.res1, f.res2, f.resMix, f.mixScale]).v2('uHx', f.type, PP.noiseSeed)
+    .v4('uM', [m.res1 * PP.moistM, m.res2, m.resMix, m.mixScale]).v2('uMx', m.type, PP.noiseSeed + 392.253)
+    .v4('uEro', [erosion, 34.0, 0.16, 1.0]).f('uEroOct', 5).f('uSea', seaH);
+}
+function drawTile(pr, tx, face, x, y, w, h) {
+  gl.bindFramebuffer(gl.FRAMEBUFFER, genFbo);
+  gl.framebufferTextureLayer(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, tx, 0, face);
+  gl.viewport(x, y, w, h);
+  pr.i('uFace', face);
+  gl.bindVertexArray(emptyVao);
+  gl.drawArrays(gl.TRIANGLES, 0, 3);
+}
+function queueTiles(N, tile, setup, pr, tx, onDone) {
+  const token = genToken;
+  for (let f = 0; f < 6; f++) for (let y = 0; y < N; y += tile) for (let x = 0; x < N; x += tile) {
+    const w = Math.min(tile, N - x), h = Math.min(tile, N - y);
+    jobs.push({ cost: w * h, run: () => { if (token !== genToken) return; setup(); drawTile(pr, tx, f, x, y, w, h); } });
+    jobTotal += w * h;
+  }
+  jobs.push({ cost: 0, run: () => { if (token === genToken) onDone(); } });
+}
+function quantile(arr, q) { return arr[clamp(Math.round(q * (arr.length - 1)), 0, arr.length - 1)]; }
+function seaFromFraction(fr) {
+  if (!cdf) return 0.5;
+  if (fr <= 0) return cdf[0] - 0.01;
+  if (fr >= 1) return cdf[cdf.length - 1] + 0.01;
+  return quantile(cdf, fr);
+}
+
+function regenerate(full) {
+  genToken++;
+  jobs = []; jobTotal = 0; jobDone = 0;
+  const mode = S.style === 'orig' ? 0 : 1;
+  const ero = mode === 1 ? S.erosion : 0;
+  // 1) Vorschau 128² sofort, daraus die Höhenverteilung für den Meeresspiegel
+  genUniforms(mode, RS.nPrev, 0);
+  for (let f = 0; f < 6; f++) drawTile(P.gen, RS.hmPrev, f, 0, 0, RS.nPrev, RS.nPrev);
+  gl.activeTexture(gl.TEXTURE8);
+  gl.bindTexture(gl.TEXTURE_2D_ARRAY, RS.hmPrev);
+  gl.generateMipmap(gl.TEXTURE_2D_ARRAY);
+  const n = RS.nPrev, buf = new Float32Array(n * n * 4), hs = [], ms = [];
+  gl.bindFramebuffer(gl.FRAMEBUFFER, genFbo);
+  for (let f = 0; f < 6; f++) {
+    gl.framebufferTextureLayer(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, RS.hmPrev, 0, f);
+    gl.readPixels(0, 0, n, n, gl.RGBA, gl.FLOAT, buf);
+    for (let i = 0; i < n * n; i += 3) { hs.push(buf[i * 4]); ms.push(buf[i * 4 + 1]); }
+  }
+  hs.sort((a, b) => a - b); ms.sort((a, b) => a - b);
+  cdf = Float32Array.from(hs);
+  moistQ = [quantile(ms, 0.04), quantile(ms, 0.96)];
+  if (S.sea < 0) S.sea = PP.water;
+  seaH = seaFromFraction(S.sea);
+  drawBiome(S.seed, clamp(seaH, 0, 1));
+  RS.shown = RS.hmPrev; RS.nShown = RS.nPrev; RS.fullReady = false;
+  // 2) volle Auflösung
+  if (full !== false) {
+    let N = S.res;
+    if (!RS.hmFull || RS.nFull !== N) {
+      if (RS.hmFull) gl.deleteTexture(RS.hmFull);
+      RS.hmFull = texArray(N, gl.RGBA16F, mipLevels(N));
+      if (!RS.hmFull && N > 1024) { N = S.res = N >> 1; RS.hmFull = texArray(N, gl.RGBA16F, mipLevels(N)); }
+      RS.nFull = N;
+    }
+    queueTiles(N, 256, () => genUniforms(mode, N, ero), P.gen, RS.hmFull, () => {
+      gl.activeTexture(gl.TEXTURE8);
+      gl.bindTexture(gl.TEXTURE_2D_ARRAY, RS.hmFull);
+      gl.generateMipmap(gl.TEXTURE_2D_ARRAY);
+      RS.shown = RS.hmFull; RS.nShown = N; RS.fullReady = true;
+    });
+  }
+  // 3) Wolken und Nebel gehören zum Seed
+  if (RS.cloudSeed !== S.seed || !RS.cloudReady) {
+    RS.cloudSeed = S.seed; RS.cloudReady = false;
+    if (!RS.cloud) RS.cloud = texArray(cloudRes, gl.RGBA8, mipLevels(cloudRes));
+    queueTiles(cloudRes, 256, () => P.cloudGen.use().f('uN', cloudRes).f('uSeed', PP.cloudSeed), P.cloudGen, RS.cloud, () => {
+      gl.activeTexture(gl.TEXTURE8);
+      gl.bindTexture(gl.TEXTURE_2D_ARRAY, RS.cloud);
+      gl.generateMipmap(gl.TEXTURE_2D_ARRAY);
+      RS.cloudReady = true;
+    });
+  }
+  if (RS.nebSeed !== S.seed || !RS.nebReady) {
+    RS.nebSeed = S.seed; RS.nebReady = false;
+    if (!RS.neb) {
+      gl.activeTexture(gl.TEXTURE8);
+      RS.neb = gl.createTexture();
+      gl.bindTexture(gl.TEXTURE_CUBE_MAP, RS.neb);
+      gl.texStorage2D(gl.TEXTURE_CUBE_MAP, 1, gl.RGBA16F, nebRes, nebRes);
+      gl.texParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+      gl.texParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    }
+    const lin = (c) => c.map((v) => Math.pow(v / 255, 2.2));
+    const b = PP.nebBright * 0.12;
+    const c0 = lin(hsl(PP.nebHue * 360, PP.nebSat, 0.35)).map((v) => v * b);
+    const c1 = lin(hsl(PP.nebHue * 360 + 40 + PP.nebHue2 * 60, PP.nebSat, 0.45)).map((v) => v * b * 1.4);
+    const c2 = lin(hsl(PP.nebHue2 * 360, PP.nebSat * 0.8, 0.6)).map((v) => v * b * 2.2);
+    for (let f = 0; f < 6; f++) for (let y = 0; y < nebRes; y += 256) {
+      const token = genToken, h = Math.min(256, nebRes - y);
+      jobs.push({ cost: nebRes * h, run: () => {
+        if (token !== genToken) return;
+        P.nebGen.use().f('uN', nebRes).f('uSeed', PP.nebSeed).v3('uC0', c0).v3('uC1', c1).v3('uC2', c2).i('uFace', f);
+        gl.bindFramebuffer(gl.FRAMEBUFFER, genFbo);
+        gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_CUBE_MAP_POSITIVE_X + f, RS.neb, 0);
+        gl.viewport(0, y, nebRes, h);
+        gl.bindVertexArray(emptyVao);
+        gl.drawArrays(gl.TRIANGLES, 0, 3);
+      } });
+      jobTotal += nebRes * h;
+    }
+    const tok = genToken;
+    jobs.push({ cost: 0, run: () => { if (tok === genToken) RS.nebReady = true; } });
+  }
+}
+
+function atmoParams() {
+  const k = S.thick, Rkm = 6371;
+  const scale = Rkm * 1000 / k;
+  return {
+    HR: 8 / Rkm * k, HM: 1.2 / Rkm * k, Rt: 1 + 60 / Rkm * k,
+    bR: [5.802e-6, 13.558e-6, 33.1e-6].map((v) => v * scale * S.atmo),
+    bM: 3.996e-6 * scale * S.haze, bMe: 4.44e-6 * scale * S.haze,
+    bO: [0.65e-6, 1.881e-6, 0.085e-6].map((v) => v * scale * S.atmo),
+    oz: [25 / Rkm * k, 15 / Rkm * k],
+  };
+}
+function updateTrans() {
+  const key = `${S.thick}|${S.atmo}|${S.haze}`;
+  if (key === RS.transKey) return;
+  RS.transKey = key;
+  const A = atmoParams();
+  gl.bindFramebuffer(gl.FRAMEBUFFER, RS.transFbo);
+  gl.viewport(0, 0, 256, 64);
+  P.trans.use().v4('uAt', [1, A.Rt, A.HR, A.HM]).v3('uBR', A.bR).f('uBMe', A.bMe).v3('uBO', A.bO).v2('uOz', A.oz[0], A.oz[1]);
+  gl.bindVertexArray(emptyVao);
+  gl.drawArrays(gl.TRIANGLES, 0, 3);
+}
+
+// ------------------------------------------------------------------ Ziele (HDR, Tiefe, Überstrahlung)
+function ensureTargets(w, h) {
+  if (RS.w === w && RS.h === h) return;
+  for (const k of ['scene', 'hdr2']) if (RS[k]) gl.deleteTexture(RS[k]);
+  if (RS.depth) gl.deleteRenderbuffer(RS.depth);
+  for (const b of RS.bloom || []) gl.deleteTexture(b.tx);
+  RS.w = w; RS.h = h;
+  RS.scene = tex2D(w, h, gl.RGBA16F);
+  RS.depth = gl.createRenderbuffer();
+  gl.bindRenderbuffer(gl.RENDERBUFFER, RS.depth);
+  gl.renderbufferStorage(gl.RENDERBUFFER, gl.DEPTH_COMPONENT24, w, h);
+  RS.sceneFbo = fbo(RS.scene, RS.depth);
+  RS.hdr2 = tex2D(w, h, gl.RGBA16F);
+  RS.hdr2Fbo = fbo(RS.hdr2);
+  RS.bloom = [];
+  let bw = w >> 1, bh = h >> 1;
+  for (let i = 0; i < 6 && bw >= 4 && bh >= 4; i++) {
+    const tx = tex2D(bw, bh, gl.RGBA16F);
+    RS.bloom.push({ tx, fb: fbo(tx), w: bw, h: bh });
+    bw >>= 1; bh >>= 1;
+  }
+}
+
+// ------------------------------------------------------------------ Mathe
+const V = {
+  sub: (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]],
+  dot: (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2],
+  cross: (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]],
+  norm: (a) => { const l = Math.hypot(a[0], a[1], a[2]) || 1; return [a[0] / l, a[1] / l, a[2] / l]; },
+};
+function persp(fovy, aspect, n, f) {
+  const tt = 1 / Math.tan(fovy / 2);
+  return new Float32Array([tt / aspect, 0, 0, 0, 0, tt, 0, 0, 0, 0, (f + n) / (n - f), -1, 0, 0, 2 * f * n / (n - f), 0]);
+}
+function lookAt(e, c, up) {
+  const z = V.norm(V.sub(e, c)), x = V.norm(V.cross(up, z)), y = V.cross(z, x);
+  return new Float32Array([x[0], y[0], z[0], 0, x[1], y[1], z[1], 0, x[2], y[2], z[2], 0, -V.dot(x, e), -V.dot(y, e), -V.dot(z, e), 1]);
+}
+function mul4(a, b) {
+  const o = new Float32Array(16);
+  for (let c = 0; c < 4; c++) for (let r = 0; r < 4; r++) {
+    let s = 0;
+    for (let k = 0; k < 4; k++) s += a[k * 4 + r] * b[c * 4 + k];
+    o[c * 4 + r] = s;
+  }
+  return o;
+}
+function inv4(m) {
+  const a = m, o = new Float32Array(16);
+  const b00 = a[0] * a[5] - a[1] * a[4], b01 = a[0] * a[6] - a[2] * a[4], b02 = a[0] * a[7] - a[3] * a[4];
+  const b03 = a[1] * a[6] - a[2] * a[5], b04 = a[1] * a[7] - a[3] * a[5], b05 = a[2] * a[7] - a[3] * a[6];
+  const b06 = a[8] * a[13] - a[9] * a[12], b07 = a[8] * a[14] - a[10] * a[12], b08 = a[8] * a[15] - a[11] * a[12];
+  const b09 = a[9] * a[14] - a[10] * a[13], b10 = a[9] * a[15] - a[11] * a[13], b11 = a[10] * a[15] - a[11] * a[14];
+  const det = 1 / (b00 * b11 - b01 * b10 + b02 * b09 + b03 * b08 - b04 * b07 + b05 * b06);
+  o[0] = (a[5] * b11 - a[6] * b10 + a[7] * b09) * det; o[1] = (a[2] * b10 - a[1] * b11 - a[3] * b09) * det;
+  o[2] = (a[13] * b05 - a[14] * b04 + a[15] * b03) * det; o[3] = (a[10] * b04 - a[9] * b05 - a[11] * b03) * det;
+  o[4] = (a[6] * b08 - a[4] * b11 - a[7] * b07) * det; o[5] = (a[0] * b11 - a[2] * b08 + a[3] * b07) * det;
+  o[6] = (a[14] * b02 - a[12] * b05 - a[15] * b01) * det; o[7] = (a[8] * b05 - a[10] * b02 + a[11] * b01) * det;
+  o[8] = (a[4] * b10 - a[5] * b08 + a[7] * b06) * det; o[9] = (a[1] * b08 - a[0] * b10 - a[3] * b06) * det;
+  o[10] = (a[12] * b04 - a[13] * b02 + a[15] * b00) * det; o[11] = (a[9] * b02 - a[8] * b04 - a[11] * b00) * det;
+  o[12] = (a[5] * b07 - a[4] * b09 - a[6] * b06) * det; o[13] = (a[0] * b09 - a[1] * b07 + a[2] * b06) * det;
+  o[14] = (a[13] * b01 - a[12] * b03 - a[14] * b00) * det; o[15] = (a[8] * b03 - a[9] * b01 + a[10] * b00) * det;
+  return o;
+}
+// Drehung des Planeten: erst um die eigene Achse (y), dann Achsneigung (z). Spalten-Reihenfolge wie GLSL.
+function planetMatrix(spin, tilt) {
+  const c = Math.cos(spin), s = Math.sin(spin), ct = Math.cos(tilt), st = Math.sin(tilt);
+  const ry = [c, 0, -s, 0, 1, 0, s, 0, c];
+  const rz = [ct, st, 0, -st, ct, 0, 0, 0, 1];
+  const o = new Float32Array(9);
+  for (let col = 0; col < 3; col++) for (let r = 0; r < 3; r++) {
+    let v = 0;
+    for (let k = 0; k < 3; k++) v += rz[k * 3 + r] * ry[col * 3 + k];
+    o[col * 3 + r] = v;
+  }
+  return o;
+}
+
+// ------------------------------------------------------------------ Kamera & Eingabe
+const cam = { yaw: 0.25, pitch: 0.12, dist: 3.4, tDist: 3.4, vYaw: 0, vPitch: 0, zoomed: false };
+// Abstand so, dass der Planet etwa 78 % der kleineren Bildhälfte füllt
+function fitDist(aspect) {
+  const hv = S.fov * Math.PI / 360, hh = Math.atan(Math.tan(hv) * aspect);
+  return 1 / Math.sin(0.78 * Math.min(hv, hh));
+}
+const pointers = new Map();
+let pinch0 = 0, dist0 = 0;
+canvas.addEventListener('pointerdown', (e) => {
+  canvas.setPointerCapture(e.pointerId);
+  pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  canvas.classList.add('drag');
+  if (pointers.size === 2) { const [a, b] = [...pointers.values()]; pinch0 = Math.hypot(a.x - b.x, a.y - b.y); dist0 = cam.tDist; }
+});
+canvas.addEventListener('pointermove', (e) => {
+  const p = pointers.get(e.pointerId);
+  if (!p) return;
+  const dx = e.clientX - p.x, dy = e.clientY - p.y;
+  p.x = e.clientX; p.y = e.clientY;
+  if (pointers.size === 1) {
+    const k = 0.0045 * Math.min(1, (cam.dist - 1) / 1.5);
+    cam.vYaw = -dx * k; cam.vPitch = dy * k;
+    cam.yaw += cam.vYaw; cam.pitch = clamp(cam.pitch + cam.vPitch, -1.45, 1.45);
+  } else if (pointers.size === 2) {
+    const [a, b] = [...pointers.values()];
+    const d = Math.hypot(a.x - b.x, a.y - b.y);
+    if (pinch0 > 0) { cam.tDist = clamp(1 + (dist0 - 1) * pinch0 / d, 1.06, 14); cam.zoomed = true; }
+  }
+});
+const endPtr = (e) => { pointers.delete(e.pointerId); if (!pointers.size) canvas.classList.remove('drag'); pinch0 = 0; };
+canvas.addEventListener('pointerup', endPtr);
+canvas.addEventListener('pointercancel', endPtr);
+canvas.addEventListener('wheel', (e) => {
+  e.preventDefault();
+  cam.tDist = clamp(1 + (cam.tDist - 1) * Math.exp(e.deltaY * 0.0012), 1.06, 14);
+  cam.zoomed = true;
+}, { passive: false });
+
+// ------------------------------------------------------------------ Regler-Reaktionen
+function changed(it) {
+  const k = it.k;
+  if (k === 'res' || k === 'erosion') { regenerate(); }
+  else if (k === 'sea') { seaH = seaFromFraction(S.sea); lutDirty = true; }
+  else if (k === 'lang') buildUI();
+}
+function setStyle(st) {
+  if (S.style === st) return;
+  S.style = st;
+  buildUI();
+  regenerate();
+}
+$('st-orig').addEventListener('click', () => setStyle('orig'));
+$('st-plus').addEventListener('click', () => setStyle('plus'));
+$('lang').addEventListener('click', () => { lang = lang === 'de' ? 'en' : 'de'; try { localStorage.setItem('fgp-lang', lang); } catch {} buildUI(); });
+function newSeed(sd) {
+  S.seed = String(sd).trim() || randomSeed();
+  PP = planetParams(S.seed);
+  S.sea = PP.water;
+  S.cover = PP.cloudCover;
+  try { const u = new URL(location.href); u.searchParams.set('seed', S.seed); history.replaceState(null, '', u); } catch {}
+  buildUI();
+  regenerate();
+}
+$('rnd').addEventListener('click', () => newSeed(randomSeed()));
+$('seed').addEventListener('change', (e) => newSeed(e.target.value));
+
+// ------------------------------------------------------------------ Zeichnen
+let spin = 0.6, simTime = 0;
+function sunDir() {
+  const az = S.sunAz * Math.PI / 180, el = S.sunEl * Math.PI / 180;
+  return [Math.cos(el) * Math.sin(az), Math.sin(el), Math.cos(el) * Math.cos(az)];
+}
+function bindTextures() {
+  const bind = (u, target, tx) => { gl.activeTexture(gl.TEXTURE0 + u); gl.bindTexture(target, tx); };
+  bind(0, gl.TEXTURE_2D_ARRAY, RS.shown);
+  bind(1, gl.TEXTURE_2D, RS.biome);
+  bind(2, gl.TEXTURE_2D_ARRAY, RS.cloud || RS.hmPrev);
+  bind(3, gl.TEXTURE_CUBE_MAP, RS.neb);
+  bind(4, gl.TEXTURE_2D, RS.trans);
+}
+function render() {
+  const w = canvas.width, h = canvas.height;
+  ensureTargets(w, h);
+  updateTrans();
+  if (lutDirty) { drawBiome(S.seed, clamp(seaH, 0, 1)); lutDirty = false; }
+  const orig = S.style === 'orig';
+  const A = atmoParams();
+  const aspect = w / h, fov = S.fov * Math.PI / 180;
+  if (!cam.zoomed) cam.tDist = fitDist(aspect);
+  cam.dist += (cam.tDist - cam.dist) * 0.18;
+  const eye = [cam.dist * Math.cos(cam.pitch) * Math.sin(cam.yaw), cam.dist * Math.sin(cam.pitch), cam.dist * Math.cos(cam.pitch) * Math.cos(cam.yaw)];
+  const near = Math.max(0.0015, (cam.dist - 1.05) * 0.6), far = cam.dist + 4;
+  const view = lookAt(eye, [0, 0, 0], [0, 1, 0]);
+  const proj = persp(fov, aspect, near, far);
+  const vp = mul4(proj, view), ivp = inv4(vp);
+  const model = planetMatrix(spin, S.tilt * Math.PI / 180);
+  const sun = sunDir();
+  const sunE = orig ? 1 : 3.2;
+  const seaUse = seaH;
+  bindTextures();
+
+  gl.bindFramebuffer(gl.FRAMEBUFFER, RS.sceneFbo);
+  gl.viewport(0, 0, w, h);
+  gl.disable(gl.BLEND); gl.disable(gl.DEPTH_TEST); gl.disable(gl.CULL_FACE);
+  gl.bindVertexArray(emptyVao);
+  P.bg.use().m4('uIVP', ivp).v3('uCam', eye).v3('uSun', sun).f('uNeb', S.nebula).f('uStars', S.stars)
+    .f('uSunE', orig ? 1.2 : sunE).f('uSunR', 0.0095).i('uHasNeb', RS.nebReady ? 1 : 0);
+  gl.drawArrays(gl.TRIANGLES, 0, 3);
+
+  gl.enable(gl.DEPTH_TEST); gl.depthFunc(gl.LESS); gl.depthMask(true);
+  gl.clear(gl.DEPTH_BUFFER_BIT);
+  gl.enable(gl.CULL_FACE); gl.cullFace(gl.BACK);
+  const lodV = Math.max(0, Math.log2(RS.nShown / meshPlanet.G) - 0.5);
+  const cloudOn = RS.cloudReady && S.cover > 0;
+  const period = 70;
+  const clU = [cloudOn ? S.cover : 0, simTime / period, S.wind * 0.35, orig ? 0 : S.cloudShadow];
+  const clU2 = [orig ? 0.006 : S.cloudH, spin * 0.12, orig ? S.cloudOpO : S.cloudOp, orig ? 0 : 1];
+  P.planet.use().m4('uVP', vp).m3('uModel', model).f('uN', RS.nShown).f('uLodV', lodV)
+    .f('uRelief', orig ? 0 : S.relief).f('uSea', seaUse).f('uRadius', 1)
+    .i('uMode', orig ? 0 : 1).i('uPal', S.palette === 'earth' ? 1 : 0).i('uView', S.view)
+    .v3('uCam', eye).v3('uSun', sun).f('uTime', simTime).f('uSunE', sunE)
+    .v4('uO', [S.nscale, S.rough, S.metal, S.ambient]).f('uSunI', S.sunI)
+    .v4('uW', [S.waves, S.clarity, S.foam, 0]).v4('uL', [S.bump, S.gloss, S.detail, S.terrace])
+    .v4('uL2', [S.shadows, S.ambientP, 0, 0]).v2('uMq', moistQ[0], moistQ[1])
+    .v4('uAt', [1, A.Rt, A.HR, A.HM]).f('uNc', cloudRes).v4('uCl', clU).v4('uCl2', clU2);
+  gl.bindVertexArray(meshPlanet.vao);
+  gl.drawElements(gl.TRIANGLES, meshPlanet.count, gl.UNSIGNED_INT, 0);
+
+  if (cloudOn && S.view === 0) {
+    gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA); gl.depthMask(false);
+    P.cloud.use().m4('uVP', vp).m3('uModel', model).f('uN', RS.nShown).f('uLodV', 0).f('uRelief', 0).f('uSea', seaUse)
+      .f('uRadius', 1 + clU2[0]).v3('uCam', eye).v3('uSun', sun).f('uSunE', sunE).f('uSunI', S.sunI)
+      .v4('uO', [S.nscale, S.rough, S.metal, S.ambient]).v4('uAt', [1, A.Rt, A.HR, A.HM]).f('uNc', cloudRes).v4('uCl', clU).v4('uCl2', clU2);
+    gl.bindVertexArray(meshCloud.vao);
+    gl.drawElements(gl.TRIANGLES, meshCloud.count, gl.UNSIGNED_INT, 0);
+    gl.depthMask(true); gl.disable(gl.BLEND);
+  }
+  gl.disable(gl.DEPTH_TEST); gl.disable(gl.CULL_FACE);
+  gl.bindVertexArray(emptyVao);
+
+  // Luft / Leuchtsaum
+  gl.bindFramebuffer(gl.FRAMEBUFFER, RS.hdr2Fbo);
+  gl.activeTexture(gl.TEXTURE5); gl.bindTexture(gl.TEXTURE_2D, RS.scene);
+  P.comp.use().m4('uIVP', ivp).v3('uCam', eye).v3('uSun', sun).f('uSunE', sunE).i('uMode', orig ? 0 : 1)
+    .v4('uAt', [1, A.Rt, A.HR, A.HM]).v3('uBR', A.bR).f('uBM', A.bM).f('uBMe', A.bMe).f('uMieG', 0.8).v3('uBO', A.bO).v2('uOz', A.oz[0], A.oz[1])
+    .v4('uGlow', [0.45, 0.7, 1.0, S.glow]).f('uSteps', coarse ? 16 : 28);
+  gl.drawArrays(gl.TRIANGLES, 0, 3);
+
+  // Überstrahlung
+  const bloomOn = !orig && S.bloom > 0 && RS.bloom.length > 1;
+  if (bloomOn) {
+    let src = RS.hdr2, sw = w, sh = h;
+    for (let i = 0; i < RS.bloom.length; i++) {
+      const b = RS.bloom[i];
+      gl.bindFramebuffer(gl.FRAMEBUFFER, b.fb);
+      gl.viewport(0, 0, b.w, b.h);
+      gl.activeTexture(gl.TEXTURE6); gl.bindTexture(gl.TEXTURE_2D, src);
+      P.down.use().v2('uTexel', 1 / sw, 1 / sh).f('uThresh', 1.2 / Math.max(S.exposure, 0.05)).i('uPre', i === 0 ? 1 : 0);
+      gl.drawArrays(gl.TRIANGLES, 0, 3);
+      src = b.tx; sw = b.w; sh = b.h;
+    }
+    gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE);
+    for (let i = RS.bloom.length - 1; i > 0; i--) {
+      const s = RS.bloom[i], d = RS.bloom[i - 1];
+      gl.bindFramebuffer(gl.FRAMEBUFFER, d.fb);
+      gl.viewport(0, 0, d.w, d.h);
+      gl.activeTexture(gl.TEXTURE6); gl.bindTexture(gl.TEXTURE_2D, s.tx);
+      P.up.use().v2('uTexel', 1 / s.w, 1 / s.h);
+      gl.drawArrays(gl.TRIANGLES, 0, 3);
+    }
+    gl.disable(gl.BLEND);
+  }
+
+  // Sonne auf dem Bild und ob der Planet sie verdeckt (für die Blendenflecke)
+  const far4 = mul4(vp, new Float32Array([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, eye[0] + sun[0] * 50, eye[1] + sun[1] * 50, eye[2] + sun[2] * 50, 1]));
+  const cw = far4[15];
+  let fl = [0, 0, 0, aspect];
+  if (cw > 0 && S.flare > 0) {
+    const sx = far4[12] / cw * 0.5 + 0.5, sy = far4[13] / cw * 0.5 + 0.5;
+    const toC = V.norm([-eye[0], -eye[1], -eye[2]]);
+    const alpha = Math.asin(Math.min(1, 1.01 / cam.dist));
+    const beta = Math.acos(clamp(V.dot(sun, toC), -1, 1));
+    const vis = clamp((beta - alpha + 0.012) / 0.024, 0, 1);
+    const onScreen = clamp(1.4 - Math.max(Math.abs(sx - 0.5), Math.abs(sy - 0.5)) * 2, 0, 1);
+    fl = [sx, sy, vis * onScreen * S.flare * (orig ? 0.9 : 0.5), aspect];
+  }
+  gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+  gl.viewport(0, 0, w, h);
+  gl.activeTexture(gl.TEXTURE5); gl.bindTexture(gl.TEXTURE_2D, RS.hdr2);
+  gl.activeTexture(gl.TEXTURE7); gl.bindTexture(gl.TEXTURE_2D, bloomOn ? RS.bloom[0].tx : RS.hdr2);
+  P.fin.use().f('uExposure', orig ? 1 : S.exposure * 1.25).f('uBloom', bloomOn ? S.bloom * 0.12 : 0).i('uTone', orig ? 0 : 1).v4('uFl', fl);
+  gl.drawArrays(gl.TRIANGLES, 0, 3);
+}
+
+// ------------------------------------------------------------------ Schleife
+let last = performance.now(), budget = 256 * 256 * 2, fpsAcc = 0, fpsN = 0, fpsT = 0;
+function resize() {
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const r = canvas.getBoundingClientRect();
+  const w = Math.max(2, Math.round(r.width * dpr)), h = Math.max(2, Math.round(r.height * dpr));
+  if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; }
+}
+function step(now) {
+  const dt = Math.min(0.1, (now - last) / 1000);
+  last = now;
+  resize();
+  if (!pointers.size) {
+    cam.yaw += cam.vYaw; cam.pitch = clamp(cam.pitch + cam.vPitch, -1.45, 1.45);
+    cam.vYaw *= 0.92; cam.vPitch *= 0.92;
+  }
+  if (S.rotate) spin += S.spin * Math.PI / 180 * dt;
+  simTime += dt;
+  // Erzeugung im Zeitbudget
+  if (jobs.length) {
+    budget = dt < 0.03 ? Math.min(budget * 1.3, 8e6) : dt > 0.05 ? Math.max(budget * 0.6, 32768) : budget;
+    let spent = 0;
+    while (jobs.length && spent < budget) { const j = jobs.shift(); j.run(); spent += j.cost; jobDone += j.cost; }
+  }
+  const gb = $('genbar');
+  if (jobs.length) {
+    gb.hidden = false;
+    $('gen-text').textContent = `${t('Erzeuge Planet', 'Generating planet')} ${Math.round(100 * jobDone / Math.max(jobTotal, 1))} %`;
+    $('gen-fill').style.width = `${100 * jobDone / Math.max(jobTotal, 1)}%`;
+  } else gb.hidden = true;
+  render();
+  fpsAcc += dt; fpsN++;
+  if (now - fpsT > 500) { $('fps').textContent = `${Math.round(fpsN / Math.max(fpsAcc, 1e-3))} fps`; fpsAcc = 0; fpsN = 0; fpsT = now; }
+  requestAnimationFrame(step);
+}
+
+// Schnittstelle für Tests und Bildschirmfotos
+window.planets = {
+  S, get busy() { return jobs.length > 0; },
+  set(k, v) { S[k] = v; if (k === 'style') { buildUI(); regenerate(); } else if (k === 'seed') newSeed(v); else changed({ k }); buildUI(); },
+  finish() { while (jobs.length) { const j = jobs.shift(); j.run(); jobDone += j.cost; } },
+  shot(opt = {}) {
+    if (opt.spin !== undefined) spin = opt.spin;
+    if (opt.time !== undefined) simTime = opt.time;
+    if (opt.yaw !== undefined) cam.yaw = opt.yaw;
+    if (opt.pitch !== undefined) cam.pitch = opt.pitch;
+    if (opt.dist !== undefined) { cam.dist = cam.tDist = opt.dist; cam.zoomed = true; }
+    else if (!cam.zoomed) { cam.dist = cam.tDist = fitDist(canvas.width / canvas.height); }
+    render();
+    return canvas.toDataURL('image/png');
+  },
+};
+
+S.sea = S.sea < 0 ? PP.water : S.sea;
+if (!Q.get('cover')) S.cover = PP.cloudCover;
+buildUI();
+regenerate();
+requestAnimationFrame(step);
+</script>
