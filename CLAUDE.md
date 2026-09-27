@@ -3,6 +3,9 @@
 Urheber: **elias-nero-tron** (in CREDITS/NOTICE nennen). Lizenz Apache-2.0. Nie die E-Mail oder einen
 Sitzungslink des Urhebers veröffentlichen.
 
+Commits: keine `Co-Authored-By: Claude`- oder `Claude-Session:`-Zeilen anhängen. Claude ist hier
+Werkzeug, kein Co-Autor (Hinweis dazu steht bereits in NOTICE/CREDITS.md).
+
 Arbeitsauftrag: **[HAEPPCHEN.md](HAEPPCHEN.md)**, das nächste offene Häppchen.
 So wie im ersten Prompt: Quelle lesen → Verfahren übernehmen → bauen → pushen → zeigen.
 

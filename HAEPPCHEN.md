@@ -58,7 +58,7 @@ Also bei jedem Häppchen: Quelle lesen, Verfahren übernehmen (Lizenz beachten),
 14. **Kontinentplanet-Oberfläche wie colordodge.** „Sieht unfassbar gut & nahezu unendlich zoombar aus.“
     Quelle: [colordodge/ProceduralPlanet](https://github.com/colordodge/ProceduralPlanet) (WTFPL): Rauschen mit
     16–32 Oktaven und Domain Warping in Würfel-Texturen (bis 4096²), Farbtabelle Höhe × Feuchte, Wasserlinie,
-    Strand, Normal- und Glanzkarte. Als eigene Seite, ersetzt `demos/terrain.html`.
+    Strand, Normal- und Glanzkarte. Als eigene Seite.
 15. **Klimazonen und Meeresspiegel wie Lagrange.** „Die hat Klimazonen und echte Meeresspiegel-Erhöhung.“
     Quelle: [Lagrange](https://github.com/EepyBerry/lagrange) (nur Ideen, Lizenz eingeschränkt): Temperatur aus
     Breite und Höhe, Feuchte, Biom aus (Feuchte, Temperatur), Regler Meeresspiegel. Auf Häppchen 14.
