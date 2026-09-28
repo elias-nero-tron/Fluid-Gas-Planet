@@ -34,6 +34,19 @@ Also bei jedem Häppchen: Quelle lesen, Verfahren übernehmen (Lizenz beachten),
 6. **Sitzungs-Link aus alten Commit-Nachrichten entfernen** (steht noch in 22 Commits auf `main`, nicht mehr
    in PRs). Braucht einen Force-Push auf `main` und ein ausdrückliches Ja des Urhebers.
 
+**Gesteinsplanet – Notizen des Urhebers (2026-09-28, noch nicht beheben):**
+- **Glitzern im Bergschatten.** Die Wellen glitzern auch dort, wo ein Berg Schatten wirft. Der Glanz auf dem
+  Wasser (`fsPlanet`, Zweig `water`, `spec`) muss mit dem Geländeschatten `ts` bzw. `Esh` multipliziert werden.
+- **Naht am Fuß der Vulkane.** Am Vulkanfuß entsteht eine sichtbare Kante zur Umgebung (`volcanoes()` in
+  `VOLC`, `src/rocky/main.js`: der Kegel endet bei r = R mit Knick; Profil am Rand weich auslaufen lassen).
+- **Flüsse neu (eigener Chat).** Der Versuch „eingegraben mit Seen“ (v24) hat die Kontinente zerpflückt.
+  Linien wie v23 sind wieder Standard, der Versuch bleibt wählbar. Neu denken: Fließrichtung, Sammelstellen
+  und kleine Seen aus dem vorhandenen Gefälle („Wasser sucht den kürzesten Weg ins Meer“), ohne Täler bis auf
+  Meereshöhe zu ziehen; Mündungsdelta nur an der Küste.
+- **Arbeitsweise:** Neue Verfahren kommen **zusätzlich** als Auswahl ins Menü, die alten bleiben. Der Urheber
+  vergleicht selbst und sagt irgendwann „das fliegt raus“. Jedes Extra (Wolken, Vulkane, Flüsse, Schatten …)
+  ist einzeln ein- und ausschaltbar (Abschnitt „Module an/aus“).
+
 ### Mittel
 
 7. **Partikel besser als jasper-r.** „Die Partikel-Arbeit sieht nicht aus wie die Vorschau vom Partikel-Dude …

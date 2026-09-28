@@ -64,7 +64,8 @@ const S = {
   sunAz: -58, sunEl: 12, cover: 0.5,
   nebula: 1.0, stars: 1.0, flare: 0.5,
   mwWidth: 1.0, mwCore: 1.0, mwDust: 1.0, mwHii: 1.0,
-  rotate: true, spin: 1.2, spinZoom: 1.0, volcanoes: 0.5, rivers: 1, riverAmount: 1, craterFill: 1, tilt: 23, fov: 36,
+  rotate: true, spin: 1.2, spinZoom: 1.0, volcanoes: 0.15, volcanoOn: true, volcanoType: 0, rivers: 1, riverAmount: 1, craterFill: 1,
+  modClouds: true, modShadows: true, modAtmo: true, modBloom: true, modFlare: true, tilt: 23, fov: 36,
   view: 0, quality: 0,
 };
 // Wer reduzierte Bewegung eingestellt hat, bekommt einen stehenden Planeten (Drehen lässt sich einschalten)
@@ -151,17 +152,20 @@ function controls() {
       { k: 'relief', mode: 'plus', min: 0, max: 0.08, step: 0.001, label: t('Relief-Höhe', 'Relief height'),
         help: t('Echte Verschiebung der Oberfläche. Berge ragen am Rand über die Kugel hinaus und werfen Schatten.', 'Real displacement of the surface. Mountains rise above the limb and cast shadows.'),
         fx: 'r = 1 + k_r·max(h − s, 0)' },
-      { k: 'volcanoes', mode: 'plus', min: 0, max: 1, step: 0.01, label: t('Vulkane', 'Volcanoes'), regen: true,
-        help: t('Schichtvulkane: steile, nach innen gewölbte Flanken wie Fuji oder Mayon, scharfer Kraterrand, Krater als echte Senke (füllt sich mit Wasser oder Lava). Im Meer entstehen Vulkaninseln. Die Erosion zieht Rinnen strahlenförmig die Flanken hinab.',
-          'Stratovolcanoes: steep, concave flanks like Fuji or Mayon, a sharp rim, the crater a real sink (fills with water or lava). In the sea they form volcanic islands. Erosion carves gullies radially down the flanks.'),
+      { k: 'volcanoOn', mode: 'plus', type: 'check', label: t('Vulkane an', 'Volcanoes on'), regen: true },
+      { k: 'volcanoType', mode: 'plus', type: 'select', label: t('Vulkantyp', 'Volcano type'), opts: [[0, t('normal (Schichtvulkan)', 'normal (stratovolcano)')], [1, t('Supervulkan (Caldera)', 'supervolcano (caldera)')]], regen: true,
+        help: t('Normal: spitze Kegel wie Fuji. Supervulkan: breit und flach mit großer Caldera, seltener.', 'Normal: steep cones like Fuji. Supervolcano: broad and flat with a large caldera, rarer.') },
+      { k: 'volcanoes', mode: 'plus', min: 0, max: 1, step: 0.01, label: t('Vulkan-Anzahl', 'Volcano count'), regen: true,
+        help: t('Schichtvulkane: steile, nach innen gewölbte Flanken wie Fuji oder Mayon, scharfer Kraterrand, Krater als echte Senke (kann sich mit Wasser füllen). Im Meer entstehen Vulkaninseln. Die Erosion zieht Rinnen strahlenförmig die Flanken hinab.',
+          'Stratovolcanoes: steep, concave flanks like Fuji or Mayon, a sharp rim, the crater a real sink (can fill with water). In the sea they form volcanic islands. Erosion carves gullies radially down the flanks.'),
         fx: 'v = (e^(−3t) − e^(−3))/(1 − e^(−3)),  t < t_c: v = v(t_c) − 0,28·(1 − (t/t_c)²)' },
-      { k: 'rivers', mode: 'plus', type: 'select', label: t('Flüsse & Seen', 'Rivers & lakes'), opts: [[1, t('an (Täler eingegraben)', 'on (valleys carved)')], [0, t('aus', 'off')]], regen: true,
+      { k: 'rivers', mode: 'plus', type: 'select', label: t('Flüsse & Seen', 'Rivers & lakes'), opts: [[1, t('Linien (wie v23)', 'Lines (as in v23)')], [2, t('eingegraben mit Seen (Versuch v24)', 'carved with lakes (trial v24)')], [0, t('aus', 'off')]], regen: true,
         help: t('Aus der Höhenkarte berechnet: Senken füllen sich zu Seen (Priority-Flood, Barnes 2014), Regen sammelt sich bergab (Abflussakkumulation, O’Callaghan & Mark 1984; kein Abfluss aus Eis, wenig aus Wüsten). Breite und Tiefe wachsen mit der Wassermenge (Leopold & Maddock 1953). Das Tal wird in die Höhenkarte gegraben, der Wasserspiegel füllt es; das Ufer ergibt sich pixelgenau aus dem Gelände.',
           'Computed from the height map: sinks fill up into lakes (priority-flood, Barnes 2014), rain gathers downhill (flow accumulation, O’Callaghan & Mark 1984; no runoff from ice, little from deserts). Width and depth grow with discharge (Leopold & Maddock 1953). The valley is carved into the height map and the water level fills it; the bank follows the terrain pixel by pixel.'),
         fx: 'Q = Σ Regen·(T > 0),  b ∝ Q^0,5,  d ∝ Q^0,4,  h′ = h − d·(1 − q²)²' },
       { k: 'riverAmount', mode: 'plus', min: 0.2, max: 4, step: 0.05, label: t('Flussdichte', 'River density'), regen: true, fmt: (v) => `×${v.toFixed(2)}`,
         help: t('Wie viel Einzugsgebiet ein Fluss braucht. Höher = mehr, auch kleinere Flüsse.', 'How much catchment a river needs. Higher = more rivers, including smaller ones.') },
-      { k: 'craterFill', mode: 'plus', type: 'select', label: t('Kraterfüllung', 'Crater fill'), opts: [[1, t('Wasser (Kratersee)', 'Water (crater lake)')], [2, t('Lava', 'Lava')], [0, t('leer', 'empty')]],
+      { k: 'craterFill', mode: 'plus', type: 'select', label: t('Kraterfüllung', 'Crater fill'), opts: [[1, t('Kratersee (bei „eingegraben“)', 'Crater lake (with “carved”)')], [0, t('leer', 'empty')]],
         help: t('Was in Vulkankratern steht. Der Krater ist eine echte Senke; ob Wasser darin steht, entscheidet die Seen-Berechnung.', 'What fills volcano craters. The crater is a real sink; whether water stands in it is decided by the lake computation.') },
       { k: 'erosion', mode: 'plus', min: 0, max: 3, step: 0.01, label: t('Erosion', 'Erosion'), regen: true,
         help: t('Rinnen und Grate, die hangabwärts laufen und sich verzweigen, wie von Regen ausgewaschen. Formel von Clay John / Fewes (2D), hier auf die Kugel übertragen.', 'Gullies and ridges that run downhill and branch, as if washed out by rain. Formula by Clay John / Fewes (2D), carried over to the sphere here.'),
@@ -234,6 +238,13 @@ function controls() {
       { k: 'flare', min: 0, max: 2, step: 0.01, label: t('Blendenflecke', 'Lens flare') },
       { k: 'bloom', mode: 'plus', min: 0, max: 2, step: 0.01, label: t('Überstrahlung', 'Bloom'),
         help: t('Helles Glitzern und die Sonne strahlen weich über, wie bei einer echten Linse.', 'Bright glints and the sun bleed softly, as in a real lens.') },
+    ] },
+    { id: 'modules', title: t('Module an/aus', 'Modules on/off'), items: [
+      { k: 'modClouds', type: 'check', label: t('Wolken', 'Clouds'), help: t('Ganzes Modul ein- oder ausschalten, zum Vergleichen.', 'Switch the whole module on or off, to compare.') },
+      { k: 'modAtmo', mode: 'plus', type: 'check', label: t('Atmosphäre (Streuung)', 'Atmosphere (scattering)') },
+      { k: 'modShadows', mode: 'plus', type: 'check', label: t('Geländeschatten', 'Terrain shadows') },
+      { k: 'modBloom', mode: 'plus', type: 'check', label: t('Überstrahlung', 'Bloom') },
+      { k: 'modFlare', type: 'check', label: t('Blendenflecke', 'Lens flare') },
     ] },
     { id: 'motion', title: t('Drehung & Kamera', 'Spin & camera'), items: [
       { k: 'rotate', type: 'check', label: t('Drehen', 'Rotate') },
@@ -476,8 +487,8 @@ fn volcCell(c: vec3f, seed: f32) -> vec4f {
   let hp = hash33(c + vec3f(seed * 0.0131, 7.1, 3.3));
   return vec4f(normalize(c + 0.15 + 0.7 * hp), hp.x);
 }
-fn volcanoes(d: vec3f, dens: f32, seed: f32) -> vec4f {
-  let ip = floor(d * 11.0);
+fn volcanoes(d: vec3f, dens: f32, seed: f32, sup: f32) -> vec4f {
+  let ip = floor(d * mix(11.0, 5.0, sup));
   var o = vec4f(0.0);
   let k = 3.0;
   let ek = exp(-k);
@@ -486,13 +497,13 @@ fn volcanoes(d: vec3f, dens: f32, seed: f32) -> vec4f {
     let hq = hash33(c * 1.31 + vec3f(1.7, seed * 0.0071, 9.2));
     if (hq.x > dens * 0.3) { continue; }
     let cc = volcCell(c, seed).xyz;
-    let R = 0.012 + 0.014 * hq.y;
-    let H = 0.18 + 0.17 * hq.z;                 // Höhe ≈ Radius/5 wie bei echten Schichtvulkanen (bei Relief ×0,018)
+    let R = (0.012 + 0.014 * hq.y) * mix(1.0, 3.5, sup);
+    let H = (0.18 + 0.17 * hq.z) * mix(1.0, 0.8, sup);                 // Höhe ≈ Radius/5 wie bei echten Schichtvulkanen (bei Relief ×0,018)
     let dv = d - cc;
     let r = length(dv);
     if (r >= R) { continue; }
     let t = r / R;
-    let tc = 0.2 + 0.08 * hq.y;
+    let tc = (0.2 + 0.08 * hq.y) * mix(1.0, 1.9, sup);   // Supervulkan: breite Caldera
     var v: f32;
     var dvdt: f32;
     if (t >= tc) {
@@ -508,16 +519,16 @@ fn volcanoes(d: vec3f, dens: f32, seed: f32) -> vec4f {
   } } }
   return o;
 }
-// 1 im Krater eines Vulkans (für Lava statt Wasser), sonst 0
-fn volcCrater(d: vec3f, dens: f32, seed: f32) -> f32 {
-  let ip = floor(d * 11.0);
+// 1 im Krater eines Vulkans, sonst 0
+fn volcCrater(d: vec3f, dens: f32, seed: f32, sup: f32) -> f32 {
+  let ip = floor(d * mix(11.0, 5.0, sup));
   var m = 0.0;
   for (var z = -1; z <= 1; z++) { for (var y = -1; y <= 1; y++) { for (var x = -1; x <= 1; x++) {
     let c = ip + vec3f(f32(x), f32(y), f32(z));
     let hq = hash33(c * 1.31 + vec3f(1.7, seed * 0.0071, 9.2));
     if (hq.x > dens * 0.3) { continue; }
-    let R = 0.012 + 0.014 * hq.y;
-    let tc = 0.2 + 0.08 * hq.y;
+    let R = (0.012 + 0.014 * hq.y) * mix(1.0, 3.5, sup);
+    let tc = (0.2 + 0.08 * hq.y) * mix(1.0, 1.9, sup);
     let r = length(d - volcCell(c, seed).xyz);
     m = max(m, 1.0 - smoothstep(tc * R * 0.9, tc * R * 1.25, r));
   } } }
@@ -660,7 +671,7 @@ fn main(@builtin(global_invocation_id) gid: vec3u) {
   }
   // Vulkane vor der Erosion: die Rinnen laufen dann strahlenförmig die Flanken hinab
   if (mode > 0.5 && J.f.w > 0.0) {
-    let Vc = volcanoes(d, J.f.w, J.b.y);
+    let Vc = volcanoes(d, J.f.w, J.b.y, J.g.w);
     h += Vc.x;
     let gv = Vc.yzw - d * dot(Vc.yzw, d);
     gh += gv;
@@ -1157,7 +1168,7 @@ fn earthBiome(d: vec3f, h: f32, m: f32, slope: f32, nz: f32) -> vec4f {
   // Flusskarte (r Eintiefung, g Wasserspiegel, b Flussbett) an verbogener Stelle, wie beim Eingraben
   var hy = vec4f(0.0);
   if (U.W.w > 0.0) { hy = texDirLod(tRiver, hydroWarp(d), U.W.w, 0.0); }
-  let calm = 1.0 - hy.z;                            // im Flussbett keine Feinrillen und keine Detail-Oktaven
+  let calm = 1.0 - hy.z * step(1.5, U.L2.z);                            // im Flussbett keine Feinrillen und keine Detail-Oktaven
   if (U.L.z > 0.0) {
     let det = detailNoise(d, pix, 0.16 / texAng, U.L.z * 0.9 * calm);
     let rug = clamp(length(g) * 0.12, 0.25, 1.6);
@@ -1188,12 +1199,11 @@ fn earthBiome(d: vec3f, h: f32, m: f32, slope: f32, nz: f32) -> vec4f {
   var depth = sea - h;
   // Flüsse und Seen: Wasser, wo das Gelände unter dem berechneten Spiegel liegt (Ufer pixelgenau aus der Höhe)
   var inland = false;
-  var lava = 0.0;
-  // Kraterfüllung: Lava füllt den ganzen Kraterboden (glüht aus sich selbst), Wasser nur, wo der Seespiegel steht
+  // Kraterfüllung: Kratersee oder leer (Bg.w: 1 = Wasser, 0 = leer)
   var crater = 0.0;
-  if (U.EroRt.z > 0.0 && U.Bg.w != 1.0 && depth <= 0.0 && h > sea + 0.03) { crater = volcCrater(d, U.EroRt.z, U.EroRt.w); }
-  if (U.Bg.w > 1.5) { lava = smoothstep(0.75, 0.97, crater); }   // nur der Kraterboden, nicht die Wände
-  if (U.W.w > 0.0 && depth <= 0.0 && hy.y > h && crater < 0.5) { depth = hy.y - h; inland = true; }
+  if (U.EroRt.z > 0.0 && U.Bg.w < 0.5 && depth <= 0.0 && h > sea + 0.03) { crater = volcCrater(d, U.EroRt.z, U.EroRt.w, U.L2.w); }
+  // Flussmodus (L2.z): 2 = eingegraben mit Wasserspiegel; 1 = Linien wie v23 (nur Farbe, Gelände unberührt)
+  if (U.W.w > 0.0 && U.L2.z > 1.5 && depth <= 0.0 && hy.y > h && crater < 0.5) { depth = hy.y - h; inland = true; }
   let water = depth > 0.0;
   // Terrassen (Gesteinsschichten) auf dem Land
   if (!water && U.L.w > 0.0) {
@@ -1333,6 +1343,11 @@ fn earthBiome(d: vec3f, h: f32, m: f32, slope: f32, nz: f32) -> vec4f {
       alb = eb.rgb;
       rough = eb.a;
     }
+    if (U.W.w > 0.0 && U.L2.z < 1.5 && hy.z > 0.0) {
+      let rv = smoothstep(0.25, 0.75, hy.z);
+      alb = mix(alb, vec3f(0.012, 0.03, 0.04), rv);
+      rough = mix(rough, 0.07, rv);
+    }
     // Kavität: Täler dunkler, Grate heller (Differenz zu einer gröberen Mipmap)
     let hb = texFaceLod(tHm, F, N, lod + 3.0).x;
     let cav = clamp((T.x - hb) * 30.0, -1.0, 1.0);
@@ -1354,15 +1369,6 @@ fn earthBiome(d: vec3f, h: f32, m: f32, slope: f32, nz: f32) -> vec4f {
     col += alb * skyAmb * ao * (0.6 + 0.4 * dot(nL, d));
     albOut = alb;
     roughOut = rough;
-  }
-  // Lava im Krater: glüht aus sich selbst (auch nachts), mit dunkler, rissiger Kruste
-  if (lava > 0.0) {
-    let tl = U.cam.w;
-    let cn = snoise(d * 2600.0 + vec3f(0.0, tl * 0.05, 0.0)) * 0.6 + snoise(d * 7000.0) * 0.4;
-    let crust = smoothstep(-0.35, 0.05, cn);
-    let glow = vec3f(1.0, 0.3, 0.05) * 3.0 * (1.0 - crust) + vec3f(0.8, 0.16, 0.03) * 0.25;
-    let crustC = vec3f(0.03, 0.02, 0.018) * Esh * max(muS, 0.0);
-    col = mix(col, mix(glow, crustC + glow * 0.08, crust), lava);
   }
   if (view == 6) { col = vec3f(hy.x * 20.0, select(0.0, 1.0, hy.y > h), hy.z) * 0.3; }
   if (view == 1) { col = vec3f(clamp(h, 0.0, 1.0)) * 0.3; }
@@ -1939,8 +1945,8 @@ function genParams(mode, N, erosion, nHydro = 0) {
     m.res1 * PP.moistM, m.res2, m.resMix, m.mixScale,
     erosion, 34.0, 0.9, 1.0,
     PP.mountains, PP.beltFreq, 7.0, 0.35,
-    mode, eroOct(N), seaH, S.volcanoes,
-    0, 0, nHydro, 0, 0, 0, 0, N,
+    mode, eroOct(N), seaH, S.volcanoOn ? S.volcanoes : 0,
+    0, 0, nHydro, S.volcanoType, 0, 0, 0, N,
   ]);
 }
 function queueTiles(N, tile, params, pipe, bg, onDone) {
@@ -2036,7 +2042,6 @@ async function buildHydro(token) {
   rb.unmap(); rb.destroy(); tx.destroy();
   if (token !== genToken) return;
   // Meeresspiegel aus dieser genaueren Karte (mit Erosion und Vulkanen): Küsten wandern nicht mehr mit der Kartenauflösung
-  { const hs = []; for (let i = 0; i < 6 * n * n; i += 7) hs.push(half(hb[i * 4])); hs.sort((a, b) => a - b); cdf = Float32Array.from(hs); seaH = seaFromFraction(S.sea); lutDirty = true; }
   if (!S.rivers) return;
   const C = 6 * n * n, sea = seaH, n1 = n - 1, nn = n * n;
   const H = new Float32Array(C), rain = new Float32Array(C), dirs = new Float32Array(C * 3);
@@ -2211,7 +2216,8 @@ async function regenerate(full) {
       if (RS.hmFull) {
         const full = RS.hmFull;
         const bgFull = genBG(lvl0(full), RS.hydro);
-        queueTiles(N, 256, () => genParams(mode, N, ero, RS.nHydro), () => P.gen, () => bgFull, (c) => {
+        const nCarve = S.rivers === 2 ? RS.nHydro : 0;
+        queueTiles(N, 256, () => genParams(mode, N, ero, nCarve), () => P.gen, () => bgFull, (c) => {
           genMips(c.enc, full, N, L.mip16, P.mip16);
           RS.shown = full; RS.nShown = N; RS.fullReady = true;
         });
@@ -2231,18 +2237,18 @@ async function regenerate(full) {
 }
 
 function atmoParams() {
-  const k = S.thick, Rkm = 6371;
+  const k = S.thick, Rkm = 6371, on = S.modAtmo ? 1 : 0;
   const scale = Rkm * 1000 / k;
   return {
     HR: 8 / Rkm * k, HM: 1.2 / Rkm * k, Rt: 1 + 60 / Rkm * k,
-    bR: [5.802e-6, 13.558e-6, 33.1e-6].map((v) => v * scale * S.atmo),
-    bM: 3.996e-6 * scale * S.haze, bMe: 4.44e-6 * scale * S.haze,
-    bO: [0.65e-6, 1.881e-6, 0.085e-6].map((v) => v * scale * S.atmo),
+    bR: [5.802e-6, 13.558e-6, 33.1e-6].map((v) => v * scale * S.atmo * on),
+    bM: 3.996e-6 * scale * S.haze * on, bMe: 4.44e-6 * scale * S.haze * on,
+    bO: [0.65e-6, 1.881e-6, 0.085e-6].map((v) => v * scale * S.atmo * on),
     oz: [25 / Rkm * k, 15 / Rkm * k],
   };
 }
 function updateTrans(enc) {
-  const key = `${S.thick}|${S.atmo}|${S.haze}`;
+  const key = `${S.thick}|${S.atmo}|${S.haze}|${S.modAtmo}`;
   if (key === RS.transKey) return;
   RS.transKey = key;
   const A = atmoParams();
@@ -2384,7 +2390,8 @@ canvas.addEventListener('wheel', (e) => {
 function changed(it) {
   const k = it.k;
   if (!device) return;
-  if (k === 'res' || k === 'erosion' || k === 'volcanoes' || k === 'rivers' || k === 'riverAmount') { regenerate(); }
+  if (k === 'res' || k === 'erosion' || k === 'volcanoes' || k === 'volcanoOn' || k === 'volcanoType' || k === 'rivers' || k === 'riverAmount') { regenerate(); }
+  else if (k === 'modAtmo') { RS.transKey = ''; }
   else if (it.regen === 'sky') queueSky();
   else if (k === 'sea') { seaH = seaFromFraction(S.sea); lutDirty = true; clearTimeout(riverT); riverT = setTimeout(() => { if (S.rivers) regenerate(); }, 600); }
   else if (k === 'lang') buildUI();
@@ -2465,9 +2472,9 @@ function fillUniforms(o) {
   u.set([S.nscale, S.rough, S.metal, S.ambient], 68);
   u.set([S.waves, S.clarity, S.foam, S.rivers && S.style !== 'orig' ? RS.nHydro : 0], 72);
   u.set([S.bump, S.gloss, S.detail, S.terrace], 76);
-  u.set([S.shadows, S.ambientP, 0, 0], 80);
+  u.set([S.modShadows ? S.shadows : 0, S.ambientP, S.rivers, S.volcanoType], 80);
   u.set([moistQ[0], moistQ[1], S.sunI, 0.0095], 84);
-  u.set([S.erosion * Math.pow(0.5, eroOct(RS.nShown)), 34 * Math.pow(2, eroOct(RS.nShown)), S.volcanoes, PP.noiseSeed], 88);
+  u.set([S.erosion * Math.pow(0.5, eroOct(RS.nShown)), 34 * Math.pow(2, eroOct(RS.nShown)), S.volcanoOn ? S.volcanoes : 0, PP.noiseSeed], 88);
   u.set(o.clU, 92); u.set(o.clU2, 96);
   u.set([RS.nShown, cloudRes, seaH, o.orig ? 1.2 : o.sunE], 100);
   u.set([o.orig ? 0 : 1, S.palette === 'earth' ? 1 : 0, S.view, RS.nebReady ? 1 : 0], 104);
@@ -2496,17 +2503,17 @@ function render(enc) {
   const model = planetMatrix(spin, S.tilt * Math.PI / 180);
   const sun = sunDir();
   const sunE = orig ? 1 : 3.2;
-  const cloudOn = RS.cloudReady && S.cover > 0;
+  const cloudOn = RS.cloudReady && S.cover > 0 && S.modClouds;
   updateCyclones();
   const clU = [cloudOn ? S.cover : 0, simTime / CLOUD_PERIOD, S.wind * 0.35, orig ? 0 : S.cloudShadow];
   const clU2 = [orig ? 0.006 : S.cloudH, spin * 0.12, orig ? S.cloudOpO : S.cloudOp, orig ? 0 : 1];
-  const bloomOn = !orig && S.bloom > 0 && RS.bloom.length > 1;
+  const bloomOn = !orig && S.bloom > 0 && S.modBloom && RS.bloom.length > 1;
 
   // Sonne auf dem Bild und ob der Planet sie verdeckt (für die Blendenflecke)
   const far4 = mul4(vp, new Float32Array([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, eye[0] + sun[0] * 50, eye[1] + sun[1] * 50, eye[2] + sun[2] * 50, 1]));
   const cw = far4[15];
   let fl = [0, 0, 0, aspect];
-  if (cw > 0 && S.flare > 0) {
+  if (cw > 0 && S.flare > 0 && S.modFlare) {
     const sx = far4[12] / cw * 0.5 + 0.5, sy = far4[13] / cw * 0.5 + 0.5;
     const toC = V.norm([-eye[0], -eye[1], -eye[2]]);
     const alpha = Math.asin(Math.min(1, 1.01 / cam.dist));
