@@ -12,14 +12,16 @@
 <body>
 <div id="app">
   <div id="stage">
-    <canvas id="view" aria-label="Real-time gas giant simulation"></canvas>
+    <canvas id="view" aria-label="Planet view: drag to turn, scroll or pinch to zoom"></canvas>
     <div class="hud">
-      <h1>Fluid Gas Planet</h1>
-      <div id="planet-info">Jupiter</div>
+      <h1 id="t-title">Fluid Gas Planet</h1>
+      <div id="planet-info" data-body="gas">Jupiter</div>
       <div class="meta"><span id="fps">– fps</span> <span id="version"></span></div>
-      <div class="meta" id="hint">drag to rotate, scroll or pinch to zoom</div>
+      <div class="meta" id="hint" data-body="gas">drag to rotate, scroll or pinch to zoom</div>
+      <div class="meta" data-body="rocky"><span id="mode-tag"></span> · <span id="t-hint"></span></div>
     </div>
-    <div id="loading" role="status" aria-live="polite">
+    <div id="genbar" data-body="rocky" hidden><span id="gen-text"></span><div class="track"><div class="fill" id="gen-fill"></div></div></div>
+    <div id="loading" data-body="gas" role="status" aria-live="polite">
       <div class="load-box">
         <p id="load-title">Spinning up the atmosphere</p>
         <div class="load-track"><span id="load-bar"></span></div>
@@ -46,6 +48,6 @@
     });
   })();
 </script>
-<script type="module" src="/src/main.ts"></script>
+<script type="module" src="/src/app.ts"></script>
 </body>
 </html>

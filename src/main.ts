@@ -20,7 +20,7 @@ const isPhone = matchMedia('(pointer: coarse)').matches && Math.min(screen.width
 const S = {
   preset: 'Jupiter',
   seed: 1,
-  quality: isPhone ? 'phone' : 'standard',
+  quality: isPhone ? 'phone' : 'high',
   // Rechenmodell und Darstellung, frei kombinierbar:
   flow: 'fluid',          // 'fluid' = Stable Fluids (mofu), 'curl' = Curl-Noise (jasper-r / Gaseous Giganticus)
   look: 'dye',            // 'dye' = Farbstoff, 'particles' = Partikel mit Bandfarben, 'pure' = reine Partikel (jasper-r)
@@ -92,16 +92,18 @@ type Key = keyof typeof S;
 const DEFAULTS = { ...S };
 
 // Geräteklassen: Startwerte und Obergrenzen der Regler. "ultra" schaltet die großen Werte frei.
-const QUALITY: Record<string, { velRes: number; dyeRes: number; curlRes: number; particles: number; dpr: number;
-  max: { velRes: number; dyeRes: number; curlRes: number; particles: number } }> = {
-  phone: { velRes: 96, dyeRes: 384, curlRes: 256, particles: 262144, dpr: 1,
-    max: { velRes: 128, dyeRes: 768, curlRes: 512, particles: 1048576 } },
-  standard: { velRes: 128, dyeRes: 768, curlRes: 384, particles: 1048576, dpr: 1.25,
-    max: { velRes: 192, dyeRes: 1024, curlRes: 768, particles: 4194304 } },
-  high: { velRes: 192, dyeRes: 1024, curlRes: 768, particles: 4194304, dpr: 1.75,
-    max: { velRes: 256, dyeRes: 1536, curlRes: 1024, particles: 8388608 } },
-  ultra: { velRes: 256, dyeRes: 1536, curlRes: 1024, particles: 8388608, dpr: 2,
-    max: { velRes: 1024, dyeRes: 8192, curlRes: 4096, particles: 67108864 } },
+type Tier = { velRes: number; dyeRes: number; curlRes: number; particles: number; dpr: number; iterations?: number;
+  fluid?: { velRes: number; dpr: number } };  // fluid = abweichende Startwerte, wenn die Darstellung "Flüssigkeit" ist
+const QUALITY: Record<string, Tier> = {
+  // Startwerte vom Urheber (2026-09-28, auf Hardware ausgesucht)
+  phone: { velRes: 128, dyeRes: 1024, curlRes: 256, particles: 983040, dpr: 1, iterations: 12 },
+  standard: { velRes: 128, dyeRes: 768, curlRes: 384, particles: 1048576, dpr: 1.25 },
+  high: { velRes: 256, dyeRes: 2048, curlRes: 768, particles: 983040, dpr: 1.75, iterations: 24, fluid: { velRes: 352, dpr: 2 } },
+  ultra: { velRes: 256, dyeRes: 2560, curlRes: 1024, particles: 4489216, dpr: 4, iterations: 24 },
+  // alte Startwerte (v0.4), weiter wählbar
+  phone04: { velRes: 96, dyeRes: 384, curlRes: 256, particles: 262144, dpr: 1 },
+  high04: { velRes: 192, dyeRes: 1024, curlRes: 768, particles: 4194304, dpr: 1.75 },
+  ultra04: { velRes: 256, dyeRes: 1536, curlRes: 1024, particles: 8388608, dpr: 2 },
 };
 
 // ---------------------------------------------------------------------------
@@ -295,7 +297,7 @@ class App {
 
     this.dummy = this.cubeField(8);
     this.zonal = device.createBuffer({ size: 128 * 2 * 4, usage: GPUBufferUsage.STORAGE });
-    this.applyQuality(false);
+    this.applyQuality(true);  // Startwerte der Geräteklasse schon beim Laden
     this.applyPreset();
     this.buildUI();
     this.bindInput();
@@ -340,8 +342,12 @@ class App {
 
   private applyQuality(fromUI: boolean) {
     const q = QUALITY[S.quality];
-    if (fromUI && q) { S.velRes = q.velRes; S.dyeRes = q.dyeRes; S.curlRes = q.curlRes; S.particles = q.particles; }
-    if (fromUI && q) S.pixelDensity = Math.min(q.dpr, 2);
+    if (fromUI && q) {
+      const f = S.look === 'dye' && q.fluid ? q.fluid : null;
+      S.velRes = f ? f.velRes : q.velRes; S.dyeRes = q.dyeRes; S.curlRes = q.curlRes; S.particles = q.particles;
+      S.pixelDensity = f ? f.dpr : q.dpr;
+      if (q.iterations) S.iterations = q.iterations;
+    }
     this.dpr = S.pixelDensity;
     this.allocVel();
     this.allocDye();
@@ -1259,7 +1265,7 @@ class App {
     const fx = (f: string) => `<code class="fx">${f}</code>`;
     const presetName = (name: string) => ({ Neptun: t('Neptun', 'Neptune'), 'Heißer Jupiter': t('Heißer Jupiter', 'Hot Jupiter') } as Record<string, string>)[name] ?? name;
     // Alle Regler gehen immer bis zum Maximum; "Gerät" setzt nur die Startwerte.
-    const lim = QUALITY.ultra.max;
+    const lim = { velRes: 1024, dyeRes: 8192, curlRes: 4096, particles: 67108864 };
 
     this.panel = new Panel(root, S as unknown as Record<string, number | string | boolean>, on, DEFAULTS as unknown as Record<string, number | string | boolean>);
     this.panel
@@ -1412,6 +1418,9 @@ class App {
         ['standard', t('Laptop / integrierte GPU', 'Laptop / integrated GPU')],
         ['high', t('Desktop-GPU', 'Desktop GPU')],
         ['ultra', t('High-End-GPU (z. B. RTX 4080/5080)', 'High-end GPU (e.g. RTX 4080/5080)')],
+        ['phone04', t('Smartphone (alte Werte v0.4)', 'Smartphone (old v0.4 values)')],
+        ['high04', t('Desktop-GPU (alte Werte v0.4)', 'Desktop GPU (old v0.4 values)')],
+        ['ultra04', t('High-End-GPU (alte Werte v0.4)', 'High-end GPU (old v0.4 values)')],
       ],
         t('Setzt Startwerte für Gitter, Farbauflösung, Partikelzahl und Render-Auflösung. Die Regler selbst gehen immer bis zum Maximum (32 Mio. Partikel, 2048² Farbe, 384² Gitter), egal welches Gerät gewählt ist.',
           'Sets starting values for grid, colour resolution, particle count and render resolution. The controls always go to the maximum (32 M particles, 2048² colour, 384² grid), whatever device is chosen.'))
@@ -1607,7 +1616,7 @@ class App {
       case 'velRes': case 'curlRes': this.allocVel(); break;
       case 'dyeRes': this.allocDye(); break;
       case 'particles': this.allocParticles(); break;
-      case 'flow': case 'look': this.updateVisibility(); this.needsDye = true; break;
+      case 'flow': case 'look': this.updateVisibility(); this.needsDye = true; if (key === 'look' && QUALITY[S.quality]?.fluid) { this.applyQuality(true); this.panel.refresh(); } break;
       case 'retro': this.usePreset(this.preset); this.needsInit = true; break;
       case 'seamless': this.buildPipes(S.seamless); break;
       case 'map': canvas.classList.toggle('map', S.map); break;
@@ -1631,4 +1640,5 @@ declare global {
   }
 }
 
-start().catch((e) => fail(`${t('<b>Start fehlgeschlagen:</b>', '<b>Start failed:</b>')} ${e instanceof Error ? e.message : String(e)}`));
+/** Startet den Gasriesen (von der gemeinsamen Seite aufgerufen). */
+export const run = () => start().catch((e) => fail(`${t('<b>Start fehlgeschlagen:</b>', '<b>Start failed:</b>')} ${e instanceof Error ? e.message : String(e)}`));
