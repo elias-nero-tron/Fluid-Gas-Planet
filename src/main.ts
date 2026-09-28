@@ -69,13 +69,16 @@ const S = {
   contrast: 1,
   convection: 0.8,
   storms: true,
+  focusStorm: true,       // beim Start den Hauptsturm (z. B. Großer Roter Fleck) auf die Tagseite vor die Kamera drehen
   stormStrength: 1,
   stormSize: 1,
-  eddyStrength: 1,        // Strudel-Stärke: Antrieb von Turbulenz, Stürmen und Wirbeln, getrennt von der Jet-Geschwindigkeit           // Größe der Stürme (Radius-Faktor), unabhängig vom Drehtempo
+  eddyStrength: 1.5,      // Flüssigkeit 1,5 (Vorgabe des Urhebers), Partikel 1 – siehe EDDY_BY_LOOK
+        // Strudel-Stärke: Antrieb von Turbulenz, Stürmen und Wirbeln, getrennt von der Jet-Geschwindigkeit           // Größe der Stürme (Radius-Faktor), unabhängig vom Drehtempo
   stormTint: 0.6,
   stormHold: 1,
-  stormSpawn: 0.3,
-  kickLife: 2.5,          // Sekunden, die ein neuer Sturm angetrieben wird, danach lebt er frei
+  stormSpawn: 2,          // Vorgabe des Urhebers (war 0,3)
+  kickLife: 30,           // Vorgabe des Urhebers (war 2,5)
+          // Sekunden, die ein neuer Sturm angetrieben wird, danach lebt er frei
   // Licht und Ansicht
   sunAngle: 35,
   relief: 0.35,
@@ -89,6 +92,7 @@ const S = {
   map: false,
 };
 type Key = keyof typeof S;
+const EDDY_BY_LOOK: Record<string, number> = { dye: 1.5, particles: 1, pure: 1 };
 const DEFAULTS = { ...S };
 
 // Geräteklassen: Startwerte und Obergrenzen der Regler. "ultra" schaltet die großen Werte frei.
@@ -689,6 +693,17 @@ class App {
     return this.storms.filter((s) => s.kick > 0 || S.storms).slice(0, MAX_STORMS);
   }
 
+  /** Hauptsturm (größter nicht-polarer Vorlagen-Sturm) auf die Tagseite vor die Kamera drehen, etwas vor der
+   *  Bildmitte in Drehrichtung, damit er über die Tagseite wandert. Neigung wird vernachlässigt. */
+  private faceMainStorm() {
+    if (!S.focusStorm) return;
+    let main: Storm | null = null;
+    this.storms.forEach((st, i) => { if (i < this.preset.storms.length && Math.abs(st.lat) < 70 && (!main || st.radius > main.radius)) main = st; });
+    if (!main) return;
+    const camAz = Math.PI / 2 - this.cam.yaw;
+    this.spin = ((main as Storm).lon * Math.PI) / 180 - (camAz + 0.3 * this.dir());
+  }
+
   /** Stürme bewegen, neue entstehen lassen, abgelaufene entfernen. */
   private updateStorms(dt: number) {
     for (const s of this.storms) {
@@ -1072,7 +1087,7 @@ class App {
     }
     loadBar.style.width = `${Math.round((100 * (this.warmTotal - this.warm)) / Math.max(this.warmTotal, 1))}%`;
     fpsEl.textContent = '– fps';
-    if (this.warm === 0) { showLoading(false); this.manualSkip = false; }
+    if (this.warm === 0) { showLoading(false); this.manualSkip = false; this.faceMainStorm(); }
   }
 
   /** Einmal pro Start: passt ein Simulationsschritt nicht ins Budget, eine Stufe herunter. */
@@ -1345,6 +1360,9 @@ class App {
       .toggle('storms', t('Vorlagen-Stürme', 'Preset storms'),
         t('Setzt die bekannten Stürme der Vorlage (z. B. Großer Roter Fleck) beim Start als Wirbel ein.',
           'Seeds the preset’s known storms (e.g. the Great Red Spot) as vortices at start.') + fx(t('v(d) = 2,33 · x·e<sup>−x²</sup>,  x = d / r', 'v(d) = 2.33 · x·e<sup>−x²</sup>,  x = d / r')))
+      .toggle('focusStorm', t('Start mit Hauptsturm im Blick', 'Start with main storm in view'),
+        t('Dreht den Planeten nach dem Laden so, dass der größte Sturm der Vorlage (bei Jupiter der Große Rote Fleck) am Anfang der Tagseite vor der Kamera steht.',
+          'After loading, turns the planet so the preset’s largest storm (Jupiter: the Great Red Spot) sits at the start of the day side in front of the camera.'))
       .range('stormSize', t('Sturm-Größe', 'Storm size'), 0.2, 5, 0.05,
         t('Radius aller Stürme als Faktor, unabhängig vom Drehtempo. Groß und langsam ist so möglich: große Sturm-Größe, kleines Drehtempo.',
           'Radius of all storms as a factor, independent of spin speed. Big and slow is possible: large storm size, low spin speed.') + fx('r′ = r · Faktor'), (v) => `${v.toFixed(2)}×`)
@@ -1616,7 +1634,7 @@ class App {
       case 'velRes': case 'curlRes': this.allocVel(); break;
       case 'dyeRes': this.allocDye(); break;
       case 'particles': this.allocParticles(); break;
-      case 'flow': case 'look': this.updateVisibility(); this.needsDye = true; if (key === 'look' && QUALITY[S.quality]?.fluid) { this.applyQuality(true); this.panel.refresh(); } break;
+      case 'flow': case 'look': if (key === 'look') { const o = Object.values(EDDY_BY_LOOK); if (o.includes(S.eddyStrength)) S.eddyStrength = EDDY_BY_LOOK[S.look] ?? S.eddyStrength; this.panel.refresh(); } this.updateVisibility(); this.needsDye = true; if (key === 'look' && QUALITY[S.quality]?.fluid) { this.applyQuality(true); this.panel.refresh(); } break;
       case 'retro': this.usePreset(this.preset); this.needsInit = true; break;
       case 'seamless': this.buildPipes(S.seamless); break;
       case 'map': canvas.classList.toggle('map', S.map); break;

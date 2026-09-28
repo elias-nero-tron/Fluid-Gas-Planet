@@ -21,7 +21,7 @@ const args = Object.fromEntries(process.argv.slice(2).reduce((acc, a, i, all) =>
 
 const pw = await import(process.env.PLAYWRIGHT_MODULE || 'playwright');
 const chromium = pw.chromium ?? pw.default.chromium;
-const launch = { headless: true, args: ['--enable-unsafe-webgpu', ...(args.gpu ? [] : ['--use-webgpu-adapter=swiftshader'])] };
+const launch = { headless: true, ...(process.env.PW_EXE ? { executablePath: process.env.PW_EXE } : {}), args: ['--enable-unsafe-webgpu', ...(args.gpu ? [] : ['--use-webgpu-adapter=swiftshader'])] };
 if (process.env.CHROMIUM_PATH) launch.executablePath = process.env.CHROMIUM_PATH;
 const browser = await chromium.launch(launch);
 const page = await browser.newPage({ viewport: { width: Number(args.width || 960), height: Number(args.height || 640) } });
