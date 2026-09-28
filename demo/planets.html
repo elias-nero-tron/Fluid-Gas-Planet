@@ -7,454 +7,166 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500&display=swap">
-<style>
-  /* Prozedurale Planeten: eigene Seite, teilt keinen Code mit dem Gasplaneten. Bewusst nur dunkel (Weltraum). */
-  :root {
-    color-scheme: dark;
-    --bg: #04050a;
-    --panel: rgba(13, 14, 20, 0.95);
-    --field: #0c0d12;
-    --line: #262833;
-    --text: #ece8e1;
-    --muted: #9a968f;
-    --accent: #e0a36a;
-    --ink: #1a1208;
-    --focus: #f3cf9c;
-    --cool: #8fb8d8;
-    --display: 'Barlow Condensed', 'Arial Narrow', sans-serif;
-    --body: 'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
-    --mono: 'IBM Plex Mono', ui-monospace, Menlo, monospace;
+  <script type="module" crossorigin>(function(){const e=document.createElement("link").relList;if(e&&e.supports&&e.supports("modulepreload"))return;for(const a of document.querySelectorAll('link[rel="modulepreload"]'))r(a);new MutationObserver(a=>{for(const s of a)if(s.type==="childList")for(const l of s.addedNodes)l.tagName==="LINK"&&l.rel==="modulepreload"&&r(l)}).observe(document,{childList:!0,subtree:!0});function n(a){const s={};return a.integrity&&(s.integrity=a.integrity),a.referrerPolicy&&(s.referrerPolicy=a.referrerPolicy),a.crossOrigin==="use-credentials"?s.credentials="include":a.crossOrigin==="anonymous"?s.credentials="omit":s.credentials="same-origin",s}function r(a){if(a.ep)return;a.ep=!0;const s=n(a);fetch(a.href,s)}})();function Un(){try{const t=localStorage.getItem("fgp-lang");if(t==="en"||t==="de")return t}catch{}return(navigator.language||"en").toLowerCase().startsWith("de")?"de":"en"}let $e=Un();function Bn(t){$e=t;try{localStorage.setItem("fgp-lang",t)}catch{}document.documentElement.lang=t}const o=(t,e)=>$e==="de"?t:e;class Ye{constructor(e,n,r,a){this.s=n,this.onChange=r,this.defaults=a,document.getElementById("tip")?.remove(),document.getElementById("detail")?.remove(),this.tip=document.createElement("div"),this.tip.id="tip",this.tip.className="tip",this.tip.hidden=!0,this.detail=document.createElement("section"),this.detail.id="detail",this.detail.className="detail",this.detail.hidden=!0,this.detail.setAttribute("aria-live","polite"),document.body.append(this.tip,this.detail),this.body=document.createElement("div"),this.body.className="controls",e.append(this.body)}s;onChange;defaults;static heavy=new Set(["velRes","dyeRes","curlRes","particles"]);bindings=[];body;tip;detail;current=null;short(e){const n=e.replace(/<code[\s\S]*?<\/code>/g,"").replace(/<[^>]+>/g,""),r=n.match(/^.*?[.!?](\s|$)/);return(r?r[0]:n).trim()}showTip(e,n){const r=e.getBoundingClientRect();this.tip.textContent=n,this.tip.hidden=!1;const a=this.tip.offsetWidth;let s=r.left-a-10,l=r.top;s<8&&(s=Math.max(8,r.left),l=r.top-this.tip.offsetHeight-6),this.tip.style.left=`${s}px`,this.tip.style.top=`${Math.max(8,l)}px`}hideTip(){this.tip.hidden=!0}openDetail(e,n){this.detail.innerHTML=`<button type="button" class="detail-close" aria-label="${o("Schließen","Close")}">✕</button><h3>${e}</h3><div>${n}</div>`,this.detail.hidden=!1,this.detail.querySelector(".detail-close").addEventListener("click",()=>{this.detail.hidden=!0})}section(e,n,r=!0){const a=document.createElement("details");a.open=r;const s=document.createElement("summary");if(s.textContent=e,a.append(s),n){const l=document.createElement("p");l.className="note",l.textContent=n,a.append(l)}return this.body.append(a),this.current=a,this}row(e,n,r){const a=document.createElement("div");a.className="row";const s=document.createElement("label");s.htmlFor=`ctl-${e}`,s.textContent=n;const l=document.createElement("output");l.htmlFor=`ctl-${e}`,a.append(s,l);const c=this.defaults&&e in this.defaults?o(" Doppelklick auf den Namen setzt nur diesen Regler zurück."," Double-click the name to reset just this control."):"",u=document.createElement("button");u.type="button",u.className="info",u.innerHTML='<svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="7" fill="none" stroke="currentColor" stroke-width="1.3"/><circle cx="8" cy="4.8" r="1" fill="currentColor"/><path d="M8 7.2v4.6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>',u.setAttribute("aria-label",`${o("Erklärung","Explanation")}: ${n}`),u.addEventListener("click",f=>{f.preventDefault(),this.openDetail(n,`${r}<p class="reset-hint">${c}</p>`)}),s.after(u);const g=this.short(r),h=()=>this.showTip(a,g);return s.addEventListener("dblclick",f=>{!this.defaults||!(e in this.defaults)||(f.preventDefault(),this.s[e]=this.defaults[e],this.refresh(),this.onChange(e))}),a.addEventListener("pointerenter",f=>{f.pointerType==="mouse"&&h()}),a.addEventListener("pointerleave",()=>this.hideTip()),a.addEventListener("focusin",h),a.addEventListener("focusout",()=>this.hideTip()),(this.current??this.body).append(a),{row:a,lab:s,out:l}}range(e,n,r,a,s,l,c=u=>String(u)){const{row:u,out:g}=this.row(e,n,l),h=document.createElement("input");h.type="range",h.id=`ctl-${e}`,h.min=String(r),h.max=String(a),h.step=String(s),u.append(h);const f=()=>{h.value=String(this.s[e]),g.textContent=c(Number(this.s[e]))},y=Ye.heavy.has(e);return h.addEventListener("input",()=>{g.textContent=c(Number(h.value)),!y&&(this.s[e]=Number(h.value),this.onChange(e))}),y&&h.addEventListener("change",()=>{this.s[e]=Number(h.value),this.onChange(e)}),this.bindings.push({key:e,update:f,row:u}),f(),this}select(e,n,r,a){const{row:s,out:l}=this.row(e,n,a);l.remove();const c=document.createElement("select");c.id=`ctl-${e}`;for(const[g,h]of r){const f=document.createElement("option");f.value=g,f.textContent=h,c.append(f)}s.classList.add("row-select"),s.append(c);const u=()=>{c.value=String(this.s[e])};return c.addEventListener("change",()=>{const g=Number(c.value);this.s[e]=typeof this.s[e]=="number"&&!Number.isNaN(g)?g:c.value,this.onChange(e)}),this.bindings.push({key:e,update:u,row:s}),u(),this}toggle(e,n,r){const{row:a,lab:s,out:l}=this.row(e,n,r);l.remove();const c=document.createElement("input");c.type="checkbox",c.id=`ctl-${e}`,a.classList.add("row-toggle"),s.prepend(c);const u=()=>{c.checked=!!this.s[e]};return c.addEventListener("change",()=>{this.s[e]=c.checked,this.onChange(e)}),this.bindings.push({key:e,update:u,row:a}),u(),this}buttons(e,n={}){const r=document.createElement("div");r.className="row row-buttons";for(const[a,s,l]of e){const c=document.createElement("button");c.type="button",c.id=a,c.textContent=s,c.addEventListener("click",l),n[a]&&(c.addEventListener("pointerenter",u=>{u.pointerType==="mouse"&&this.showTip(c,this.short(n[a]))}),c.addEventListener("pointerleave",()=>this.hideTip()),c.addEventListener("focus",()=>this.showTip(c,this.short(n[a]))),c.addEventListener("blur",()=>this.hideTip())),r.append(c)}return(this.current??this.body).append(r),this}file(e,n,r,a){const{row:s,lab:l,out:c}=this.row(e,n,r);c.remove();const u=document.createElement("input");return u.type="file",u.accept="image/*",u.id=`ctl-${e}`,u.className="file",l.htmlFor=u.id,s.classList.add("row-file"),s.append(u),u.addEventListener("change",()=>{u.files?.[0]&&a(u.files[0]),u.value=""}),this}custom(e){return(this.current??this.body).append(e),this}visible(e,n){for(const r of this.bindings)r.key===e&&(r.row.hidden=!n)}disable(e,n){for(const r of this.bindings)if(r.key===e){r.row.classList.toggle("off",n);for(const a of r.row.querySelectorAll("input, select"))a.disabled=n}}refresh(){for(const e of this.bindings)e.update()}}const Tn=[{kind:"gas",file:"index.html",de:"Gasriese",en:"Gas giant"},{kind:"rocky",file:"planets.html",de:"Gesteinsplanet",en:"Rocky planet"}],Ln="https://raw.githack.com/elias-nero-tron/Fluid-Gas-Planet/main/demo/";function Rn(t){return location.protocol==="file:"&&!/Fluid-Gas-Planet\//.test(location.pathname)?Ln+t:t}function Cn(t){const e=document.getElementById("ptype");if(e){e.setAttribute("aria-label",o("Planetentyp","Planet type")),e.innerHTML="";for(const r of Tn){const a=document.createElement("a");a.textContent=o(r.de,r.en),a.href=Rn(r.file),r.kind===t&&a.setAttribute("aria-current","page"),e.append(a)}}const n=document.getElementById("lang");n&&(n.textContent=o("EN","DE"))}const tn=`// Gemeinsamer Sternenhimmel aller Planeten-Seiten (Milchstraße als Würfelkarte + Sterne).
+// Eigene Präfixe (sky_…), damit das Modul in jeden Shader passt, ohne Namen zu kollidieren.
+// Simplexrauschen: Ashima Arts / Stefan Gustavson (MIT), Hash without Sine: David Hoskins (MIT).
+const SKY_QPI = 0.785398163397;
+struct SkyBasis { ex: vec3f, ey: vec3f, em: vec3f }
+fn sky_basis(f: i32) -> SkyBasis {
+  switch f {
+    case 0: { return SkyBasis(vec3f(0.0, 0.0, -1.0), vec3f(0.0, 1.0, 0.0), vec3f(1.0, 0.0, 0.0)); }
+    case 1: { return SkyBasis(vec3f(0.0, 0.0, 1.0), vec3f(0.0, 1.0, 0.0), vec3f(-1.0, 0.0, 0.0)); }
+    case 2: { return SkyBasis(vec3f(1.0, 0.0, 0.0), vec3f(0.0, 0.0, -1.0), vec3f(0.0, 1.0, 0.0)); }
+    case 3: { return SkyBasis(vec3f(1.0, 0.0, 0.0), vec3f(0.0, 0.0, 1.0), vec3f(0.0, -1.0, 0.0)); }
+    case 4: { return SkyBasis(vec3f(1.0, 0.0, 0.0), vec3f(0.0, 1.0, 0.0), vec3f(0.0, 0.0, 1.0)); }
+    default: { return SkyBasis(vec3f(-1.0, 0.0, 0.0), vec3f(0.0, 1.0, 0.0), vec3f(0.0, 0.0, -1.0)); }
   }
-  html, body { height: 100%; }
-  body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.45 var(--body); overflow: hidden; }
-  #app { height: 100%; display: grid; grid-template-columns: minmax(0, 1fr) 340px; }
-  #stage { position: relative; min-width: 0; min-height: 0; background: #000; }
-  #view { display: block; width: 100%; height: 100%; touch-action: none; cursor: grab; }
-  #view.drag { cursor: grabbing; }
-  .hud { position: absolute; left: 16px; right: 16px; top: calc(12px + env(safe-area-inset-top, 0px)); pointer-events: none; text-shadow: 0 1px 3px #000; }
-  .hud h1 { margin: 0; font: 600 26px/1.05 var(--display); letter-spacing: 0.04em; text-transform: uppercase; text-wrap: balance; }
-  .hud p { margin: 2px 0 0; font: 12px var(--mono); color: var(--muted); }
-  #fps { color: var(--accent); font-variant-numeric: tabular-nums; }
-  #mode-tag { color: var(--cool); }
-  #genbar { position: absolute; left: 16px; bottom: calc(16px + env(safe-area-inset-bottom, 0px)); width: min(320px, calc(100% - 32px)); font: 12px var(--mono); color: var(--muted); pointer-events: none; text-shadow: 0 1px 3px #000; }
-  #genbar .track { height: 3px; margin-top: 4px; background: var(--line); border-radius: 2px; overflow: hidden; }
-  #genbar .fill { height: 100%; width: 0; background: var(--accent); }
-  #status { position: absolute; left: 16px; right: 16px; bottom: 16px; max-width: 560px; padding: 12px 14px; background: #2a1512; border: 1px solid #7a3326; border-radius: 6px; white-space: pre-wrap; font: 12.5px/1.45 var(--mono); }
-  aside {
-    background: var(--panel); border-left: 1px solid var(--line); overflow-y: auto;
-    padding-inline: 16px; padding-block: calc(12px + env(safe-area-inset-top, 0px)) calc(20px + env(safe-area-inset-bottom, 0px));
+}
+fn sky_face(d: vec3f) -> i32 {
+  let a = abs(d);
+  if (a.x >= a.y && a.x >= a.z) { return select(1, 0, d.x > 0.0); }
+  if (a.y >= a.z) { return select(3, 2, d.y > 0.0); }
+  return select(5, 4, d.z > 0.0);
+}
+fn sky_dir(f: i32, uv: vec2f) -> vec3f {
+  let B = sky_basis(f);
+  let st = tan((uv * 2.0 - 1.0) * SKY_QPI);
+  return normalize(B.em + st.x * B.ex + st.y * B.ey);
+}
+// Richtung -> (Seite, uv in 0..1)
+fn sky_uv(d: vec3f, f: i32) -> vec2f {
+  let B = sky_basis(f);
+  let m = dot(d, B.em);
+  return atan(vec2f(dot(d, B.ex), dot(d, B.ey)) / m) / SKY_QPI * 0.5 + 0.5;
+}
+fn sky_hash33(q: vec3f) -> vec3f { var p3 = fract(q * vec3f(0.1031, 0.1030, 0.0973)); p3 += dot(p3, p3.yxz + 33.33); return fract((p3.xxy + p3.yxx) * p3.zyx); }
+fn sky_hash13(q: vec3f) -> f32 { var p3 = fract(q * 0.1031); p3 += dot(p3, p3.zyx + 31.32); return fract((p3.x + p3.y) * p3.z); }
+`,Nn=`// Milchstraße erzeugen: Scheibe, Kern (Bulge), Staubbahnen, rote H-alpha-Wolken; Alpha = Sterndichte.
+struct SkyJob { a: vec4f, b: vec4f, c: vec4f, d: vec4f, e: vec4f, f: vec4f, g: vec4f, h: vec4f }
+@group(0) @binding(0) var<uniform> J: SkyJob;
+@group(0) @binding(1) var dst: texture_storage_2d_array<rgba16float, write>;
+fn sky_m289v3(x: vec3f) -> vec3f { return x - floor(x * (1.0 / 289.0)) * 289.0; }
+fn sky_m289v4(x: vec4f) -> vec4f { return x - floor(x * (1.0 / 289.0)) * 289.0; }
+fn sky_perm(x: vec4f) -> vec4f { return sky_m289v4(((x * 34.0) + 10.0) * x); }
+fn sky_snoise(v: vec3f) -> f32 {
+  let C = vec2f(1.0 / 6.0, 1.0 / 3.0);
+  let D = vec4f(0.0, 0.5, 1.0, 2.0);
+  var i = floor(v + dot(v, C.yyy));
+  let x0 = v - i + dot(i, C.xxx);
+  let g = step(x0.yzx, x0.xyz);
+  let l = 1.0 - g;
+  let i1 = min(g.xyz, l.zxy);
+  let i2 = max(g.xyz, l.zxy);
+  let x1 = x0 - i1 + C.xxx;
+  let x2 = x0 - i2 + C.yyy;
+  let x3 = x0 - D.yyy;
+  i = sky_m289v3(i);
+  let p = sky_perm(sky_perm(sky_perm(i.z + vec4f(0.0, i1.z, i2.z, 1.0)) + i.y + vec4f(0.0, i1.y, i2.y, 1.0)) + i.x + vec4f(0.0, i1.x, i2.x, 1.0));
+  let ns = 0.142857142857 * D.wyz - D.xzx;
+  let j = p - 49.0 * floor(p * ns.z * ns.z);
+  let x_ = floor(j * ns.z);
+  let y_ = floor(j - 7.0 * x_);
+  let x = x_ * ns.x + ns.yyyy;
+  let y = y_ * ns.x + ns.yyyy;
+  let h = 1.0 - abs(x) - abs(y);
+  let b0 = vec4f(x.xy, y.xy);
+  let b1 = vec4f(x.zw, y.zw);
+  let s0 = floor(b0) * 2.0 + 1.0;
+  let s1 = floor(b1) * 2.0 + 1.0;
+  let sh = -step(h, vec4f(0.0));
+  let a0 = b0.xzyw + s0.xzyw * sh.xxyy;
+  let a1 = b1.xzyw + s1.xzyw * sh.zzww;
+  let p0 = normalize(vec3f(a0.xy, h.x));
+  let p1 = normalize(vec3f(a0.zw, h.y));
+  let p2 = normalize(vec3f(a1.xy, h.z));
+  let p3 = normalize(vec3f(a1.zw, h.w));
+  let m = max(0.5 - vec4f(dot(x0, x0), dot(x1, x1), dot(x2, x2), dot(x3, x3)), vec4f(0.0));
+  let m4 = m * m * m * m;
+  return 105.0 * dot(m4, vec4f(dot(p0, x0), dot(p1, x1), dot(p2, x2), dot(p3, x3)));
+}
+fn sky_fbm(p0: vec3f, oct: i32) -> f32 {
+  var n = 0.0;
+  var a = 0.5;
+  var p = p0;
+  for (var i = 0; i < 12; i++) { if (i >= oct) { break; } n += a * sky_snoise(p); p = p * 2.02 + vec3f(1.7, 9.2, 3.1); a *= 0.5; }
+  return n;
+}
+fn sky_sq(x: f32) -> f32 { return x * x; }
+// a = (Seed, Helligkeit, Bandbreite, Kern), b = Pol, c = Kernrichtung, d = (Tönung, Staub, H-alpha)
+// h = (Kachel-Anfang x, y, Seite, N), g = Kachel-Ende
+@compute @workgroup_size(8, 8)
+fn skyGen(@builtin(global_invocation_id) gid: vec3u) {
+  let px = vec2f(gid.xy) + J.h.xy;
+  if (px.x >= J.g.x || px.y >= J.g.y) { return; }
+  let seed = J.a.x;
+  let face = i32(J.h.z);
+  let d = sky_dir(face, px / (J.h.w - 1.0));
+  let pole = J.b.xyz;
+  let core = J.c.xyz;
+  // galaktische Breite, leicht verbogen, damit das Band nicht wie mit dem Lineal gezogen aussieht
+  let warp = sky_fbm(d * 2.2 + seed, 4) * 0.07;
+  let b = asin(clamp(dot(d, pole), -1.0, 1.0)) + warp;
+  let toCore = acos(clamp(dot(d, core), -1.0, 1.0));
+  let wd = J.a.z;
+  let disk = exp(-sky_sq(b / (0.16 * wd)));
+  let thin = exp(-sky_sq(b / (0.045 * wd)));
+  let bulge = exp(-sky_sq(toCore / 0.42)) * exp(-sky_sq(b / (0.3 * wd))) * J.a.w;
+  let glowN = sky_fbm(d * 5.0 + seed + 3.0, 6) * 0.5 + 0.5;
+  let grain = sky_fbm(d * 28.0 + seed + 9.0, 4) * 0.5 + 0.5;
+  var lum = disk * (0.25 + 0.75 * glowN) * (0.7 + 0.6 * grain) * (0.55 + 0.45 * exp(-sky_sq(toCore / 1.4)));
+  lum += bulge * 1.6 * (0.8 + 0.4 * glowN);
+  lum += 0.02;
+  // Staubbahnen: verzweigte dunkle Adern in der Mittelebene
+  let q = d * 7.0 + vec3f(sky_fbm(d * 3.0 + seed + 21.0, 4), sky_fbm(d * 3.0 + seed + 37.0, 4), 0.0) * 1.2;
+  let lanes = smoothstep(-0.1, 0.45, sky_fbm(q + seed, 6));
+  let dust = clamp(lanes * (thin * 1.2 + disk * 0.35) * J.d.y, 0.0, 0.8);
+  lum *= 1.0 - dust;
+  let tint = J.d.x;
+  var col = mix(vec3f(0.78, 0.84, 1.0), vec3f(1.0, 0.82, 0.6), clamp(bulge * 1.4 + tint, 0.0, 1.0)) * lum;
+  let hii = pow(max(sky_fbm(d * 9.0 + seed + 51.0, 5) - 0.18, 0.0) * 3.0, 3.0) * disk * (1.0 - dust);
+  col += vec3f(1.0, 0.22, 0.28) * hii * 0.35 * J.d.z;
+  col *= J.a.y;
+  let dens = clamp(0.15 + disk * (1.0 - 0.7 * dust) + bulge, 0.0, 2.0);
+  textureStore(dst, vec2u(px), face, vec4f(col, dens));
+}
+`,Fn=`// Himmel im Bild: Milchstraßen-Karte + punktförmige Sterne (Gauß-Scheibchen, pixelgenau, ohne Flimmern).
+// n = Kartengröße (0 = Karte noch nicht fertig), neb/stars = Helligkeiten, pix = Pixelwinkel.
+fn sky_stars(d: vec3f, pix: f32, dens: f32) -> vec3f {
+  var acc = vec3f(0.0);
+  let f = sky_face(d);
+  let uv = sky_uv(d, f);
+  var keeps = array<f32, 3>(0.3, 0.2, 0.12);
+  var gains = array<f32, 3>(1.0, 0.55, 0.3);
+  for (var L = 0; L < 3; L++) {
+    let cells = 70.0 * exp2(f32(L));
+    let g = uv * cells;
+    let id = floor(g);
+    let h = sky_hash33(vec3f(id, f32(f) * 17.0 + f32(L) * 131.0));
+    if (h.z > keeps[L] * mix(0.6, 1.6, clamp(dens * 0.6, 0.0, 1.0))) { continue; }
+    let pos = id + 0.25 + 0.5 * h.xy;
+    let r = length(g - pos) / cells * 1.5708;
+    let b = sky_hash13(vec3f(id * 1.37, f32(f) + f32(L) * 7.0));
+    let flux = (pow(b, 16.0) * 5.0 + 0.018 * b * b) * gains[L];
+    let sig = pix * 0.55;
+    let I = flux * exp(-r * r / (2.0 * sig * sig));
+    let tc = sky_hash13(vec3f(id, 5.0 + f32(L)));
+    acc += I * mix(vec3f(1.0, 0.78, 0.6), vec3f(0.72, 0.82, 1.0), tc);
   }
-  .head { display: flex; gap: 8px; align-items: stretch; margin-bottom: 10px; }
-  .seg { display: flex; flex: 1; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
-  .seg button { flex: 1; border: 0; border-radius: 0; padding: 7px 6px; background: #16171d; color: var(--muted); font: 600 14px var(--display); letter-spacing: 0.06em; text-transform: uppercase; }
-  .seg button[aria-pressed="true"] { background: var(--accent); color: var(--ink); }
-  button, select { font: 13px var(--body); color: var(--text); background: #1b1c22; border: 1px solid var(--line); border-radius: 5px; padding: 6px 9px; cursor: pointer; }
-  #lang { font: 600 12px var(--mono); letter-spacing: 0.08em; }
-  .switch { display: flex; align-items: center; padding: 0 9px; font: 13px var(--body); color: var(--text); background: #1b1c22; border: 1px solid var(--line); border-radius: 5px; text-decoration: none; }
-  .seedrow { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 6px; align-items: center; margin-bottom: 10px; }
-  .seedrow label { font: 12px var(--mono); color: var(--muted); }
-  .seedrow input { width: 100%; box-sizing: border-box; padding: 6px 8px; font: 13px var(--mono); color: var(--accent); background: var(--field); border: 1px solid var(--line); border-radius: 5px; }
-  .help { position: sticky; top: 0; z-index: 1; margin: 0 0 10px; padding: 10px 12px; height: 8.8em; overflow-y: auto; box-sizing: border-box; border: 1px solid var(--line); border-radius: 6px; background: var(--field); color: var(--muted); font-size: 12.5px; }
-  .help b { color: var(--text); font-weight: 500; }
-  .fx { display: block; margin-top: 6px; font: 11.5px/1.45 var(--mono); color: #d9c7a6; }
-  details { border-top: 1px solid var(--line); }
-  summary { display: flex; justify-content: space-between; align-items: baseline; padding: 9px 0 7px; cursor: pointer; list-style: none; font: 600 15px var(--display); letter-spacing: 0.08em; text-transform: uppercase; }
-  summary::-webkit-details-marker { display: none; }
-  summary::after { content: '+'; color: var(--muted); font-family: var(--mono); }
-  details[open] > summary::after { content: '\2212'; }
-  .row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 8px; align-items: center; padding-block: 4px; }
-  .row label { font-size: 13px; }
-  .row output { font: 12px var(--mono); color: var(--accent); font-variant-numeric: tabular-nums; }
-  .row input[type=range] { grid-column: 1 / -1; width: 100%; margin: 0; height: 22px; accent-color: var(--accent); }
-  .row-select { grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr); }
-  .row-check { grid-template-columns: minmax(0, 1fr) auto; }
-  .row input[type=checkbox] { width: 18px; height: 18px; accent-color: var(--accent); }
-  .tag { margin-left: 6px; padding: 0 4px; border: 1px solid #2b3a47; border-radius: 3px; font: 10.5px var(--mono); color: var(--cool); vertical-align: 1px; }
-  #lut { display: block; width: 100%; max-width: 100%; height: auto; aspect-ratio: 1; margin: 6px 0 4px; border: 1px solid var(--line); border-radius: 4px; image-rendering: auto; }
-  .note { margin: 12px 0 0; font-size: 12px; color: var(--muted); }
-  a { color: var(--muted); }
-  :focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
-  @media (max-width: 760px) {
-    #app { grid-template-columns: 1fr; grid-template-rows: 56% 44%; }
-    aside { border-left: 0; border-top: 1px solid var(--line); }
-    .help { height: 7em; }
-    .hud h1 { font-size: 21px; }
+  return acc;
+}
+fn skyColor(tx: texture_2d_array<f32>, sm: sampler, d: vec3f, pix: f32, n: f32, neb: f32, stars: f32) -> vec3f {
+  var col = vec3f(0.0);
+  var dens = 0.4;
+  if (n > 0.5) {
+    let f = sky_face(d);
+    let uv = sky_uv(d, f) * ((n - 1.0) / n) + 0.5 / n;
+    let nb = textureSampleLevel(tx, sm, uv, f, 0.0);
+    col = nb.rgb * neb;
+    dens = nb.a;
   }
-</style>
-
-<div id="app">
-  <div id="stage">
-    <canvas id="view" aria-label="Planet view: drag to turn, scroll or pinch to zoom"></canvas>
-    <div class="hud">
-      <h1 id="t-title">Procedural Planets</h1><span id="ver" style="font:11px var(--mono);opacity:.6">Stand 2026-09-28 · v23</span>
-      <p><span id="fps">– fps</span> · <span id="mode-tag"></span> · <span id="t-hint"></span></p>
-    </div>
-    <div id="genbar" hidden><span id="gen-text"></span><div class="track"><div class="fill" id="gen-fill"></div></div></div>
-    <div id="status" hidden></div>
-  </div>
-  <aside>
-    <div class="head">
-      <div class="seg" role="group" id="style-group">
-        <button id="st-orig" type="button" aria-pressed="false">Original 1:1</button>
-        <button id="st-plus" type="button" aria-pressed="true">+20 %</button>
-      </div>
-      <a id="to-gas" class="switch" href="../index.html">Gas</a>
-      <button id="lang" type="button">DE</button>
-    </div>
-    <div class="seedrow">
-      <label for="seed">seed</label>
-      <input id="seed" type="text" inputmode="numeric" autocomplete="off" spellcheck="false">
-      <button id="rnd" type="button"></button>
-    </div>
-    <p class="help" id="help"></p>
-    <div id="controls"></div>
-    <p class="note" id="t-foot"></p>
-  </aside>
-</div>
-
-<script type="module">
-// ============================================================================================
-// Prozedurale Planeten, nachgebaut nach colordodge "ProceduralPlanet" (three.js, WTFPL) und erweitert.
-//
-// Verfahren des Originals (so übernommen):
-//   Würfel-Kugel: sechs Würfelseiten, jede bekommt eigene Karten. Höhe und Feuchte sind je eine
-//   Mischung aus zwei fBm-Feldern (Simplex, 16 Oktaven, wahlweise "ridged") mit einem dritten Feld
-//   als Mischmaske. Ein zufällig gemaltes Biom-Bild (x = Feuchte, y = Höhe; Farbverläufe, Kreise,
-//   Wasser-, Strand- und Binnenland-Band) färbt. Normalen: Sobel über Höhe + Bildhelligkeit,
-//   Wasser glatt. Rauigkeit und Metall aus der Wasserlinie. Dazu Wolken, Leuchtsaum, Nebel,
-//   Sterne, Sonne mit Blendenflecken, dat.GUI-Ordner Lighting/Camera/Material/Debug/Environment.
-//
-// "+20 %" (Verbessert):
-//   Meeresspiegel als Regler (fehlte), live. Wasser mit Beer-Lambert-Tiefenfarbe, GGX-Sonnenglitzern,
-//   Fresnel, Wellen und Brandung. Erosionsrinnen (Gavoronoise nach Clay John / Fewes, auf die Kugel
-//   übertragen), Detail-Oktaven zur Laufzeit, Geländeschatten, Terrassen. Atmosphäre mit Rayleigh-,
-//   Mie- und Ozon-Streuung (Transmissions-Tabelle nach Bruneton). Wolken mit Zonalwinden
-//   (Passat/Westwind/polare Ostwinde), Klimabändern, Wolkenschatten und Vorwärtsstreuung.
-//   Nebel und Sterne bleiben stehen, nur der Planet dreht sich, ruhig.
-//
-// Technik: WebGPU. Karten (Höhe, Feuchte, Wolken, Nebel, Luft-Tabelle) entstehen in Compute-Shadern,
-// in Kacheln verteilt auf viele Bilder, damit die Seite flüssig bleibt. Bild in HDR, dann Luft, Überstrahlung, Filmkurve.
-//
-// Fremder Code in dieser Datei (beide MIT-Lizenz):
-//   snoise(): 3D-Simplexrauschen aus webgl-noise (hier nach WGSL übertragen), Copyright (C) 2011 Ashima Arts (Ian McEwan),
-//             Copyright (C) 2011-2022 Stefan Gustavson; Gradientenversion nach Gustavson.
-//   hash33(), hash13(): "Hash without Sine", Copyright (c) 2014 David Hoskins.
-//   Permission is hereby granted, free of charge, to any person obtaining a copy of this software and
-//   associated documentation files (the "Software"), to deal in the Software without restriction, including
-//   without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-//   copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the
-//   following conditions: The above copyright notice and this permission notice shall be included in all
-//   copies or substantial portions of the Software. THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF
-//   ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
-//   FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
-//   LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
-//   ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-// ============================================================================================
-
-let lang = (() => { try { const v = localStorage.getItem('fgp-lang'); if (v === 'de' || v === 'en') return v; } catch {} return (navigator.language || 'en').toLowerCase().startsWith('de') ? 'de' : 'en'; })();
-const t = (de, en) => (lang === 'de' ? de : en);
-const Q = new URLSearchParams(location.search);
-const coarse = matchMedia('(max-width: 760px), (pointer: coarse)').matches;
-
-// ------------------------------------------------------------------ Zustand & Voreinstellungen
-const randomSeed = () => String(Math.floor(10000000 + Math.random() * 89999999));
-const hashSeed = /^#?(\d{3,12})$/.exec(location.hash);
-const S = {
-  seed: Q.get('seed') || (hashSeed ? hashSeed[1] : randomSeed()),
-  style: Q.get('style') === 'orig' ? 'orig' : 'plus',
-  res: Number(Q.get('res')) || (coarse ? 1024 : 2048),
-  palette: Q.get('palette') === 'cd' ? 'cd' : 'earth',
-  sea: -1,                                   // -1 = Wert des Planeten (aus dem Seed)
-  // Original (Material/Lighting wie im three.js-Vorbild)
-  nscale: 1.0, rough: 0.8, metal: 0.5, sunI: 1.6, ambient: 0.22, glow: 0.6, cloudOpO: 0.6,
-  // Verbessert
-  waves: 1.0, clarity: 1.0, foam: 0.7,
-  bump: 1.5, relief: 0.018, erosion: 1.0, terrace: 0.0, detail: 1.0, shadows: 1.0,
-  gloss: 0.75, exposure: 1.0, ambientP: 0.35,
-  cloudOp: 1.0, cloudH: 0.012, wind: 1.0, cloudShadow: 0.8,
-  atmo: 1.0, thick: 2.5, haze: 1.0, bloom: 0.6,
-  // gemeinsam
-  sunAz: -58, sunEl: 12, cover: 0.5,
-  nebula: 1.0, stars: 1.0, flare: 0.5,
-  mwWidth: 1.0, mwCore: 1.0, mwDust: 1.0, mwHii: 1.0,
-  rotate: true, spin: 1.2, spinZoom: 1.0, volcanoes: 0.5, rivers: 1, tilt: 23, fov: 36,
-  view: 0, quality: 0,
-};
-// Wer reduzierte Bewegung eingestellt hat, bekommt einen stehenden Planeten (Drehen lässt sich einschalten)
-if (matchMedia('(prefers-reduced-motion: reduce)').matches) S.rotate = false;
-const DEF = { ...S };
-const numQ = (k) => { const v = Q.get(k); if (v !== null && v !== '' && !isNaN(Number(v)) && k in S) S[k] = Number(v); };
-for (const k of Object.keys(S)) if (typeof S[k] === 'number' && k !== 'res') numQ(k);
-const cloudRes = Number(Q.get('cres')) || (coarse ? 512 : 2048);
-const nebRes = Number(Q.get('nres')) || (coarse ? 512 : 2048);
-
-// ------------------------------------------------------------------ Zufall (seedString wie im Original)
-function xmur3(str) {
-  let h = 1779033703 ^ str.length;
-  for (let i = 0; i < str.length; i++) { h = Math.imul(h ^ str.charCodeAt(i), 3432918353); h = (h << 13) | (h >>> 19); }
-  return () => { h = Math.imul(h ^ (h >>> 16), 2246822507); h = Math.imul(h ^ (h >>> 13), 3266489909); return (h ^= h >>> 16) >>> 0; };
+  return col + sky_stars(d, pix, dens) * stars;
 }
-function rng(seed) {
-  const s = xmur3(String(seed));
-  let a = s(), b = s(), c = s(), d = s();
-  return () => {
-    a >>>= 0; b >>>= 0; c >>>= 0; d >>>= 0;
-    let x = (a + b) | 0; a = b ^ (b >>> 9); b = (c + (c << 3)) | 0; c = (c << 21) | (c >>> 11); d = (d + 1) | 0; x = (x + d) | 0; c = (c + x) | 0;
-    return (x >>> 0) / 4294967296;
-  };
-}
-const clamp = (x, a, b) => Math.min(b, Math.max(a, x));
-
-// Planet-Parameter aus dem Seed. Wie im Original zufällig und (bis auf den Meeresspiegel) nicht als Regler sichtbar.
-function planetParams(seed) {
-  const R = rng(seed + '|planet');
-  const rr = (a, b) => a + (b - a) * R();
-  const field = () => ({ res1: rr(0.35, 1.2), res2: rr(0.2, 1.0), resMix: rr(0.3, 1.1), mixScale: rr(0.5, 1.0), type: Math.floor(rr(0, 4)) });
-  return {
-    noiseSeed: rr(0, 400),
-    h: field(),
-    m: field(),
-    water: rr(0.3, 0.72),        // Wasseranteil (Original: zufälliger waterLevel ohne Regler)
-    cloudSeed: rr(0, 400),
-    cloudCover: rr(0.16, 0.36),
-    nebSeed: rr(0, 400),
-    nebHue: R(), nebHue2: R(), nebSat: rr(0.45, 0.9), nebBright: rr(0.5, 1.2),
-    moistM: rr(0.8, 1.2),
-    mountains: rr(0.18, 0.34),
-    beltFreq: rr(1.1, 1.9),
-  };
-}
-let PP = planetParams(S.seed);
-
-// ------------------------------------------------------------------ Oberfläche (Texte, Regler)
-const $ = (id) => document.getElementById(id);
-const help = $('help');
-const tag = (m) => (m === 'orig' ? ` <span class="tag">1:1</span>` : '');
-const pct = (v) => `${Math.round(v * 100)} %`;
-
-function controls() {
-  return [
-    { id: 'planet', title: t('Planet', 'Planet'), open: true, items: [
-      { k: 'res', type: 'select', label: t('Kartenauflösung', 'Map resolution'), opts: [[512, '512'], [1024, '1024'], [2048, '2048'], [4096, t('4096 (~1 GB Grafikspeicher)', '4096 (~1 GB GPU memory)')], [8192, t('8192 (~4,5 GB, starke Grafikkarte)', '8192 (~4.5 GB, strong GPU)')]], regen: true,
-        help: t('Pixel pro Würfelseite für Höhe, Feuchte und Relief (im Original "resolution"). Sechs Seiten ergeben die Kugel; 2048 sind rund um den Äquator 8192 Pixel.', 'Pixels per cube face for height, moisture and relief (the original\'s "resolution"). Six faces make the sphere; 2048 is 8192 pixels around the equator.'),
-        fx: t('Speicher: 6·N²·8 Byte (+⅓ Mipmaps)', 'Memory: 6·N²·8 bytes (+⅓ mipmaps)') },
-      { k: 'palette', mode: 'plus', type: 'select', label: t('Farben', 'Colours'), opts: [['earth', t('Erdähnlich', 'Earth-like')], ['cd', t('Original-Biombild', 'Original biome image')]],
-        help: t('Biom-Bild: dieselben Zufallsfarben wie im Original, aber physikalisch beleuchtet. Erdähnlich: Klimazonen aus Breite, Höhe und Feuchte (Wüste, Steppe, Wald, Regenwald, Taiga, Tundra, Fels, Schnee).', 'Biome image: the same random colours as the original, but physically lit. Earth-like: climate zones from latitude, altitude and moisture (desert, steppe, forest, rainforest, taiga, tundra, rock, snow).'),
-        fx: 'T = 1 − 1,25·|sin φ|^1,35 − 1,6·(h − s),  Biom = f(T, Feuchte, Hang)' },
-    ] },
-    { id: 'sea', title: t('Meer', 'Sea'), open: true, items: [
-      { k: 'sea', min: 0, max: 1, step: 0.005, label: t('Meeresspiegel', 'Sea level'), fmt: (v) => `${pct(v)} ${t('Wasser', 'water')}`,
-        help: t('Fehlte im Original (dort zufällig, ohne Regler). Bestimmt, welcher Anteil der Oberfläche unter Wasser liegt. Küsten, Strände, Relief und Farben folgen sofort, ohne Neuberechnung.', 'Missing in the original (random there, no control). Sets how much of the surface is under water. Coasts, beaches, relief and colours follow instantly, without recomputing.'),
-        fx: t('s = Quantil der Höhen: P(h < s) = Wasseranteil', 's = height quantile: P(h < s) = water fraction') },
-      { k: 'waves', mode: 'plus', min: 0, max: 3, step: 0.01, label: t('Wind & Wellen', 'Wind & waves'),
-        help: t('Wellenneigung. Aus der Nähe siehst du einzelne Wellen, aus der Ferne werden sie zur Rauigkeit des Sonnenglitzerns, so wie auf Satellitenbildern.', 'Wave slope. Up close you see single waves; from afar they become the roughness of the sun glint, as in satellite images.'),
-        fx: 'σ² = 0,003 + 0,00512·W (Cox–Munk),  α = √(α₀² + σ²_subpixel)' },
-      { k: 'clarity', mode: 'plus', min: 0.2, max: 3, step: 0.01, label: t('Klarheit', 'Clarity'),
-        help: t('Wie tief man ins Wasser sieht. Flaches Wasser über Sand wird türkis, tiefes dunkelblau, weil Rot zuerst verschluckt wird.', 'How deep you can see into the water. Shallow water over sand turns turquoise, deep water navy, because red is absorbed first.'),
-        fx: 'T = exp(−κ·z·(1/μᵥ + 1/μₛ)),  κ = (0,45; 0,065; 0,021) m⁻¹ / ' + t('Klarheit', 'clarity') },
-      { k: 'foam', mode: 'plus', min: 0, max: 2, step: 0.01, label: t('Brandung', 'Surf'),
-        help: t('Schaumlinien an der Küste, die mit den Wellen auf den Strand laufen.', 'Foam lines at the coast that run up the beach with the waves.'),
-        fx: 'Schaum = (1 − z/z_b)·smoothstep(0,55; 0,95; ½ + ½ sin(2π·3z/z_b − ωt))' },
-    ] },
-    { id: 'terrain', title: t('Gelände', 'Terrain'), open: true, items: [
-      { k: 'nscale', mode: 'orig', min: 0, max: 4, step: 0.01, label: t('Normalenstärke', 'Normal scale'),
-        help: t('Wie im Original (Material → normalScale): Stärke der Normal-Karte aus Höhe + Bildhelligkeit. Daher die feinen Höhenlinien-Stufen.', 'As in the original (Material → normalScale): strength of the normal map from height + image brightness. Hence the fine contour steps.'),
-        fx: 'n = normalize(−s·Sobel(h₈ + Y(biom)), 1),  h₈ = ⌊255·h⌋/255' },
-      { k: 'bump', mode: 'plus', min: 0, max: 3, step: 0.01, label: t('Relief-Schärfe', 'Relief sharpness'),
-        help: t('Wie steil Hänge im Licht wirken. Die Normalen kommen hier exakt aus dem Rauschen (Ableitung), ohne Stufen.', 'How steep slopes look in the light. Normals come exactly from the noise derivative here, without steps.'),
-        fx: 'n = normalize(r̂ − k·∇ₛh)' },
-      { k: 'relief', mode: 'plus', min: 0, max: 0.08, step: 0.001, label: t('Relief-Höhe', 'Relief height'),
-        help: t('Echte Verschiebung der Oberfläche. Berge ragen am Rand über die Kugel hinaus und werfen Schatten.', 'Real displacement of the surface. Mountains rise above the limb and cast shadows.'),
-        fx: 'r = 1 + k_r·max(h − s, 0)' },
-      { k: 'volcanoes', mode: 'plus', min: 0, max: 1, step: 0.01, label: t('Vulkane', 'Volcanoes'), regen: true,
-        help: t('Kegelberge mit Gipfelkrater (Schichtvulkane), zufällig auf dem Land verteilt. 0 = keine.', 'Cone mountains with a summit crater (stratovolcanoes), scattered over land. 0 = none.'),
-        fx: 'h += H·((1−r/R)^1.8 − 0.55·(1 − (r/r_c)²)₊)' },
-      { k: 'rivers', mode: 'plus', type: 'select', label: t('Flüsse', 'Rivers'), opts: [[1, t('an (berechneter Verlauf)', 'on (computed course)')], [0, t('aus', 'off')]], regen: 'rivers',
-        help: t('Flüsse laufen wirklich bergab: Senken werden aufgefüllt (Priority-Flood, Barnes 2014), dann sammelt jeder Punkt das Regenwasser seiner Oberlieger (Abflussakkumulation, O’Callaghan & Mark 1984). Wo genug zusammenkommt, entsteht ein Fluss, breiter mit mehr Wasser. Echte Strömung im Flussbett (Flachwasser) folgt später als zweite Stufe.', 'Rivers truly run downhill: sinks are filled (priority-flood, Barnes 2014), then every point collects the rain of the cells above it (flow accumulation, O’Callaghan & Mark 1984). Where enough gathers a river forms, wider with more water. Real flow in the river bed (shallow water) comes later as a second stage.') },
-      { k: 'erosion', mode: 'plus', min: 0, max: 3, step: 0.01, label: t('Erosion', 'Erosion'), regen: true,
-        help: t('Rinnen und Grate, die hangabwärts laufen und sich verzweigen, wie von Regen ausgewaschen. Formel von Clay John / Fewes (2D), hier auf die Kugel übertragen.', 'Gullies and ridges that run downhill and branch, as if washed out by rain. Formula by Clay John / Fewes (2D), carried over to the sphere here.'),
-        fx: 'Δh = −½D·Σᵢ aᵢ(1 − Σ_c w_c cos 2π(q−c)·(r̂×∇h)),  aᵢ = 2⁻ⁱ' },
-      { k: 'terrace', mode: 'plus', min: 0, max: 1, step: 0.01, label: t('Terrassen', 'Terraces'),
-        help: t('Gesteinsschichten als Stufen, bewusst und glatt statt als 8-Bit-Treppe wie im Original.', 'Rock strata as steps, deliberate and smooth instead of the original\'s 8-bit staircase.'),
-        fx: 'h′ = s + Δ(⌊x⌋ + smoothstep(½−w, ½+w, x−⌊x⌋)),  x = (h−s)/Δ' },
-      { k: 'detail', mode: 'plus', min: 0, max: 2.5, step: 0.01, label: t('Feindetail', 'Fine detail'),
-        help: t('Weitere Oktaven, live im Pixel gerechnet: beim Heranzoomen wird die Oberfläche immer feiner, ohne Pixelblöcke.', 'More octaves computed live per pixel: zooming in keeps adding detail, without pixel blocks.'),
-        fx: 'Σ_{f > N/2π} snoise(f·p)·A/f,  ' + t('ausgeblendet unter 3 px', 'faded below 3 px') },
-      { k: 'shadows', mode: 'plus', min: 0, max: 1, step: 0.01, label: t('Geländeschatten', 'Terrain shadows'),
-        help: t('Berge werfen Schatten, bei flacher Sonne lang. Der Strahl zur Sonne wird über die Höhenkarte verfolgt.', 'Mountains cast shadows, long at low sun. The ray to the sun is traced over the height map.'),
-        fx: t('Schatten, wenn z(q) > z₀ + s·tan ε + s²/2', 'shadow if z(q) > z₀ + s·tan ε + s²/2') },
-    ] },
-    { id: 'material', title: 'Material', items: [
-      { k: 'rough', mode: 'orig', min: 0, max: 1, step: 0.01, label: 'roughness',
-        help: t('Wie im Original. Die Rauigkeits-Karte (Land hoch, Wasser niedrig) wird damit multipliziert.', 'As in the original. The roughness map (land high, water low) is multiplied by it.'), fx: 'α = (roughness·map)²,  D_GGX = α²/(π((n·h)²(α²−1)+1)²)' },
-      { k: 'metal', mode: 'orig', min: 0, max: 1, step: 0.01, label: 'metalness',
-        help: t('Wie im Original: dieselbe Karte dient auch als Metall-Karte. Deshalb glänzt das Land dort metallisch.', 'As in the original: the same map also serves as metalness map. That is why the land has a metallic sheen.'), fx: 'F₀ = mix(0,04; Albedo; metalness·map)' },
-      { k: 'gloss', mode: 'plus', min: 0, max: 1, step: 0.01, label: t('Glanz (Land)', 'Gloss (land)'),
-        help: t('Glanzlichter auf Fels und Hängen. Wasser glänzt immer nach seiner eigenen Physik.', 'Highlights on rock and slopes. Water always shines by its own physics.'), fx: 'α_Land = α_Material·(1 − 0,55·Glanz)' },
-    ] },
-    { id: 'light', title: t('Licht', 'Lighting'), items: [
-      { k: 'sunAz', min: -180, max: 180, step: 1, label: t('Sonne: Richtung', 'Sun: direction'), fmt: (v) => `${Math.round(v)}°`,
-        help: t('Seitliches Licht zeigt das Relief am stärksten. Der Planet dreht sich, die Sonne steht fest.', 'Side light shows the relief best. The planet turns, the sun stays fixed.') },
-      { k: 'sunEl', min: -60, max: 60, step: 1, label: t('Sonne: Höhe', 'Sun: height'), fmt: (v) => `${Math.round(v)}°` },
-      { k: 'sunI', mode: 'orig', min: 0, max: 4, step: 0.01, label: t('Sonnenlicht', 'Sun light'), help: t('Wie im Original (Lighting).', 'As in the original (Lighting).') },
-      { k: 'ambient', mode: 'orig', min: 0, max: 1, step: 0.01, label: t('Umgebungslicht', 'Ambient light'), help: t('Wie im Original (Lighting): hellt auch die Nachtseite auf.', 'As in the original (Lighting): also lights the night side.') },
-      { k: 'exposure', mode: 'plus', min: 0.2, max: 3, step: 0.01, label: t('Belichtung', 'Exposure'),
-        help: t('Kamera-Belichtung. Danach ACES-Filmkurve, damit Glanzlichter nicht ausfressen.', 'Camera exposure, followed by the ACES film curve so highlights do not clip.'), fx: 'c = ACES(E·L)^(1/2,2)' },
-      { k: 'ambientP', mode: 'plus', min: 0, max: 1.5, step: 0.01, label: t('Himmelslicht', 'Skylight'),
-        help: t('Streulicht des Himmels auf der Tagseite. Die Nachtseite bleibt dunkel, wie im All.', 'Scattered skylight on the day side. The night side stays dark, as in space.') },
-    ] },
-    { id: 'clouds', title: t('Wolken', 'Clouds'), items: [
-      { k: 'cover', min: 0, max: 1, step: 0.01, label: t('Bedeckung', 'Cover'), fmt: pct,
-        help: t('Anteil des Himmels mit Wolken. 0 schaltet die Wolken aus.', 'Share of the sky with clouds. 0 turns clouds off.') },
-      { k: 'cloudOpO', mode: 'orig', min: 0, max: 1, step: 0.01, label: t('Deckkraft', 'Opacity') },
-      { k: 'cloudOp', mode: 'plus', min: 0, max: 2, step: 0.01, label: t('Dichte', 'Density'),
-        help: t('Optische Dicke. Am Planetenrand schaut man schräg durch die Schicht, dort werden Wolken dichter.', 'Optical thickness. At the limb you look through the layer at a slant, so clouds get denser there.'), fx: 'α = 1 − exp(−τ/μᵥ)' },
-      { k: 'cloudH', mode: 'plus', min: 0.002, max: 0.04, step: 0.001, label: t('Höhe', 'Height'),
-        help: t('Abstand der Wolkenschicht zum Boden in Planetenradien. Echte Höhe: die Schatten fallen versetzt.', 'Distance of the cloud layer above ground in planet radii. Real height: shadows fall offset.') },
-      { k: 'wind', mode: 'plus', min: 0, max: 4, step: 0.01, label: t('Wind', 'Wind'),
-        help: t('Wolken ziehen in Breitenbändern wie auf der Erde: Passat nach Westen, Westwinde in mittleren Breiten, polare Ostwinde. Sie entstehen und vergehen dabei.', 'Clouds drift in latitude bands as on Earth: trade winds to the west, westerlies at mid latitudes, polar easterlies. They form and dissolve on the way.'),
-        fx: 'u(φ) = −0,9·sin 6|φ| + 0,35·e^(−((|φ|−0,75)/0,18)²)' },
-      { k: 'cloudShadow', mode: 'plus', min: 0, max: 1, step: 0.01, label: t('Wolkenschatten', 'Cloud shadows') },
-    ] },
-    { id: 'atmo', title: t('Atmosphäre', 'Atmosphere'), items: [
-      { k: 'glow', mode: 'orig', min: 0, max: 3, step: 0.01, label: t('Leuchtsaum', 'Glow'), help: t('Wie im Original: Fresnel-Leuchtsaum um den Planeten.', 'As in the original: Fresnel glow around the planet.'), fx: 'I = (c − n·v)^p' },
-      { k: 'atmo', mode: 'plus', min: 0, max: 3, step: 0.01, label: t('Luftdichte', 'Air density'),
-        help: t('Rayleigh-Streuung: kurzes Blau streut stärker, deshalb der blaue Rand und die rötliche Tag-Nacht-Grenze.', 'Rayleigh scattering: short blue scatters more, hence the blue limb and the reddish terminator.'),
-        fx: 'β_R = (5,8; 13,6; 33,1)·10⁻⁶ m⁻¹,  P_R = 3/(16π)·(1 + cos²θ)' },
-      { k: 'thick', mode: 'plus', min: 1, max: 6, step: 0.01, label: t('Schichtdicke', 'Layer thickness'), fmt: (v) => `×${v.toFixed(1)}`,
-        help: t('Überhöhung der Lufthülle für die Sichtbarkeit. ×1 ist die echte Erde (8 km Skalenhöhe).', 'Exaggeration of the air layer for visibility. ×1 is the real Earth (8 km scale height).') },
-      { k: 'haze', mode: 'plus', min: 0, max: 4, step: 0.01, label: t('Dunst', 'Haze'),
-        help: t('Mie-Streuung an Staub und Tröpfchen: heller Schein, wenn die Sonne hinter dem Planeten steht.', 'Mie scattering by dust and droplets: bright halo when the sun is behind the planet.'),
-        fx: 'P_M = 3/(8π)·(1−g²)(1+cos²θ)/((2+g²)(1+g²−2g cos θ)^1,5), g = 0,8' },
-    ] },
-    { id: 'env', title: t('Umgebung', 'Environment'), items: [
-      { k: 'nebula', min: 0, max: 3, step: 0.01, label: t('Milchstraße', 'Milky Way'),
-        help: t('Hintergrund wie am echten Nachthimmel: helles Band mit Kern, dunkle Staubbahnen, wenige rote Gaswolken, im Band mehr Sterne. Er steht fest und dreht sich nicht mit dem Planeten.', 'Background as in the real night sky: bright band with a core, dark dust lanes, a few red gas clouds, more stars in the band. It stays fixed and does not spin with the planet.') },
-      { k: 'mwWidth', min: 0.3, max: 3, step: 0.01, label: t('Bandbreite', 'Band width'), regen: 'sky',
-        help: t('Wie breit das Milchstraßenband ist. Wir sehen die Scheibe der Galaxie von innen, als Band über den Himmel.', 'How wide the Milky Way band is. We see the disk of the galaxy from inside, as a band across the sky.'), fx: 'I ∝ exp(−(b/0,16·w)²)' },
-      { k: 'mwCore', min: 0, max: 3, step: 0.01, label: t('Kern', 'Core'), regen: 'sky',
-        help: t('Helligkeit des Zentrums der Galaxie (Bulge): warm-gelblich, weil dort alte Sterne stehen.', 'Brightness of the galactic centre (bulge): warm yellowish, because old stars live there.') },
-      { k: 'mwDust', min: 0, max: 2, step: 0.01, label: t('Staubbahnen', 'Dust lanes'), regen: 'sky',
-        help: t('Dunkle Staubwolken in der Mittelebene schlucken das Sternlicht, wie der „Große Riss“ am echten Himmel.', 'Dark dust clouds in the mid-plane swallow starlight, like the Great Rift in the real sky.') },
-      { k: 'mwHii', min: 0, max: 3, step: 0.01, label: t('Rote Gaswolken', 'Red gas clouds'), regen: 'sky',
-        help: t('Leuchtender Wasserstoff (H-alpha) um junge Sterne, klein und selten, nur im Band.', 'Glowing hydrogen (H-alpha) around young stars, small and rare, only in the band.') },
-      { k: 'stars', min: 0, max: 3, step: 0.01, label: t('Sterne', 'Stars') },
-      { k: 'flare', min: 0, max: 2, step: 0.01, label: t('Blendenflecke', 'Lens flare') },
-      { k: 'bloom', mode: 'plus', min: 0, max: 2, step: 0.01, label: t('Überstrahlung', 'Bloom'),
-        help: t('Helles Glitzern und die Sonne strahlen weich über, wie bei einer echten Linse.', 'Bright glints and the sun bleed softly, as in a real lens.') },
-    ] },
-    { id: 'motion', title: t('Drehung & Kamera', 'Spin & camera'), items: [
-      { k: 'rotate', type: 'check', label: t('Drehen', 'Rotate') },
-      { k: 'spinZoom', min: 0, max: 3, step: 0.05, label: t('Drehung beim Zoomen bremsen', 'Slow spin when zoomed'), fmt: (v) => v.toFixed(2),
-        help: t('Je näher du am Boden bist, desto langsamer dreht sich der Planet. 0 = immer gleich schnell, 1 = proportional zur Höhe, höher = stärker gebremst.', 'The closer you are to the ground, the slower the planet turns. 0 = always the same speed, 1 = proportional to altitude, higher = braked harder.'),
-        fx: 'ω = ω₀ · clamp((d − 1)/1.2, 0, 1)^k' },
-      { k: 'spin', min: 0, max: 12, step: 0.1, label: t('Drehgeschwindigkeit', 'Spin speed'), fmt: (v) => `${v.toFixed(1)}°/s`,
-        help: t('Ruhig und mächtig: 1,5°/s ist eine Umdrehung in 4 Minuten. Nebel und Sterne drehen nicht mit.', 'Calm and majestic: 1.5°/s is one turn in 4 minutes. Nebula and stars do not turn with it.'),
-        fx: 'T = 360° / ω' },
-      { k: 'tilt', min: 0, max: 90, step: 1, label: t('Achsneigung', 'Axial tilt'), fmt: (v) => `${Math.round(v)}°` },
-      { k: 'fov', min: 15, max: 75, step: 1, label: t('Blickwinkel', 'Field of view'), fmt: (v) => `${Math.round(v)}°` },
-      { k: 'quality', type: 'select', label: t('Bildauflösung', 'Render resolution'), opts: [[0, t('Automatisch (so scharf wie flüssig geht)', 'Automatic (as sharp as stays smooth)')], [2, t('200 % (Supersampling)', '200 % (supersampling)')], [1.5, '150 %'], [1, '100 %'], [0.75, '75 %'], [0.5, '50 %']],
-        help: t('Automatisch senkt die Bildauflösung, wenn die Grafikkarte nicht hinterherkommt, und hebt sie wieder, sobald Luft ist.', 'Automatic lowers the render resolution when the GPU cannot keep up and raises it again when there is headroom.') },
-    ] },
-    { id: 'debug', title: 'Debug', items: [
-      { k: 'view', type: 'select', label: t('Anzeige', 'Display'), opts: [[0, t('Farbe', 'Colour')], [1, t('Höhe', 'Height')], [2, t('Feuchte', 'Moisture')], [3, t('Normalen', 'Normals')], [4, t('Rauigkeit', 'Roughness')], [5, t('Albedo', 'Albedo')]],
-        help: t('Die einzelnen Karten wie im Debug-Ordner des Originals. Darunter das Biom-Bild dieses Planeten (x = Feuchte, y = Höhe).', 'The individual maps as in the original\'s Debug folder. Below it, this planet\'s biome image (x = moisture, y = height).') },
-    ] },
-  ];
-}
-
-const openState = {};
-function showHelp(it) {
-  const h = it.help || '';
-  help.innerHTML = `<b>${it.label}.</b> ${h}${it.fx ? `<code class="fx">${it.fx}</code>` : ''}`;
-}
-function fmtVal(it, v) { return it.fmt ? it.fmt(v) : Number(v).toFixed(it.step < 0.01 ? 3 : it.step < 1 ? 2 : 0); }
-
-function buildUI() {
-  const box = $('controls');
-  box.innerHTML = '';
-  for (const sec of controls()) {
-    const det = document.createElement('details');
-    det.open = sec.id in openState ? openState[sec.id] : !!sec.open;
-    det.addEventListener('toggle', () => { openState[sec.id] = det.open; });
-    const sum = document.createElement('summary');
-    sum.textContent = sec.title;
-    det.append(sum);
-    for (const it of sec.items) {
-      if (it.mode && it.mode !== S.style) continue;
-      const row = document.createElement('div');
-      row.className = 'row';
-      const lab = document.createElement('label');
-      lab.innerHTML = it.label + tag(it.mode);
-      lab.htmlFor = 'ctl-' + it.k;
-      const show = () => showHelp(it);
-      row.addEventListener('pointerenter', show);
-      row.addEventListener('focusin', show);
-      lab.title = t('Doppelklick: zurücksetzen', 'Double-click: reset');
-      lab.addEventListener('dblclick', () => { S[it.k] = it.k === 'sea' ? PP.water : DEF[it.k]; changed(it); buildUI(); });
-      if (it.type === 'select') {
-        row.classList.add('row-select');
-        const sel = document.createElement('select');
-        sel.id = 'ctl-' + it.k;
-        for (const [v, txt] of it.opts) { const o = document.createElement('option'); o.value = v; o.textContent = txt; sel.append(o); }
-        sel.value = String(S[it.k]);
-        sel.addEventListener('change', () => { S[it.k] = isNaN(Number(sel.value)) ? sel.value : Number(sel.value); changed(it); });
-        row.append(lab, sel);
-      } else if (it.type === 'check') {
-        row.classList.add('row-check');
-        const cb = document.createElement('input');
-        cb.type = 'checkbox'; cb.id = 'ctl-' + it.k; cb.checked = !!S[it.k];
-        cb.addEventListener('change', () => { S[it.k] = cb.checked; changed(it); });
-        row.append(lab, cb);
-      } else {
-        const out = document.createElement('output');
-        const inp = document.createElement('input');
-        inp.type = 'range'; inp.id = 'ctl-' + it.k; inp.min = it.min; inp.max = it.max; inp.step = it.step; inp.value = S[it.k];
-        out.textContent = fmtVal(it, S[it.k]);
-        inp.addEventListener('input', () => { S[it.k] = Number(inp.value); out.textContent = fmtVal(it, S[it.k]); if (!it.regen) changed(it); });
-        inp.addEventListener('change', () => { if (it.regen) changed(it); });
-        row.append(lab, out, inp);
-      }
-      det.append(row);
-    }
-    if (sec.id === 'debug') det.append(lutCanvas);
-    box.append(det);
-  }
-  help.innerHTML = t('Fahre über einen Regler: Hier steht, was er bewirkt und welche Formel dahintersteht. Ziehen dreht die Ansicht, Mausrad oder zwei Finger zoomen.',
-    'Hover a control: this box explains what it does and which formula is behind it. Drag to turn the view, scroll or pinch to zoom.');
-  $('t-hint').textContent = coarse ? t('wischen: drehen · zwei Finger: zoomen', 'swipe: turn · pinch: zoom') : t('ziehen: drehen · Rad: zoomen', 'drag: turn · wheel: zoom');
-  $('rnd').textContent = t('Zufall', 'Randomize');
-  $('to-gas').textContent = t('Gasriesen', 'Gas giants');
-  // in demo/ liegen beide Seiten nebeneinander
-  if (/\/demo\/[^/]*$/.test(location.pathname)) $('to-gas').href = 'index.html';
-  // Einzeln gespeicherte Datei (file://, z. B. aus dem Download-Ordner): Nachbarseite liegt nicht daneben -> Online-Fassung
-  if (location.protocol === 'file:' && !/Fluid-Gas-Planet\/(demo|demos)\//.test(location.pathname)) $('to-gas').href = 'https://raw.githack.com/elias-nero-tron/Fluid-Gas-Planet/main/demo/index.html';
-  $('lang').textContent = lang === 'de' ? 'EN' : 'DE';
-  $('st-plus').textContent = t('+20 % besser', '+20 % better');
-  $('st-orig').textContent = 'Original 1:1';
-  $('st-orig').setAttribute('aria-pressed', String(S.style === 'orig'));
-  $('st-plus').setAttribute('aria-pressed', String(S.style === 'plus'));
-  $('style-group').setAttribute('aria-label', t('Stil', 'Style'));
-  $('mode-tag').textContent = S.style === 'orig' ? t('Original 1:1 (colordodge)', 'Original 1:1 (colordodge)') : t('verbessert', 'improved');
-  $('seed').value = S.seed;
-  $('t-foot').innerHTML = t(
-    'Verfahren nach <a href="https://github.com/colordodge/ProceduralPlanet" target="_blank" rel="noopener">colordodge/ProceduralPlanet</a> (WTFPL), nachgebaut in WebGPU. Teil von <a href="https://github.com/elias-nero-tron/Fluid-Gas-Planet" target="_blank" rel="noopener">Fluid Gas Planet</a>, Idee: elias-nero-tron.',
-    'Method after <a href="https://github.com/colordodge/ProceduralPlanet" target="_blank" rel="noopener">colordodge/ProceduralPlanet</a> (WTFPL), rebuilt in WebGPU. Part of <a href="https://github.com/elias-nero-tron/Fluid-Gas-Planet" target="_blank" rel="noopener">Fluid Gas Planet</a>, idea: elias-nero-tron.');
-  document.documentElement.lang = lang;
-}
-
-// Biom-Bild (wie im Original als 2D-Canvas gemalt), auch im Debug-Ordner sichtbar
-const lutCanvas = document.createElement('canvas');
-lutCanvas.id = 'lut';
-lutCanvas.width = 512; lutCanvas.height = 512;
-lutCanvas.setAttribute('aria-label', 'Biome image');
-
-// ------------------------------------------------------------------ WebGPU
-const canvas = $('view');
-function fail(msg) { const el = $('status'); el.hidden = false; el.textContent = msg; throw new Error(msg); }
-
-// ---------------------------------------------------------------- WGSL: Grundlagen
-const COMMON = /* wgsl */`
+`,En=tn+Nn,Gn=tn+Fn,Dn={width:1,core:1,dust:1,hii:1,bright:.85,hue:.5};function An(t){let e=1779033703^t.length;for(let n=0;n<t.length;n++)e=Math.imul(e^t.charCodeAt(n),3432918353),e=e<<13|e>>>19;return()=>(e=Math.imul(e^e>>>16,2246822507),e=Math.imul(e^e>>>13,3266489909),((e^=e>>>16)>>>0)/4294967296)}const nt=t=>{const e=Math.hypot(t[0],t[1],t[2])||1;return[t[0]/e,t[1]/e,t[2]/e]},On=(t,e)=>[t[1]*e[2]-t[2]*e[1],t[2]*e[0]-t[0]*e[2],t[0]*e[1]-t[1]*e[0]];function _n(t,e=Dn){const n=An(t+"|galaxy"),r=nt([n()*2-1,n()*2-1,n()*2-1]),a=nt(On(r,nt([n()*2-1,n()*2-1,n()*2-1]))),s=new Float32Array(32);return s.set([n()*400,.1*e.bright,e.width,e.core,...r,0,...a,0,(e.hue-.5)*.3,e.dust,e.hii,0]),s}const Z=new URLSearchParams(location.search),Y=matchMedia("(max-width: 760px), (pointer: coarse)").matches,St=()=>String(Math.floor(1e7+Math.random()*89999999)),Ot=/^#?(\d{3,12})$/.exec(location.hash),d={seed:Z.get("seed")||(Ot?Ot[1]:St()),style:Z.get("style")==="orig"?"orig":"plus",res:Number(Z.get("res"))||(Y?1024:2048),palette:Z.get("palette")==="cd"?"cd":"earth",sea:-1,nscale:1,rough:.8,metal:.5,sunI:1.6,ambient:.22,glow:.6,cloudOpO:.6,waves:1,clarity:1,foam:.7,bump:1.5,relief:.018,erosion:1,terrace:0,detail:1,shadows:1,gloss:.75,exposure:1,ambientP:.35,cloudOp:1,cloudH:.012,wind:1,cloudShadow:.8,atmo:1,thick:2.5,haze:1,bloom:.6,sunAz:-58,sunEl:12,cover:.5,nebula:1,stars:1,flare:.5,mwWidth:1,mwCore:1,mwDust:1,mwHii:1,rotate:!0,spin:1.2,spinZoom:1,volcanoes:.5,rivers:1,tilt:23,fov:36,view:0,quality:0};matchMedia("(prefers-reduced-motion: reduce)").matches&&(d.rotate=!1);const _t={...d},Hn=t=>{const e=Z.get(t);e!==null&&e!==""&&!isNaN(Number(e))&&t in d&&(d[t]=Number(e))};for(const t of Object.keys(d))typeof d[t]=="number"&&t!=="res"&&Hn(t);const Re=Number(Z.get("cres"))||(Y?512:2048),Mt=Number(Z.get("nres"))||(Y?512:2048);function qn(t){let e=1779033703^t.length;for(let n=0;n<t.length;n++)e=Math.imul(e^t.charCodeAt(n),3432918353),e=e<<13|e>>>19;return()=>(e=Math.imul(e^e>>>16,2246822507),e=Math.imul(e^e>>>13,3266489909),(e^=e>>>16)>>>0)}function Pt(t){const e=qn(String(t));let n=e(),r=e(),a=e(),s=e();return()=>{n>>>=0,r>>>=0,a>>>=0,s>>>=0;let l=n+r|0;return n=r^r>>>9,r=a+(a<<3)|0,a=a<<21|a>>>11,s=s+1|0,l=l+s|0,a=a+l|0,(l>>>0)/4294967296}}const E=(t,e,n)=>Math.min(n,Math.max(e,t));function nn(t){const e=Pt(t+"|planet"),n=(a,s)=>a+(s-a)*e(),r=()=>({res1:n(.35,1.2),res2:n(.2,1),resMix:n(.3,1.1),mixScale:n(.5,1),type:Math.floor(n(0,4))});return{noiseSeed:n(0,400),h:r(),m:r(),water:n(.3,.72),cloudSeed:n(0,400),cloudCover:n(.16,.36),nebSeed:n(0,400),nebHue:e(),nebHue2:e(),nebSat:n(.45,.9),nebBright:n(.5,1.2),moistM:n(.8,1.2),mountains:n(.18,.34),beltFreq:n(1.1,1.9)}}let I=nn(d.seed);const V=t=>document.getElementById(t),Ht=t=>`${Math.round(t*100)} %`;function rn(){return[{id:"planet",title:o("Planet","Planet"),open:!0,items:[{k:"res",type:"select",label:o("Kartenauflösung","Map resolution"),opts:[[512,"512"],[1024,"1024"],[2048,"2048"],[4096,o("4096 (~1 GB Grafikspeicher)","4096 (~1 GB GPU memory)")],[8192,o("8192 (~4,5 GB, starke Grafikkarte)","8192 (~4.5 GB, strong GPU)")]],regen:!0,help:o('Pixel pro Würfelseite für Höhe, Feuchte und Relief (im Original "resolution"). Sechs Seiten ergeben die Kugel; 2048 sind rund um den Äquator 8192 Pixel.',`Pixels per cube face for height, moisture and relief (the original's "resolution"). Six faces make the sphere; 2048 is 8192 pixels around the equator.`),fx:o("Speicher: 6·N²·8 Byte (+⅓ Mipmaps)","Memory: 6·N²·8 bytes (+⅓ mipmaps)")},{k:"palette",mode:"plus",type:"select",label:o("Farben","Colours"),opts:[["earth",o("Erdähnlich","Earth-like")],["cd",o("Original-Biombild","Original biome image")]],help:o("Biom-Bild: dieselben Zufallsfarben wie im Original, aber physikalisch beleuchtet. Erdähnlich: Klimazonen aus Breite, Höhe und Feuchte (Wüste, Steppe, Wald, Regenwald, Taiga, Tundra, Fels, Schnee).","Biome image: the same random colours as the original, but physically lit. Earth-like: climate zones from latitude, altitude and moisture (desert, steppe, forest, rainforest, taiga, tundra, rock, snow)."),fx:"T = 1 − 1,25·|sin φ|^1,35 − 1,6·(h − s),  Biom = f(T, Feuchte, Hang)"}]},{id:"sea",title:o("Meer","Sea"),open:!0,items:[{k:"sea",min:0,max:1,step:.005,label:o("Meeresspiegel","Sea level"),fmt:t=>`${Ht(t)} ${o("Wasser","water")}`,help:o("Fehlte im Original (dort zufällig, ohne Regler). Bestimmt, welcher Anteil der Oberfläche unter Wasser liegt. Küsten, Strände, Relief und Farben folgen sofort, ohne Neuberechnung.","Missing in the original (random there, no control). Sets how much of the surface is under water. Coasts, beaches, relief and colours follow instantly, without recomputing."),fx:o("s = Quantil der Höhen: P(h < s) = Wasseranteil","s = height quantile: P(h < s) = water fraction")},{k:"waves",mode:"plus",min:0,max:3,step:.01,label:o("Wind & Wellen","Wind & waves"),help:o("Wellenneigung. Aus der Nähe siehst du einzelne Wellen, aus der Ferne werden sie zur Rauigkeit des Sonnenglitzerns, so wie auf Satellitenbildern.","Wave slope. Up close you see single waves; from afar they become the roughness of the sun glint, as in satellite images."),fx:"σ² = 0,003 + 0,00512·W (Cox–Munk),  α = √(α₀² + σ²_subpixel)"},{k:"clarity",mode:"plus",min:.2,max:3,step:.01,label:o("Klarheit","Clarity"),help:o("Wie tief man ins Wasser sieht. Flaches Wasser über Sand wird türkis, tiefes dunkelblau, weil Rot zuerst verschluckt wird.","How deep you can see into the water. Shallow water over sand turns turquoise, deep water navy, because red is absorbed first."),fx:"T = exp(−κ·z·(1/μᵥ + 1/μₛ)),  κ = (0,45; 0,065; 0,021) m⁻¹ / "+o("Klarheit","clarity")},{k:"foam",mode:"plus",min:0,max:2,step:.01,label:o("Brandung","Surf"),help:o("Schaumlinien an der Küste, die mit den Wellen auf den Strand laufen.","Foam lines at the coast that run up the beach with the waves."),fx:"Schaum = (1 − z/z_b)·smoothstep(0,55; 0,95; ½ + ½ sin(2π·3z/z_b − ωt))"}]},{id:"terrain",title:o("Gelände","Terrain"),open:!0,items:[{k:"nscale",mode:"orig",min:0,max:4,step:.01,label:o("Normalenstärke","Normal scale"),help:o("Wie im Original (Material → normalScale): Stärke der Normal-Karte aus Höhe + Bildhelligkeit. Daher die feinen Höhenlinien-Stufen.","As in the original (Material → normalScale): strength of the normal map from height + image brightness. Hence the fine contour steps."),fx:"n = normalize(−s·Sobel(h₈ + Y(biom)), 1),  h₈ = ⌊255·h⌋/255"},{k:"bump",mode:"plus",min:0,max:3,step:.01,label:o("Relief-Schärfe","Relief sharpness"),help:o("Wie steil Hänge im Licht wirken. Die Normalen kommen hier exakt aus dem Rauschen (Ableitung), ohne Stufen.","How steep slopes look in the light. Normals come exactly from the noise derivative here, without steps."),fx:"n = normalize(r̂ − k·∇ₛh)"},{k:"relief",mode:"plus",min:0,max:.08,step:.001,label:o("Relief-Höhe","Relief height"),help:o("Echte Verschiebung der Oberfläche. Berge ragen am Rand über die Kugel hinaus und werfen Schatten.","Real displacement of the surface. Mountains rise above the limb and cast shadows."),fx:"r = 1 + k_r·max(h − s, 0)"},{k:"volcanoes",mode:"plus",min:0,max:1,step:.01,label:o("Vulkane","Volcanoes"),regen:!0,help:o("Kegelberge mit Gipfelkrater (Schichtvulkane), zufällig auf dem Land verteilt. 0 = keine.","Cone mountains with a summit crater (stratovolcanoes), scattered over land. 0 = none."),fx:"h += H·((1−r/R)^1.8 − 0.55·(1 − (r/r_c)²)₊)"},{k:"rivers",mode:"plus",type:"select",label:o("Flüsse","Rivers"),opts:[[1,o("an (berechneter Verlauf)","on (computed course)")],[0,o("aus","off")]],regen:"rivers",help:o("Flüsse laufen wirklich bergab: Senken werden aufgefüllt (Priority-Flood, Barnes 2014), dann sammelt jeder Punkt das Regenwasser seiner Oberlieger (Abflussakkumulation, O’Callaghan & Mark 1984). Wo genug zusammenkommt, entsteht ein Fluss, breiter mit mehr Wasser. Echte Strömung im Flussbett (Flachwasser) folgt später als zweite Stufe.","Rivers truly run downhill: sinks are filled (priority-flood, Barnes 2014), then every point collects the rain of the cells above it (flow accumulation, O’Callaghan & Mark 1984). Where enough gathers a river forms, wider with more water. Real flow in the river bed (shallow water) comes later as a second stage.")},{k:"erosion",mode:"plus",min:0,max:3,step:.01,label:o("Erosion","Erosion"),regen:!0,help:o("Rinnen und Grate, die hangabwärts laufen und sich verzweigen, wie von Regen ausgewaschen. Formel von Clay John / Fewes (2D), hier auf die Kugel übertragen.","Gullies and ridges that run downhill and branch, as if washed out by rain. Formula by Clay John / Fewes (2D), carried over to the sphere here."),fx:"Δh = −½D·Σᵢ aᵢ(1 − Σ_c w_c cos 2π(q−c)·(r̂×∇h)),  aᵢ = 2⁻ⁱ"},{k:"terrace",mode:"plus",min:0,max:1,step:.01,label:o("Terrassen","Terraces"),help:o("Gesteinsschichten als Stufen, bewusst und glatt statt als 8-Bit-Treppe wie im Original.","Rock strata as steps, deliberate and smooth instead of the original's 8-bit staircase."),fx:"h′ = s + Δ(⌊x⌋ + smoothstep(½−w, ½+w, x−⌊x⌋)),  x = (h−s)/Δ"},{k:"detail",mode:"plus",min:0,max:2.5,step:.01,label:o("Feindetail","Fine detail"),help:o("Weitere Oktaven, live im Pixel gerechnet: beim Heranzoomen wird die Oberfläche immer feiner, ohne Pixelblöcke.","More octaves computed live per pixel: zooming in keeps adding detail, without pixel blocks."),fx:"Σ_{f > N/2π} snoise(f·p)·A/f,  "+o("ausgeblendet unter 3 px","faded below 3 px")},{k:"shadows",mode:"plus",min:0,max:1,step:.01,label:o("Geländeschatten","Terrain shadows"),help:o("Berge werfen Schatten, bei flacher Sonne lang. Der Strahl zur Sonne wird über die Höhenkarte verfolgt.","Mountains cast shadows, long at low sun. The ray to the sun is traced over the height map."),fx:o("Schatten, wenn z(q) > z₀ + s·tan ε + s²/2","shadow if z(q) > z₀ + s·tan ε + s²/2")}]},{id:"material",title:"Material",items:[{k:"rough",mode:"orig",min:0,max:1,step:.01,label:"roughness",help:o("Wie im Original. Die Rauigkeits-Karte (Land hoch, Wasser niedrig) wird damit multipliziert.","As in the original. The roughness map (land high, water low) is multiplied by it."),fx:"α = (roughness·map)²,  D_GGX = α²/(π((n·h)²(α²−1)+1)²)"},{k:"metal",mode:"orig",min:0,max:1,step:.01,label:"metalness",help:o("Wie im Original: dieselbe Karte dient auch als Metall-Karte. Deshalb glänzt das Land dort metallisch.","As in the original: the same map also serves as metalness map. That is why the land has a metallic sheen."),fx:"F₀ = mix(0,04; Albedo; metalness·map)"},{k:"gloss",mode:"plus",min:0,max:1,step:.01,label:o("Glanz (Land)","Gloss (land)"),help:o("Glanzlichter auf Fels und Hängen. Wasser glänzt immer nach seiner eigenen Physik.","Highlights on rock and slopes. Water always shines by its own physics."),fx:"α_Land = α_Material·(1 − 0,55·Glanz)"}]},{id:"light",title:o("Licht","Lighting"),items:[{k:"sunAz",min:-180,max:180,step:1,label:o("Sonne: Richtung","Sun: direction"),fmt:t=>`${Math.round(t)}°`,help:o("Seitliches Licht zeigt das Relief am stärksten. Der Planet dreht sich, die Sonne steht fest.","Side light shows the relief best. The planet turns, the sun stays fixed.")},{k:"sunEl",min:-60,max:60,step:1,label:o("Sonne: Höhe","Sun: height"),fmt:t=>`${Math.round(t)}°`},{k:"sunI",mode:"orig",min:0,max:4,step:.01,label:o("Sonnenlicht","Sun light"),help:o("Wie im Original (Lighting).","As in the original (Lighting).")},{k:"ambient",mode:"orig",min:0,max:1,step:.01,label:o("Umgebungslicht","Ambient light"),help:o("Wie im Original (Lighting): hellt auch die Nachtseite auf.","As in the original (Lighting): also lights the night side.")},{k:"exposure",mode:"plus",min:.2,max:3,step:.01,label:o("Belichtung","Exposure"),help:o("Kamera-Belichtung. Danach ACES-Filmkurve, damit Glanzlichter nicht ausfressen.","Camera exposure, followed by the ACES film curve so highlights do not clip."),fx:"c = ACES(E·L)^(1/2,2)"},{k:"ambientP",mode:"plus",min:0,max:1.5,step:.01,label:o("Himmelslicht","Skylight"),help:o("Streulicht des Himmels auf der Tagseite. Die Nachtseite bleibt dunkel, wie im All.","Scattered skylight on the day side. The night side stays dark, as in space.")}]},{id:"clouds",title:o("Wolken","Clouds"),items:[{k:"cover",min:0,max:1,step:.01,label:o("Bedeckung","Cover"),fmt:Ht,help:o("Anteil des Himmels mit Wolken. 0 schaltet die Wolken aus.","Share of the sky with clouds. 0 turns clouds off.")},{k:"cloudOpO",mode:"orig",min:0,max:1,step:.01,label:o("Deckkraft","Opacity")},{k:"cloudOp",mode:"plus",min:0,max:2,step:.01,label:o("Dichte","Density"),help:o("Optische Dicke. Am Planetenrand schaut man schräg durch die Schicht, dort werden Wolken dichter.","Optical thickness. At the limb you look through the layer at a slant, so clouds get denser there."),fx:"α = 1 − exp(−τ/μᵥ)"},{k:"cloudH",mode:"plus",min:.002,max:.04,step:.001,label:o("Höhe","Height"),help:o("Abstand der Wolkenschicht zum Boden in Planetenradien. Echte Höhe: die Schatten fallen versetzt.","Distance of the cloud layer above ground in planet radii. Real height: shadows fall offset.")},{k:"wind",mode:"plus",min:0,max:4,step:.01,label:o("Wind","Wind"),help:o("Wolken ziehen in Breitenbändern wie auf der Erde: Passat nach Westen, Westwinde in mittleren Breiten, polare Ostwinde. Sie entstehen und vergehen dabei.","Clouds drift in latitude bands as on Earth: trade winds to the west, westerlies at mid latitudes, polar easterlies. They form and dissolve on the way."),fx:"u(φ) = −0,9·sin 6|φ| + 0,35·e^(−((|φ|−0,75)/0,18)²)"},{k:"cloudShadow",mode:"plus",min:0,max:1,step:.01,label:o("Wolkenschatten","Cloud shadows")}]},{id:"atmo",title:o("Atmosphäre","Atmosphere"),items:[{k:"glow",mode:"orig",min:0,max:3,step:.01,label:o("Leuchtsaum","Glow"),help:o("Wie im Original: Fresnel-Leuchtsaum um den Planeten.","As in the original: Fresnel glow around the planet."),fx:"I = (c − n·v)^p"},{k:"atmo",mode:"plus",min:0,max:3,step:.01,label:o("Luftdichte","Air density"),help:o("Rayleigh-Streuung: kurzes Blau streut stärker, deshalb der blaue Rand und die rötliche Tag-Nacht-Grenze.","Rayleigh scattering: short blue scatters more, hence the blue limb and the reddish terminator."),fx:"β_R = (5,8; 13,6; 33,1)·10⁻⁶ m⁻¹,  P_R = 3/(16π)·(1 + cos²θ)"},{k:"thick",mode:"plus",min:1,max:6,step:.01,label:o("Schichtdicke","Layer thickness"),fmt:t=>`×${t.toFixed(1)}`,help:o("Überhöhung der Lufthülle für die Sichtbarkeit. ×1 ist die echte Erde (8 km Skalenhöhe).","Exaggeration of the air layer for visibility. ×1 is the real Earth (8 km scale height).")},{k:"haze",mode:"plus",min:0,max:4,step:.01,label:o("Dunst","Haze"),help:o("Mie-Streuung an Staub und Tröpfchen: heller Schein, wenn die Sonne hinter dem Planeten steht.","Mie scattering by dust and droplets: bright halo when the sun is behind the planet."),fx:"P_M = 3/(8π)·(1−g²)(1+cos²θ)/((2+g²)(1+g²−2g cos θ)^1,5), g = 0,8"}]},{id:"env",title:o("Umgebung","Environment"),items:[{k:"nebula",min:0,max:3,step:.01,label:o("Milchstraße","Milky Way"),help:o("Hintergrund wie am echten Nachthimmel: helles Band mit Kern, dunkle Staubbahnen, wenige rote Gaswolken, im Band mehr Sterne. Er steht fest und dreht sich nicht mit dem Planeten.","Background as in the real night sky: bright band with a core, dark dust lanes, a few red gas clouds, more stars in the band. It stays fixed and does not spin with the planet.")},{k:"mwWidth",min:.3,max:3,step:.01,label:o("Bandbreite","Band width"),regen:"sky",help:o("Wie breit das Milchstraßenband ist. Wir sehen die Scheibe der Galaxie von innen, als Band über den Himmel.","How wide the Milky Way band is. We see the disk of the galaxy from inside, as a band across the sky."),fx:"I ∝ exp(−(b/0,16·w)²)"},{k:"mwCore",min:0,max:3,step:.01,label:o("Kern","Core"),regen:"sky",help:o("Helligkeit des Zentrums der Galaxie (Bulge): warm-gelblich, weil dort alte Sterne stehen.","Brightness of the galactic centre (bulge): warm yellowish, because old stars live there.")},{k:"mwDust",min:0,max:2,step:.01,label:o("Staubbahnen","Dust lanes"),regen:"sky",help:o("Dunkle Staubwolken in der Mittelebene schlucken das Sternlicht, wie der „Große Riss“ am echten Himmel.","Dark dust clouds in the mid-plane swallow starlight, like the Great Rift in the real sky.")},{k:"mwHii",min:0,max:3,step:.01,label:o("Rote Gaswolken","Red gas clouds"),regen:"sky",help:o("Leuchtender Wasserstoff (H-alpha) um junge Sterne, klein und selten, nur im Band.","Glowing hydrogen (H-alpha) around young stars, small and rare, only in the band.")},{k:"stars",min:0,max:3,step:.01,label:o("Sterne","Stars")},{k:"flare",min:0,max:2,step:.01,label:o("Blendenflecke","Lens flare")},{k:"bloom",mode:"plus",min:0,max:2,step:.01,label:o("Überstrahlung","Bloom"),help:o("Helles Glitzern und die Sonne strahlen weich über, wie bei einer echten Linse.","Bright glints and the sun bleed softly, as in a real lens.")}]},{id:"motion",title:o("Drehung & Kamera","Spin & camera"),items:[{k:"rotate",type:"check",label:o("Drehen","Rotate")},{k:"spinZoom",min:0,max:3,step:.05,label:o("Drehung beim Zoomen bremsen","Slow spin when zoomed"),fmt:t=>t.toFixed(2),help:o("Je näher du am Boden bist, desto langsamer dreht sich der Planet. 0 = immer gleich schnell, 1 = proportional zur Höhe, höher = stärker gebremst.","The closer you are to the ground, the slower the planet turns. 0 = always the same speed, 1 = proportional to altitude, higher = braked harder."),fx:"ω = ω₀ · clamp((d − 1)/1.2, 0, 1)^k"},{k:"spin",min:0,max:12,step:.1,label:o("Drehgeschwindigkeit","Spin speed"),fmt:t=>`${t.toFixed(1)}°/s`,help:o("Ruhig und mächtig: 1,5°/s ist eine Umdrehung in 4 Minuten. Nebel und Sterne drehen nicht mit.","Calm and majestic: 1.5°/s is one turn in 4 minutes. Nebula and stars do not turn with it."),fx:"T = 360° / ω"},{k:"tilt",min:0,max:90,step:1,label:o("Achsneigung","Axial tilt"),fmt:t=>`${Math.round(t)}°`},{k:"fov",min:15,max:75,step:1,label:o("Blickwinkel","Field of view"),fmt:t=>`${Math.round(t)}°`},{k:"quality",type:"select",label:o("Bildauflösung","Render resolution"),opts:[[0,o("Automatisch (so scharf wie flüssig geht)","Automatic (as sharp as stays smooth)")],[2,o("200 % (Supersampling)","200 % (supersampling)")],[1.5,"150 %"],[1,"100 %"],[.75,"75 %"],[.5,"50 %"]],help:o("Automatisch senkt die Bildauflösung, wenn die Grafikkarte nicht hinterherkommt, und hebt sie wieder, sobald Luft ist.","Automatic lowers the render resolution when the GPU cannot keep up and raises it again when there is headroom.")}]},{id:"debug",title:"Debug",items:[{k:"view",type:"select",label:o("Anzeige","Display"),opts:[[0,o("Farbe","Colour")],[1,o("Höhe","Height")],[2,o("Feuchte","Moisture")],[3,o("Normalen","Normals")],[4,o("Rauigkeit","Roughness")],[5,o("Albedo","Albedo")]],help:o("Die einzelnen Karten wie im Debug-Ordner des Originals. Darunter das Biom-Bild dieses Planeten (x = Feuchte, y = Höhe).","The individual maps as in the original's Debug folder. Below it, this planet's biome image (x = moisture, y = height).")}]}]}let te=null;const Ee={};function rt(t){return(t.help||t.label)+(t.fx?`<code class="fx">${t.fx}</code>`:"")}function Vn(t,e){return t.fmt?t.fmt(e):Number(e).toFixed(t.step<.01?3:t.step<1?2:0)}function Wn(t){for(const e of rn())for(const n of e.items)if(n.k===t)return n;return{k:t}}function qt(t,e){e.type==="select"?t.select(e.k,e.label,e.opts.map(([n,r])=>[String(n),r]),rt(e)):e.type==="check"?t.toggle(e.k,e.label,rt(e)):(e.regen&&Ye.heavy.add(e.k),t.range(e.k,e.label,e.min,e.max,e.step,rt(e),n=>Vn(e,n)))}function ce(){const t=V("panel-body");for(const a of t.querySelectorAll("details"))a.dataset.id&&(Ee[a.dataset.id]=a.open);t.innerHTML="",_t.sea=I.water,te=new Ye(t,d,a=>{if(a==="style"){hr(d.style);return}xn(Wn(a))},_t);const e=rn(),n=[];te.section(o("Stil & Seed","Style & seed"),void 0,!0),te.select("style",o("Stil","Style"),[["plus",o("+20 % besser","+20 % better")],["orig","Original 1:1 (colordodge)"]],o("Original 1:1: genau wie das three.js-Vorbild von colordodge. +20 % besser: dieselbe Grundform mit echter Physik für Licht, Wasser, Luft und Gelände.","Original 1:1: exactly like colordodge's three.js model. +20 % better: the same base shape with real physics for light, water, air and terrain."));const r=document.createElement("div");r.className="seedrow",r.innerHTML=`<label for="seed">seed</label><input id="seed" type="text" inputmode="numeric" autocomplete="off" spellcheck="false"><button id="rnd" type="button">${o("Zufall","Randomize")}</button>`,te.custom(r),r.querySelector("#seed").value=d.seed,r.querySelector("#seed").addEventListener("change",a=>kt(a.target.value)),r.querySelector("#rnd").addEventListener("click",()=>kt(St()));for(const a of e){const s=a.items.filter(l=>!l.mode||l.mode===d.style);for(const l of a.items)l.mode&&l.mode!==d.style&&n.push(l);if(s.length){te.section(a.title,void 0,a.id in Ee?Ee[a.id]:!!a.open),t.lastElementChild.dataset.id=a.id;for(const l of s)qt(te,l);a.id==="debug"&&te.custom(de)}}if(n.length){te.section(d.style==="orig"?o("Nur in „+20 % besser“","Only in “+20 % better”"):o("Nur in „Original 1:1“","Only in “Original 1:1”"),o("Diese Regler wirken im gewählten Stil nicht.","These controls have no effect in the chosen style."),!!Ee.inactive),t.lastElementChild.dataset.id="inactive",t.lastElementChild.classList.add("inactive");for(const a of n)qt(te,a),te.disable(a.k,!0)}Cn("rocky"),V("t-title").textContent=o("Gesteinsplanet","Rocky planet"),V("version").textContent="v0.4.0 · 2026-09-28 09:21 UTC",V("panel-title").textContent=o("Regler","Controls"),V("t-hint").textContent=Y?o("wischen: drehen · zwei Finger: zoomen","swipe: turn · pinch: zoom"):o("ziehen: drehen · Rad: zoomen","drag: turn · wheel: zoom"),V("mode-tag").textContent=d.style==="orig"?"Original 1:1 (colordodge)":o("+20 % besser","+20 % better"),V("credits").innerHTML=o('Echtzeit-WebGPU, keine Bilddateien. Grundform nach <a href="https://github.com/colordodge/ProceduralPlanet" target="_blank" rel="noopener">colordodge/ProceduralPlanet</a> (WTFPL). Idee: elias-nero-tron. <a href="https://github.com/elias-nero-tron/Fluid-Gas-Planet" target="_blank" rel="noopener">Quellcode</a>','Real-time WebGPU, no image files. Base shape after <a href="https://github.com/colordodge/ProceduralPlanet" target="_blank" rel="noopener">colordodge/ProceduralPlanet</a> (WTFPL). Idea: elias-nero-tron. <a href="https://github.com/elias-nero-tron/Fluid-Gas-Planet" target="_blank" rel="noopener">Source code</a>'),document.documentElement.lang=$e}const de=document.createElement("canvas");de.id="lut";de.width=512;de.height=512;de.setAttribute("aria-label","Biome image");const _=V("view");function Me(t){const e=V("status");throw e.hidden=!1,e.textContent=t,new Error(t)}const Ge=`
 const PI = 3.14159265359;
 const QPI = 0.785398163397;
 // Würfelseiten: Richtung = em + st.x·ex + st.y·ey, st = tan((2uv − 1)·π/4) (winkeltreu)
@@ -502,19 +214,14 @@ fn hash33(q: vec3f) -> vec3f { var p3 = fract(q * vec3f(0.1031, 0.1030, 0.0973))
 fn hash13(q: vec3f) -> f32 { var p3 = fract(q * 0.1031); p3 += dot(p3, p3.zyx + 31.32); return fract((p3.x + p3.y) * p3.z); }
 fn rotY(p: vec3f, a: f32) -> vec3f { let c = cos(a); let s = sin(a); return vec3f(c * p.x + s * p.z, p.y, -s * p.x + c * p.z); }
 fn sq(x: f32) -> f32 { return x * x; }
-`;
-
-// Abtasten der Würfelkarten (nur in Shadern mit Sampler)
-const TEXH = /* wgsl */`
+`,Vt=`
 fn texFace(tx: texture_2d_array<f32>, F: Face, n: f32) -> vec4f { let s = (n - 1.0) / n; return textureSampleGrad(tx, samp, faceUv(F, n), F.f, F.gx * s, F.gy * s); }
 fn texFaceLod(tx: texture_2d_array<f32>, F: Face, n: f32, lod: f32) -> vec4f { return textureSampleLevel(tx, samp, faceUv(F, n), F.f, lod); }
 fn texDirLod(tx: texture_2d_array<f32>, d: vec3f, n: f32, lod: f32) -> vec4f {
   let F = toFace(d, vec3f(0.0), vec3f(0.0));
   return textureSampleLevel(tx, samp, faceUv(F, n), F.f, lod);
 }
-`;
-
-const NOISE = /* wgsl */`
+`,at=`
 fn mod289v3(x: vec3f) -> vec3f { return x - floor(x * (1.0 / 289.0)) * 289.0; }
 fn mod289v4(x: vec4f) -> vec4f { return x - floor(x * (1.0 / 289.0)) * 289.0; }
 fn permute(x: vec4f) -> vec4f { return mod289v4(((x * 34.0) + 10.0) * x); }
@@ -591,18 +298,10 @@ fn fbmS(p0: vec3f, oct: i32) -> f32 {
   for (var i = 0; i < 12; i++) { if (i >= oct) { break; } n += a * snoise(p); p = p * 2.02 + vec3f(1.7, 9.2, 3.1); a *= 0.5; }
   return n;
 }
-`;
-
-// Parameter für Erzeugungs-Jobs: 8 × vec4, Kachel in g (Ende) und h (Anfang, Seite, N)
-const JDECL = /* wgsl */`
+`,Ut=`
 struct Jb { a: vec4f, b: vec4f, c: vec4f, d: vec4f, e: vec4f, f: vec4f, g: vec4f, h: vec4f }
 @group(0) @binding(0) var<uniform> J: Jb;
-`;
-
-// ---------------------------------------------------------------- Karten: Höhe, Feuchte, Gradient (Compute)
-// a = Höhe (res1, res2, resMix, mixScale), b = (Typ H, Seed H, Typ F, Seed F), c = Feuchte, d = Erosion,
-// e = Gebirge (Höhe, Gürtelfrequenz, Grat-Startfrequenz, fBm-Rest), f = (Modus, Erosions-Oktaven, Meeresspiegel, -)
-const GEN = JDECL + /* wgsl */`
+`,In=Ut+`
 @group(0) @binding(1) var dst: texture_storage_2d_array<rgba16float, write>;
 fn octOff(seed: f32, i: i32) -> vec3f { return (hash33(vec3f(seed * 0.1373, f32(i) * 1.7311 + 3.1, seed * 0.0719 + 11.0)) - 0.5) * 120.0; }
 // Original: immer 16 Oktaven. Verbessert: nur bis zur Nyquist-Grenze der Karte, der Rest kommt live im Pixel.
@@ -776,10 +475,7 @@ fn main(@builtin(global_invocation_id) gid: vec3u) {
   let dPv = (B.ey - d * dot(d, B.ey)) * il * (2.0 * QPI * (1.0 + st.y * st.y));
   textureStore(dst, vec2u(px), face, vec4f(h, m, dot(gh, dPu), dot(gh, dPv)));
 }
-`;
-
-// ---------------------------------------------------------------- Wolkenkarten (Compute), a.x = Seed
-const CLOUDGEN = JDECL + /* wgsl */`
+`,Jn=Ut+`
 @group(0) @binding(1) var dst: texture_storage_2d_array<rgba8unorm, write>;
 // Original-Stil: sin(5·n) über viele Oktaven gibt die zelligen Schlieren
 fn hisCloud(p: vec3f, seed: f32) -> f32 {
@@ -813,56 +509,7 @@ fn main(@builtin(global_invocation_id) gid: vec3u) {
   let Dt = fbmS(d * vec3f(17.0, 26.0, 17.0) + w * 2.0 + seed * 1.3, 6) * 0.9 + 0.5;
   textureStore(dst, vec2u(px), face, clamp(vec4f(A * 0.8 + 0.5, B * 0.8 + 0.5, H, Dt), vec4f(0.0), vec4f(1.0)));
 }
-`;
-
-// ---------------------------------------------------------------- Milchstraße (Würfelkarte, steht fest im Raum)
-// Aufbau wie am echten Nachthimmel: helles Band (Scheibe der Galaxie) mit Kern (Bulge), dunkle Staubbahnen
-// genau in der Mitte des Bandes, vereinzelte rote Gaswolken (H-alpha) im Band. Alpha = Sterndichte.
-// a = (Seed, Helligkeit, -, -), b = Pol der Galaxie, c = Richtung zum Kern, d = Farbton-Verschiebung
-const NEBGEN = JDECL + /* wgsl */`
-@group(0) @binding(1) var dst: texture_storage_2d_array<rgba16float, write>;
-@compute @workgroup_size(8, 8)
-fn main(@builtin(global_invocation_id) gid: vec3u) {
-  let px = vec2f(gid.xy) + J.h.xy;
-  if (px.x >= J.g.x || px.y >= J.g.y) { return; }
-  let seed = J.a.x;
-  let face = i32(J.h.z);
-  let d = faceDir(face, px / (J.h.w - 1.0));
-  let pole = J.b.xyz;
-  let core = J.c.xyz;
-  // galaktische Breite, leicht verbogen, damit das Band nicht wie mit dem Lineal gezogen aussieht
-  let warp = fbmS(d * 2.2 + seed, 4) * 0.07;
-  let b = asin(clamp(dot(d, pole), -1.0, 1.0)) + warp;
-  let toCore = acos(clamp(dot(d, core), -1.0, 1.0));
-  let wd = J.a.z;
-  let disk = exp(-sq(b / (0.16 * wd)));                    // Scheibe
-  let thin = exp(-sq(b / (0.045 * wd)));                   // dünne Mittelebene (Staub)
-  let bulge = exp(-sq(toCore / 0.42)) * exp(-sq(b / (0.3 * wd))) * J.a.w;
-  let glowN = fbmS(d * 5.0 + seed + 3.0, 6) * 0.5 + 0.5;          // Sternwolken, wolkig-körnig
-  let grain = fbmS(d * 28.0 + seed + 9.0, 4) * 0.5 + 0.5;
-  var lum = disk * (0.25 + 0.75 * glowN) * (0.7 + 0.6 * grain) * (0.55 + 0.45 * exp(-sq(toCore / 1.4)));
-  lum += bulge * 1.6 * (0.8 + 0.4 * glowN);
-  lum += 0.02;                                                    // schwaches Zodiakal-/Hintergrundlicht
-  // Staubbahnen: verzweigte dunkle Adern in der Mittelebene
-  let q = d * 7.0 + vec3f(fbmS(d * 3.0 + seed + 21.0, 4), fbmS(d * 3.0 + seed + 37.0, 4), 0.0) * 1.2;
-  let lanes = smoothstep(-0.1, 0.45, fbmS(q + seed, 6));
-  let dust = clamp(lanes * (thin * 1.2 + disk * 0.35) * J.d.y, 0.0, 0.8);
-  lum *= 1.0 - dust;
-  // Farbe: warmer Kern, weißlich-blaue Scheibe (mehr junge Sterne außen)
-  let tint = J.d.x;
-  var col = mix(vec3f(0.78, 0.84, 1.0), vec3f(1.0, 0.82, 0.6), clamp(bulge * 1.4 + tint, 0.0, 1.0)) * lum;
-  // rote Emissionsnebel, klein und selten, nur im Band
-  let hii = pow(max(fbmS(d * 9.0 + seed + 51.0, 5) - 0.18, 0.0) * 3.0, 3.0) * disk * (1.0 - dust);
-  col += vec3f(1.0, 0.22, 0.28) * hii * 0.35 * J.d.z;
-  col *= J.a.y;
-  let dens = clamp(0.15 + disk * (1.0 - 0.7 * dust) + bulge, 0.0, 2.0);
-  textureStore(dst, vec2u(px), face, vec4f(col, dens));
-}
-`;
-
-// ---------------------------------------------------------------- Atmosphäre: Durchlässigkeits-Tabelle (Compute)
-// a = (R, R_oben, H_Rayleigh, H_Mie), b = (β_R, β_M,ext), c = β_Ozon, d = (Ozon-Höhe, -Breite)
-const TRANS = JDECL + /* wgsl */`
+`,jn=Ut+`
 @group(0) @binding(1) var dst: texture_storage_2d<rgba16float, write>;
 // Durchlässigkeit bis zum oberen Rand, Tabelle über (Höhe, Richtung) nach Bruneton (2017)
 @compute @workgroup_size(8, 8)
@@ -890,12 +537,9 @@ fn main(@builtin(global_invocation_id) gid: vec3u) {
   }
   textureStore(dst, vec2u(gid.xy), vec4f(exp(-od), 1.0));
 }
-`;
-
-// ---------------------------------------------------------------- Mipmaps (WebGPU hat kein generateMipmap): 2×2-Mittel
-const MIP = (fmt) => /* wgsl */`
+`,Wt=t=>`
 @group(0) @binding(0) var src: texture_2d_array<f32>;
-@group(0) @binding(1) var dst: texture_storage_2d_array<${fmt}, write>;
+@group(0) @binding(1) var dst: texture_storage_2d_array<${t}, write>;
 @compute @workgroup_size(8, 8, 1)
 fn main(@builtin(global_invocation_id) g: vec3u) {
   let n = textureDimensions(dst);
@@ -905,10 +549,7 @@ fn main(@builtin(global_invocation_id) g: vec3u) {
   let c = textureLoad(src, p, l, 0) + textureLoad(src, p + vec2i(1, 0), l, 0) + textureLoad(src, p + vec2i(0, 1), l, 0) + textureLoad(src, p + vec2i(1, 1), l, 0);
   textureStore(dst, vec2i(g.xy), l, c * 0.25);
 }
-`;
-
-// ---------------------------------------------------------------- Bild: gemeinsame Uniforms und Karten
-const UDECL = /* wgsl */`
+`,It=`
 struct Uf {
   vp: mat4x4f, ivp: mat4x4f,
   m0: vec4f, m1: vec4f, m2: vec4f,       // Planetendrehung (Spalten)
@@ -953,9 +594,7 @@ struct VO { @builtin(position) pos: vec4f, @location(0) uv: vec2f }
   o.uv = p;
   return o;
 }
-`;
-
-const ATMO = /* wgsl */`
+`,Jt=`
 fn transmittance(r0: f32, mu: f32) -> vec3f {
   let R = U.At.x;
   let Rt = U.At.y;
@@ -975,10 +614,7 @@ fn sunTrans(r: f32, mu: f32) -> vec3f {
   let muH = -sqrt(max(1.0 - (U.At.x * U.At.x) / (r * r), 0.0));
   return transmittance(r, mu) * smoothstep(muH - 0.006, muH + 0.006, mu);
 }
-`;
-
-// ---------------------------------------------------------------- Wolkendichte (Schale + Schatten)
-const CLOUDF = /* wgsl */`
+`,Kn=`
 // Zonalwind als Winkelgeschwindigkeit: Passat (Ost), Westwinde, polare Ostwinde
 fn windOmega(lat: f32) -> f32 {
   let a = abs(lat);
@@ -1047,12 +683,8 @@ fn cloudDensity(d: vec3f, lod: f32) -> f32 {
   let veil = smoothstep(0.6, 0.95, det) * smoothstep(lo - 0.2, lo + 0.1, c) * 0.035;
   return max(dn * sqrt(dn), veil);
 }
-`;
-
-// ---------------------------------------------------------------- Planet, Wolkenschale, Hintergrund
-const PATCH_G = 32;
-const SCENE = /* wgsl */`
-const PATCH_G = ${PATCH_G}.0;
+`,Bt=32,$n=`
+const PATCH_G = ${Bt}.0;
 @group(1) @binding(0) var<uniform> D: vec4f;   // Radius, LOD im Vertex-Shader, Relief-Höhe (Verschiebung), Relief-Höhe (für Wolken)
 struct PV { @builtin(position) pos: vec4f, @location(0) obj: vec3f, @location(1) world: vec3f }
 @vertex fn vsPlanet(@location(0) aPos: vec3f) -> PV {
@@ -1069,10 +701,18 @@ struct PV { @builtin(position) pos: vec4f, @location(0) obj: vec3f, @location(1)
 
 // Gelände-Kacheln (Quadtree wie CDLOD, Strugar 2009): pro Kachel ein Gitter, fein nahe der Kamera.
 // Rand-Schürzen (skirt) verdecken die Spalten zwischen Kacheln verschiedener Stufe.
+// Geomorphing (Strugar 2009): nahe der Grenze zur gröberen Kachel wandern die ungeraden Gitterpunkte auf die Linie
+// ihrer Nachbarn, und die Mipmap-Stufe hängt nur vom Abstand ab. So haben Nachbarkacheln an der Naht dieselbe Höhe.
 @vertex fn vsPatch(@location(0) g: vec3f, @location(1) inst: vec4f) -> PV {
-  let uv = inst.yz + g.xy * inst.w;
+  let M = modelM();
+  let d0 = faceDir(i32(inst.x), inst.yz + g.xy * inst.w);
+  let dist = length(U.cam.xyz - M * d0);
+  let rTile = inst.w * 1.1 * D.y;
+  let mk = clamp((dist / rTile - 1.3) / 0.5, 0.0, 1.0);    // Kachel lebt etwa bei dist/rTile ∈ [1, 2]
+  let gm = g.xy - fract(g.xy * PATCH_G * 0.5) * (2.0 / PATCH_G) * mk;
+  let uv = inst.yz + gm * inst.w;
   let d = faceDir(i32(inst.x), uv);
-  let lod = max(log2(U.T.x * inst.w / PATCH_G), 0.0);
+  let lod = max(log2(U.T.x * dist / (1.1 * D.y * PATCH_G)), 0.0);
   var disp = 0.0;
   if (D.z > 0.0) { disp = D.z * max(texDirLod(tHm, d, U.T.x, lod).x - U.T.z, 0.0); }
   let p = d * (D.x + disp - g.z * (0.02 * inst.w + D.z * 0.3));
@@ -1497,37 +1137,12 @@ fn earthBiome(d: vec3f, h: f32, m: f32, slope: f32, nz: f32) -> vec4f {
   return vec4f(col * alpha, alpha);
 }
 
-// ---- Hintergrund: Nebel, Sterne, Sonne
-fn stars(d: vec3f, pix: f32, dens: f32) -> vec3f {
-  var acc = vec3f(0.0);
-  let F = toFace(d, vec3f(0.0), vec3f(0.0));
-  var keeps = array<f32, 3>(0.3, 0.2, 0.12);
-  var gains = array<f32, 3>(1.0, 0.55, 0.3);
-  for (var L = 0; L < 3; L++) {
-    let cells = 70.0 * exp2(f32(L));
-    let g = F.uv * cells;
-    let id = floor(g);
-    let h = hash33(vec3f(id, f32(F.f) * 17.0 + f32(L) * 131.0));
-    if (h.z > keeps[L] * mix(0.6, 1.6, clamp(dens * 0.6, 0.0, 1.0))) { continue; }
-    let pos = id + 0.25 + 0.5 * h.xy;
-    let r = length(g - pos) / cells * 1.5708;
-    let b = hash13(vec3f(id * 1.37, f32(F.f) + f32(L) * 7.0));
-    let flux = (pow(b, 16.0) * 5.0 + 0.018 * b * b) * gains[L];
-    let sig = pix * 0.55;
-    let I = flux * exp(-r * r / (2.0 * sig * sig));
-    let tc = hash13(vec3f(id, 5.0 + f32(L)));
-    acc += I * mix(vec3f(1.0, 0.78, 0.6), vec3f(0.72, 0.82, 1.0), tc);
-  }
-  return acc;
-}
+// ---- Hintergrund: gemeinsamer Himmel (src/sky), dazu die Sonne
 @fragment fn fsBg(vin: VO) -> @location(0) vec4f {
   let w = U.ivp * vec4f(vin.uv * 2.0 - 1.0, 1.0, 1.0);
   let dir = normalize(w.xyz / w.w - U.cam.xyz);
   let pix = max(length(fwidth(dir)), 1e-5);
-  var col = vec3f(0.0);
-  var dens = 0.4;
-  if (U.Md.w > 0.5) { let nb = texDirLod(tNeb, dir, U.Bg.z, 0.0); col = nb.rgb * U.Bg.x; dens = nb.a; }
-  col += stars(dir, pix, dens) * U.Bg.y;
+  var col = skyColor(tNeb, samp, dir, pix, select(0.0, U.Bg.z, U.Md.w > 0.5), U.Bg.x, U.Bg.y);
   let c = dot(dir, U.sun.xyz);
   let ang = acos(clamp(c, -1.0, 1.0));
   let sunR = U.Mq.w;
@@ -1539,10 +1154,7 @@ fn stars(d: vec3f, pix: f32, dens: f32) -> vec3f {
   col += sunCol * sunE * (0.012 * exp(-ang / 0.02) + 0.002 * exp(-ang / 0.15));
   return vec4f(col, 1.0);
 }
-`;
-
-// ---------------------------------------------------------------- Nachbearbeitung: Luftstreuung bzw. Leuchtsaum, Überstrahlung, Filmkurve
-const POST = /* wgsl */`
+`,Yn=`
 @group(1) @binding(0) var<uniform> Pp: vec4f;          // Texelgröße, Schwelle, erste Stufe
 @group(1) @binding(1) var tSrc: texture_2d<f32>;
 @group(1) @binding(2) var tSrc2: texture_2d<f32>;
@@ -1610,8 +1222,31 @@ fn ign(p: vec2f) -> f32 { return fract(52.9829189 * fract(dot(p, vec2f(0.0671105
   return vec4f(col * exp(-od) + Ls, 1.0);
 }
 fn tp(uv: vec2f, o: vec2f) -> vec3f { return textureSampleLevel(tSrc, samp, uv + o * Pp.xy, 0.0).rgb; }
+// Erste Stufe mit Karis-Mittel (Jimenez 2014, CoD: Advanced Warfare): jeder Abtastwert zählt mit 1/(1+Helligkeit).
+// Einzelne superhelle Pixel (Glanzpunkte auf Wellen und Fels) flackern sonst als Lichtblitze durch die Überstrahlung.
+fn karisTap(uv: vec2f, o: vec2f, k: f32, acc: ptr<function, vec4f>) {
+  let s = tp(uv, o);
+  let w = k / (1.0 + max(s.r, max(s.g, s.b)));
+  *acc += vec4f(s * w, w);
+}
 @fragment fn fsDown(vin: VO) -> @location(0) vec4f {
   let uv = tuvOf(vin.uv);
+  if (Pp.w > 0.5) {
+    var a = vec4f(0.0);
+    karisTap(uv, vec2f(0.0), 0.125, &a);
+    karisTap(uv, vec2f(-2.0, 2.0), 0.03125, &a); karisTap(uv, vec2f(2.0, 2.0), 0.03125, &a);
+    karisTap(uv, vec2f(-2.0, -2.0), 0.03125, &a); karisTap(uv, vec2f(2.0, -2.0), 0.03125, &a);
+    karisTap(uv, vec2f(0.0, 2.0), 0.0625, &a); karisTap(uv, vec2f(-2.0, 0.0), 0.0625, &a);
+    karisTap(uv, vec2f(2.0, 0.0), 0.0625, &a); karisTap(uv, vec2f(0.0, -2.0), 0.0625, &a);
+    karisTap(uv, vec2f(-1.0, 1.0), 0.125, &a); karisTap(uv, vec2f(1.0, 1.0), 0.125, &a);
+    karisTap(uv, vec2f(-1.0, -1.0), 0.125, &a); karisTap(uv, vec2f(1.0, -1.0), 0.125, &a);
+    var c = a.rgb / max(a.w, 1e-6);
+    let br = max(c.r, max(c.g, c.b));
+    var soft = clamp(br - Pp.z + 0.5, 0.0, 1.0);
+    soft = soft * soft * 0.5;
+    c *= max(soft, br - Pp.z) / max(br, 1e-4);
+    return vec4f(min(c, vec3f(60.0)), 1.0);
+  }
   var c = tp(uv, vec2f(0.0)) * 0.125
     + (tp(uv, vec2f(-2.0, 2.0)) + tp(uv, vec2f(2.0, 2.0)) + tp(uv, vec2f(-2.0, -2.0)) + tp(uv, vec2f(2.0, -2.0))) * 0.03125
     + (tp(uv, vec2f(0.0, 2.0)) + tp(uv, vec2f(-2.0, 0.0)) + tp(uv, vec2f(2.0, 0.0)) + tp(uv, vec2f(0.0, -2.0))) * 0.0625
@@ -1665,1090 +1300,40 @@ fn flare(uv: vec2f) -> vec3f {
   c += (hash12(vin.pos.xy) - 0.5) / 255.0;
   return vec4f(c, 1.0);
 }
-`;
-
-// ------------------------------------------------------------------ GPU-Objekte
-let device, adapter, context, format, P, L;
-const OFFSCREEN = Q.has('offscreen');
-const GPU_RS = {};
-const VF = 3;          // GPUShaderStage.VERTEX | FRAGMENT
-const mipLevels = (n) => Math.floor(Math.log2(n)) + 1;
-const J_SLOTS = 1024, J_STRIDE = 256;
-let jBuf, jSlot = 0;
-let uBuf, uData = new Float32Array(172), dPlanet, dCloud, ppDummy, samp;
-
-async function initGPU() {
-  if (!navigator.gpu) fail(t('Dieser Browser kann kein WebGPU. Bitte Chrome oder Edge ab 113, Safari ab 26 oder Firefox ab 141 nehmen.', 'This browser has no WebGPU. Please use Chrome or Edge 113+, Safari 26+ or Firefox 141+.'));
-  adapter = await navigator.gpu.requestAdapter({ powerPreference: 'high-performance' });
-  if (!adapter) fail(t('Keine WebGPU-Grafikkarte gefunden.', 'No WebGPU adapter found.'));
-  const maxTex = adapter.limits.maxTextureDimension2D;
-  device = await adapter.requestDevice({ requiredLimits: { maxTextureDimension2D: maxTex } });
-  device.lost.then((info) => { if (info.reason !== 'destroyed') fail(t('Die Grafikkarte wurde verloren: ', 'The GPU device was lost: ') + info.message); });
-  device.addEventListener('uncapturederror', (e) => console.error('WebGPU: ' + e.error.message));
-  // ?offscreen: Bild nur in eine Textur (für Tests ohne Grafikkarte; der Software-Renderer kann kein Canvas zeigen)
-  if (OFFSCREEN) format = 'rgba8unorm';
-  else {
-    context = canvas.getContext('webgpu');
-    format = navigator.gpu.getPreferredCanvasFormat();
-    context.configure({ device, format, alphaMode: 'opaque' });
-  }
-  if (S.res > maxTex) S.res = maxTex;
-}
-
-function makeLayouts() {
-  const tex = (b, dim) => ({ binding: b, visibility: VF, texture: dim ? { viewDimension: dim } : {} });
-  const genL = (fmt, dim) => device.createBindGroupLayout({ entries: [
-    { binding: 0, visibility: GPUShaderStage.COMPUTE, buffer: { hasDynamicOffset: true, minBindingSize: 128 } },
-    { binding: 1, visibility: GPUShaderStage.COMPUTE, storageTexture: { access: 'write-only', format: fmt, viewDimension: dim } },
-  ] });
-  const mipL = (fmt) => device.createBindGroupLayout({ entries: [
-    { binding: 0, visibility: GPUShaderStage.COMPUTE, texture: { sampleType: 'unfilterable-float', viewDimension: '2d-array' } },
-    { binding: 1, visibility: GPUShaderStage.COMPUTE, storageTexture: { access: 'write-only', format: fmt, viewDimension: '2d-array' } },
-  ] });
-  L = {
-    main: device.createBindGroupLayout({ entries: [
-      { binding: 0, visibility: VF, buffer: {} }, { binding: 1, visibility: VF, sampler: {} },
-      tex(2, '2d-array'), tex(3), tex(4, '2d-array'), tex(5, '2d-array'), tex(6), tex(7, '2d-array'),
-    ] }),
-    draw: device.createBindGroupLayout({ entries: [{ binding: 0, visibility: VF, buffer: {} }] }),
-    post: device.createBindGroupLayout({ entries: [{ binding: 0, visibility: VF, buffer: {} }, tex(1), tex(2)] }),
-    gen16: genL('rgba16float', '2d-array'), gen8: genL('rgba8unorm', '2d-array'), trans: genL('rgba16float', '2d'),
-    mip16: mipL('rgba16float'), mip8: mipL('rgba8unorm'),
-  };
-}
-
-// Pipelines werden parallel und ohne Blockieren übersetzt (createRenderPipelineAsync), wie früher KHR_parallel_shader_compile
-function startPipelines() {
-  const mods = {
-    gen: [COMMON + NOISE + GEN, 'gen'], cloudGen: [COMMON + NOISE + CLOUDGEN, 'cloudGen'], nebGen: [COMMON + NOISE + NEBGEN, 'nebGen'],
-    trans: [TRANS, 'trans'], mip16: [MIP('rgba16float'), 'mip16'], mip8: [MIP('rgba8unorm'), 'mip8'],
-    scene: [UDECL + COMMON + TEXH + NOISE + ATMO + CLOUDF + SCENE, 'scene'],
-    post: [UDECL + COMMON + TEXH + ATMO + POST, 'post'],
-  };
-  const M = {};
-  for (const [k, [code, label]] of Object.entries(mods)) M[k] = device.createShaderModule({ code, label });
-  const pl = (...ls) => device.createPipelineLayout({ bindGroupLayouts: ls });
-  const comp = (m, lay) => device.createComputePipelineAsync({ layout: pl(lay), compute: { module: m, entryPoint: 'main' } });
-  const hdr = 'rgba16float';
-  const vtx = [{ arrayStride: 12, attributes: [{ shaderLocation: 0, offset: 0, format: 'float32x3' }] }];
-  const vtxPatch = [vtx[0], { arrayStride: 16, stepMode: 'instance', attributes: [{ shaderLocation: 1, offset: 0, format: 'float32x4' }] }];
-  const premul = { color: { srcFactor: 'one', dstFactor: 'one-minus-src-alpha' }, alpha: { srcFactor: 'one', dstFactor: 'one-minus-src-alpha' } };
-  const add = { color: { srcFactor: 'one', dstFactor: 'one' }, alpha: { srcFactor: 'one', dstFactor: 'one' } };
-  const rend = (m, vs, fs, layout, fmt, o = {}) => device.createRenderPipelineAsync({
-    layout,
-    vertex: { module: m, entryPoint: vs, buffers: o.mesh === 'patch' ? vtxPatch : o.mesh ? vtx : [] },
-    fragment: { module: m, entryPoint: fs, targets: [{ format: fmt, ...(o.blend ? { blend: o.blend } : {}) }] },
-    primitive: { topology: 'triangle-list', cullMode: o.mesh ? 'back' : 'none' },
-    ...(o.depth ? { depthStencil: { format: 'depth24plus', depthWriteEnabled: o.depth === 'write', depthCompare: o.depth === 'always' ? 'always' : 'less' } } : {}),
-  });
-  const scene = pl(L.main, L.draw), post = pl(L.main, L.post);
-  const list = {
-    gen: comp(M.gen, L.gen16), cloudGen: comp(M.cloudGen, L.gen8), nebGen: comp(M.nebGen, L.gen16), trans: comp(M.trans, L.trans),
-    mip16: comp(M.mip16, L.mip16), mip8: comp(M.mip8, L.mip8),
-    bg: rend(M.scene, 'vsFull', 'fsBg', scene, hdr, { depth: 'always' }),
-    planet: rend(M.scene, 'vsPatch', 'fsPlanet', scene, hdr, { mesh: 'patch', depth: 'write' }),
-    cloud: rend(M.scene, 'vsPlanet', 'fsCloud', scene, hdr, { mesh: true, depth: 'always', blend: premul }),
-    comp: rend(M.post, 'vsFull', 'fsComp', post, hdr),
-    down: rend(M.post, 'vsFull', 'fsDown', post, hdr),
-    up: rend(M.post, 'vsFull', 'fsUp', post, hdr, { blend: add }),
-    fin: rend(M.post, 'vsFull', 'fsFinal', post, format),
-  };
-  return { list, mods: M };
-}
-
-function texArray(N, fmt, levels, extra = 0) {
-  return device.createTexture({ size: [N, N, 6], format: fmt, mipLevelCount: levels,
-    usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.STORAGE_BINDING | extra });
-}
-const arrView = (tx) => tx.createView({ dimension: '2d-array' });
-// Schreibziel für Compute: nur die oberste Mip-Ebene
-const lvl0 = (tx) => tx.createView({ dimension: '2d-array', baseMipLevel: 0, mipLevelCount: 1 });
-const ubuf = (size) => device.createBuffer({ size, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
-let texIds = 0;
-const tagged = (tx) => { tx.fgpId = ++texIds; return tx; };
-
-// Würfel-Kugel-Gitter (gleiche Seitenbasis wie im Shader, Kanten treffen sich exakt)
-const BASIS = [
-  [[0, 0, -1], [0, 1, 0], [1, 0, 0]], [[0, 0, 1], [0, 1, 0], [-1, 0, 0]],
-  [[1, 0, 0], [0, 0, -1], [0, 1, 0]], [[1, 0, 0], [0, 0, 1], [0, -1, 0]],
-  [[1, 0, 0], [0, 1, 0], [0, 0, 1]], [[-1, 0, 0], [0, 1, 0], [0, 0, -1]],
-];
-function cubeSphere(G) {
-  const nv = (G + 1) * (G + 1);
-  const pos = new Float32Array(6 * nv * 3);
-  const idx = new Uint32Array(6 * G * G * 6);
-  let vi = 0, ii = 0;
-  for (let f = 0; f < 6; f++) {
-    const [ex, ey, em] = BASIS[f];
-    const base = f * nv;
-    for (let j = 0; j <= G; j++) for (let i = 0; i <= G; i++) {
-      const s = Math.tan((i / G * 2 - 1) * Math.PI / 4), tt = Math.tan((j / G * 2 - 1) * Math.PI / 4);
-      const x = em[0] + s * ex[0] + tt * ey[0], y = em[1] + s * ex[1] + tt * ey[1], z = em[2] + s * ex[2] + tt * ey[2];
-      const l = Math.hypot(x, y, z);
-      pos[vi++] = x / l; pos[vi++] = y / l; pos[vi++] = z / l;
-    }
-    for (let j = 0; j < G; j++) for (let i = 0; i < G; i++) {
-      const a = base + j * (G + 1) + i, b = a + 1, c = a + G + 1, d = c + 1;
-      idx[ii++] = a; idx[ii++] = b; idx[ii++] = d;
-      idx[ii++] = a; idx[ii++] = d; idx[ii++] = c;
-    }
-  }
-  const vb = device.createBuffer({ size: pos.byteLength, usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST });
-  device.queue.writeBuffer(vb, 0, pos);
-  const ib = device.createBuffer({ size: idx.byteLength, usage: GPUBufferUsage.INDEX | GPUBufferUsage.COPY_DST });
-  device.queue.writeBuffer(ib, 0, idx);
-  return { vb, ib, count: idx.length, G };
-}
-let meshPlanet, meshCloud;
-// Ein Kachel-Gitter (PATCH_G² Zellen) mit Schürze rundherum; z = 1 markiert Schürzen-Punkte
-function patchGrid(G) {
-  const W = G + 3, pos = new Float32Array(W * W * 3), idx = new Uint32Array((W - 1) * (W - 1) * 6);
-  let vi = 0, ii = 0;
-  for (let j = 0; j < W; j++) for (let i = 0; i < W; i++) {
-    const ci = Math.min(Math.max(i - 1, 0), G), cj = Math.min(Math.max(j - 1, 0), G);
-    pos[vi++] = ci / G; pos[vi++] = cj / G; pos[vi++] = (i === 0 || j === 0 || i === W - 1 || j === W - 1) ? 1 : 0;
-  }
-  for (let j = 0; j < W - 1; j++) for (let i = 0; i < W - 1; i++) {
-    const a = j * W + i, b = a + 1, c = a + W, d = c + 1;
-    idx[ii++] = a; idx[ii++] = b; idx[ii++] = d; idx[ii++] = a; idx[ii++] = d; idx[ii++] = c;
-  }
-  const vb = device.createBuffer({ size: pos.byteLength, usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST });
-  device.queue.writeBuffer(vb, 0, pos);
-  const ib = device.createBuffer({ size: idx.byteLength, usage: GPUBufferUsage.INDEX | GPUBufferUsage.COPY_DST });
-  device.queue.writeBuffer(ib, 0, idx);
-  const MAXI = 6144;
-  const inst = device.createBuffer({ size: MAXI * 16, usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST });
-  return { vb, ib, count: idx.length, G, inst, MAXI, data: new Float32Array(MAXI * 4), n: 0 };
-}
-const faceDirJS = (f, u, v) => {
-  const [ex, ey, em] = BASIS[f];
-  const s = Math.tan((u * 2 - 1) * Math.PI / 4), t = Math.tan((v * 2 - 1) * Math.PI / 4);
-  const x = em[0] + s * ex[0] + t * ey[0], y = em[1] + s * ex[1] + t * ey[1], z = em[2] + s * ex[2] + t * ey[2];
-  const l = Math.hypot(x, y, z); return [x / l, y / l, z / l];
-};
-// Quadtree je Würfelseite: teilen, solange die Kachel nah ist; hinter dem Horizont weglassen.
-// eo = Kamera im Planetenraum, pxK = Bildpunkte pro Bogenmaß im Abstand 1
-const SPLIT = coarse ? 3.5 : 6;
-function buildPatches(M, eo, maxDepth) {
-  const el = Math.hypot(eo[0], eo[1], eo[2]);
-  const horizon = 1 / el;
-  M.n = 0;
-  const visit = (f, u0, v0, sz, depth) => {
-    const c = faceDirJS(f, u0 + sz / 2, v0 + sz / 2);
-    const arc = sz * 1.1;   // halbe Diagonale grob in Bogenmaß
-    const cosV = (c[0] * eo[0] + c[1] * eo[1] + c[2] * eo[2]) / el;
-    if (cosV < horizon - arc - 0.03) return;
-    const dx = eo[0] - c[0], dy = eo[1] - c[1], dz = eo[2] - c[2];
-    const dist = Math.hypot(dx, dy, dz);
-    if (depth < maxDepth && dist < arc * SPLIT && M.n < M.MAXI - 4) {
-      const h = sz / 2;
-      visit(f, u0, v0, h, depth + 1); visit(f, u0 + h, v0, h, depth + 1);
-      visit(f, u0, v0 + h, h, depth + 1); visit(f, u0 + h, v0 + h, h, depth + 1);
-      return;
-    }
-    if (M.n >= M.MAXI) return;
-    M.data.set([f, u0, v0, sz], M.n * 4); M.n++;
-  };
-  for (let f = 0; f < 6; f++) visit(f, 0, 0, 1, 0);
-  device.queue.writeBuffer(M.inst, 0, M.data, 0, M.n * 4);
-}
-
-// ------------------------------------------------------------------ Ressourcen
-const RS = { nPrev: 128, nFull: 0, fullReady: false, cloudReady: false, nebReady: false, transKey: '', w: 0, h: 0 };
-function initResources() {
-  samp = device.createSampler({ magFilter: 'linear', minFilter: 'linear', mipmapFilter: 'linear', maxAnisotropy: 8, addressModeU: 'clamp-to-edge', addressModeV: 'clamp-to-edge' });
-  jBuf = device.createBuffer({ size: J_SLOTS * J_STRIDE, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
-  uBuf = ubuf(uData.byteLength);
-  dPlanet = ubuf(16); dCloud = ubuf(16); ppDummy = ubuf(16);
-  RS.hmPrev = tagged(texArray(RS.nPrev, 'rgba16float', mipLevels(RS.nPrev), GPUTextureUsage.COPY_SRC));
-  RS.cloud = texArray(cloudRes, 'rgba8unorm', mipLevels(cloudRes));
-  RS.neb = texArray(nebRes, 'rgba16float', 1);
-  RS.trans = device.createTexture({ size: [256, 64], format: 'rgba16float', usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.STORAGE_BINDING });
-  RS.biome = device.createTexture({ size: [512, 512], format: 'rgba8unorm', usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST | GPUTextureUsage.RENDER_ATTACHMENT });
-  const g = (lay, tx) => device.createBindGroup({ layout: lay, entries: [{ binding: 0, resource: { buffer: jBuf, size: 128 } }, { binding: 1, resource: tx }] });
-  RS.bgGenPrev = g(L.gen16, lvl0(RS.hmPrev));
-  RS.bgCloudGen = g(L.gen8, lvl0(RS.cloud));
-  RS.bgNebGen = g(L.gen16, arrView(RS.neb));
-  RS.bgTrans = g(L.trans, RS.trans.createView());
-  RS.bgDrawPlanet = device.createBindGroup({ layout: L.draw, entries: [{ binding: 0, resource: { buffer: dPlanet } }] });
-  RS.bgDrawCloud = device.createBindGroup({ layout: L.draw, entries: [{ binding: 0, resource: { buffer: dCloud } }] });
-  RS.views = { cloud: arrView(RS.cloud), neb: arrView(RS.neb), trans: RS.trans.createView(), biome: RS.biome.createView() };
-  RS.shown = RS.hmPrev; RS.nShown = RS.nPrev;
-  meshPlanet = patchGrid(PATCH_G);
-  RS.river = tagged(device.createTexture({ size: [1, 1, 6], format: 'r8unorm', usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST }));
-  RS.nRiver = 0;
-  meshCloud = cubeSphere(coarse ? 48 : 72);
-}
-// Bindungen der Szene; neu, sobald die gezeigte Höhenkarte wechselt (Vorschau -> volle Auflösung)
-function mainGroup() {
-  const key = RS.shown.fgpId + ':' + RS.river.fgpId;
-  if (RS.mainKey === key) return RS.mainBG;
-  RS.mainKey = key;
-  RS.mainBG = device.createBindGroup({ layout: L.main, entries: [
-    { binding: 0, resource: { buffer: uBuf } }, { binding: 1, resource: samp },
-    { binding: 2, resource: arrView(RS.shown) }, { binding: 3, resource: RS.views.biome },
-    { binding: 4, resource: RS.views.cloud }, { binding: 5, resource: RS.views.neb }, { binding: 6, resource: RS.views.trans },
-    { binding: 7, resource: arrView(RS.river) },
-  ] });
-  return RS.mainBG;
-}
-
-// ------------------------------------------------------------------ Rechen-Aufträge (Compute) mit eigenem Parameterplatz
-function makeCtx(enc) { return { enc, used: 0 }; }
-function dispatch(ctx, pipe, bg, params, wx, wy, wz = 1) {
-  const off = jSlot * J_STRIDE;
-  jSlot = (jSlot + 1) % J_SLOTS;
-  ctx.used++;
-  device.queue.writeBuffer(jBuf, off, params);
-  const pass = ctx.enc.beginComputePass();
-  pass.setPipeline(pipe);
-  pass.setBindGroup(0, bg, [off]);
-  pass.dispatchWorkgroups(wx, wy, wz);
-  pass.end();
-}
-function genMips(enc, tx, N, lay, pipe) {
-  for (let l = 1; l < tx.mipLevelCount; l++) {
-    const n = Math.max(1, N >> l);
-    const bg = device.createBindGroup({ layout: lay, entries: [
-      { binding: 0, resource: tx.createView({ dimension: '2d-array', baseMipLevel: l - 1, mipLevelCount: 1 }) },
-      { binding: 1, resource: tx.createView({ dimension: '2d-array', baseMipLevel: l, mipLevelCount: 1 }) },
-    ] });
-    const pass = enc.beginComputePass();
-    pass.setPipeline(pipe);
-    pass.setBindGroup(0, bg);
-    pass.dispatchWorkgroups(Math.ceil(n / 8), Math.ceil(n / 8), 6);
-    pass.end();
-  }
-}
-// Kachel-Parameter: g = Ende, h = (Anfang, Seite, N)
-function tileParams(p, face, x, y, w, h, N) { p.set([x + w, y + h, 0, 0, x, y, face, N], 24); return p; }
-
-// ------------------------------------------------------------------ Biom-Bild (Original-Algorithmus, 2D-Canvas)
-function hsl(h, s, l) {
-  h = ((h % 360) + 360) % 360 / 360;
-  const q = l < 0.5 ? l * (1 + s) : l + s - l * s, p = 2 * l - q;
-  const f = (tt) => { tt = (tt + 1) % 1; return tt < 1 / 6 ? p + (q - p) * 6 * tt : tt < 0.5 ? q : tt < 2 / 3 ? p + (q - p) * (2 / 3 - tt) * 6 : p; };
-  return [Math.round(f(h + 1 / 3) * 255), Math.round(f(h) * 255), Math.round(f(h - 1 / 3) * 255)];
-}
-function drawBiome(seed, wl) {
-  const R = rng(seed + '|biome');
-  const rr = (a, b) => a + (b - a) * R();
-  const ctx = lutCanvas.getContext('2d');
-  const W = 512, H = 512;
-  const base = { h: R() * 360, s: rr(0.08, 0.45), l: rr(0.3, 0.58) };
-  const colorAngle = rr(0.2, 0.4), satRange = rr(0.15, 0.35), lightRange = rr(0.3, 0.5), circleSize = rr(30, 250);
-  const rc = () => hsl(base.h + rr(-1, 1) * colorAngle * 180, clamp(base.s + rr(-satRange, satRange), 0, 1), clamp(base.l + rr(-lightRange, lightRange), 0.05, 0.92));
-  const css = (c, a) => `rgba(${c[0]},${c[1]},${c[2]},${a})`;
-  ctx.globalCompositeOperation = 'source-over';
-  ctx.fillStyle = css(hsl(base.h, base.s, base.l), 1);
-  ctx.fillRect(0, 0, W, H);
-  const strip = (x, y, w, h) => {
-    const g = ctx.createLinearGradient(rr(0, W), rr(0, H), rr(0, W), rr(0, H));
-    const c = rc();
-    g.addColorStop(rr(0, 0.5), css(c, 0));
-    g.addColorStop(0.5, css(c, 0.8));
-    g.addColorStop(rr(0.5, 1), css(c, 0));
-    ctx.fillStyle = g;
-    ctx.fillRect(x, y, w, h);
-  };
-  for (let i = 0; i < 5; i++) strip(0, 0, W, H);                       // drawBase
-  for (let i = 0; i < 100; i++) {                                       // randomGradientCircle ×100
-    const x = rr(0, W), y = rr(0, H) - H * wl, size = rr(10, circleSize);
-    const g = ctx.createRadialGradient(x, y, 0, x, y, size);
-    const c = rc();
-    g.addColorStop(0, css(c, 0.5));
-    g.addColorStop(1, css(c, 0));
-    ctx.fillStyle = g;
-    ctx.fillRect(0, 0, W, H);
-  }
-  const landDetail = Math.round(rr(0, 5));                              // drawDetail
-  for (let i = 0; i < 5; i++) {
-    const x1 = rr(0, W), y1 = rr(0, H), x2 = rr(0, W), y2 = rr(0, H);
-    if (i < landDetail) strip(x1, y1, x2 - x1, y2 - y1); else { rc(); R(); R(); R(); R(); R(); R(); }
-  }
-  const band = (y1, h, c, a0, a1) => {                                  // drawInland / drawBeach
-    const g = ctx.createLinearGradient(0, y1, 0, y1 + h);
-    g.addColorStop(0, css(c, a0));
-    g.addColorStop(1, css(c, a1));
-    ctx.fillStyle = g;
-    ctx.fillRect(0, y1, W, h);
-  };
-  const yw = H - H * wl;
-  band(yw - 100, 100, rc(), 0, 0.5);
-  band(yw - 7, 7, rc(), 0, 0.3);
-  const wc = rc();                                                      // drawWater
-  const g = ctx.createLinearGradient(0, yw, 0, H);
-  const sc = (k) => [Math.min(255, Math.round(wc[0] * k)), Math.min(255, Math.round(wc[1] * k)), Math.min(255, Math.round(wc[2] * k))];
-  g.addColorStop(0, css(sc(1.3), 0.9));
-  g.addColorStop(0.2, css(sc(1.0), 0.9));
-  g.addColorStop(0.8, css(sc(0.7), 0.9));
-  ctx.fillStyle = g;
-  ctx.fillRect(0, yw, W, H - yw);
-  // unten im Bild = Wasser = v 0, wie beim Hochladen mit UNPACK_FLIP_Y in WebGL
-  device.queue.copyExternalImageToTexture({ source: lutCanvas, flipY: true }, { texture: RS.biome }, [512, 512]);
-}
-
-// ------------------------------------------------------------------ Erzeugung (in Kacheln, damit die Seite flüssig bleibt)
-let jobs = [], jobTotal = 0, jobDone = 0, genToken = 0, regenBusy = 0;
-let cdf = null, moistQ = [0, 1];
-let seaH = 0.5;
-let lutDirty = false;
-
-// Erosions-Oktaven, die die Karte noch auflöst (Zelle ≥ 4 Texel); der Rest läuft live im Pixel
-const eroOct = (N) => clamp(Math.floor(Math.log2(N / 213)) + 1, 1, 6);
-function genParams(mode, N, erosion) {
-  const f = PP.h, m = PP.m;
-  return new Float32Array([
-    f.res1, f.res2, f.resMix, f.mixScale,
-    f.type, PP.noiseSeed, m.type, PP.noiseSeed + 392.253,
-    m.res1 * PP.moistM, m.res2, m.resMix, m.mixScale,
-    erosion, 34.0, 0.9, 1.0,
-    PP.mountains, PP.beltFreq, 7.0, 0.35,
-    mode, eroOct(N), seaH, S.volcanoes,
-    0, 0, 0, 0, 0, 0, 0, N,
-  ]);
-}
-function queueTiles(N, tile, params, pipe, bg, onDone) {
-  const token = genToken;
-  for (let f = 0; f < 6; f++) for (let y = 0; y < N; y += tile) for (let x = 0; x < N; x += tile) {
-    const w = Math.min(tile, N - x), h = Math.min(tile, N - y);
-    jobs.push({ cost: w * h, run: (ctx) => {
-      if (token !== genToken) return;
-      dispatch(ctx, pipe(), bg(), tileParams(params(), f, x, y, w, h, N), Math.ceil(w / 8), Math.ceil(h / 8));
-    } });
-    jobTotal += w * h;
-  }
-  jobs.push({ cost: 0, run: (ctx) => { if (token === genToken) onDone(ctx); } });
-}
-// Aufträge im Zeitbudget abarbeiten (höchstens so viele, wie Parameterplätze frei sind)
-function runJobs(enc, budget) {
-  const ctx = makeCtx(enc);
-  let spent = 0;
-  while (jobs.length && spent < budget && ctx.used < J_SLOTS - 8) { const j = jobs.shift(); j.run(ctx); spent += j.cost; jobDone += j.cost; }
-}
-function quantile(arr, q) { return arr[clamp(Math.round(q * (arr.length - 1)), 0, arr.length - 1)]; }
-function seaFromFraction(fr) {
-  if (!cdf) return 0.5;
-  if (fr <= 0) return cdf[0] - 0.01;
-  if (fr >= 1) return cdf[cdf.length - 1] + 0.01;
-  return quantile(cdf, fr);
-}
-const half = (x) => { const e = (x >> 10) & 31, m = x & 1023, sg = x & 32768 ? -1 : 1; return e === 0 ? sg * m * 5.960464477539063e-8 : e === 31 ? sg * 65504 : sg * (1 + m / 1024) * Math.pow(2, e - 15); };
-
-async function makeFullMap(N) {
-  device.pushErrorScope('out-of-memory');
-  const tx = texArray(N, 'rgba16float', mipLevels(N));
-  const err = await device.popErrorScope();
-  if (err) { tx.destroy(); return null; }
-  return tagged(tx);
-}
-
-// Milchstraße neu (nur der Hintergrund, der Planet bleibt)
-function queueSky() {
-  // altes Bild bleibt stehen, bis das neue fertig ist (nur bei neuem Seed ausblenden)
-  if (RS.nebSeed !== S.seed) RS.nebReady = false;
-  RS.nebSeed = S.seed;
-  // Lage der Galaxie am Himmel: zufälliger Pol, Kern senkrecht dazu
-  const R = rng(S.seed + '|galaxy');
-  const pole = V.norm([R() * 2 - 1, R() * 2 - 1, R() * 2 - 1]);
-  const core = V.norm(V.cross(pole, V.norm([R() * 2 - 1, R() * 2 - 1, R() * 2 - 1])));
-  RS.galCore = core;
-  const prm = new Float32Array(32);
-  prm.set([PP.nebSeed, 0.1 * PP.nebBright, S.mwWidth, S.mwCore, ...pole, 0, ...core, 0, (PP.nebHue - 0.5) * 0.3, S.mwDust, S.mwHii, 0]);
-  queueTiles(nebRes, 256, () => prm.slice(), () => P.nebGen, () => RS.bgNebGen, () => { RS.nebReady = true; });
-}
-
-// ------------------------------------------------------------------ Flüsse
-// Höhenkarte in mittlerer Auflösung lesen, Senken füllen (Priority-Flood, Barnes et al. 2014),
-// Abfluss sammeln (O'Callaghan & Mark 1984) und Flussläufe als weiche Kurven in eine Maske zeichnen.
-let riverT = 0, riverToken = 0;
-const QP = Math.PI / 4;
-function toFaceJS(d) {
-  let best = 0, bv = -2;
-  for (let f = 0; f < 6; f++) { const em = BASIS[f][2]; const v = em[0] * d[0] + em[1] * d[1] + em[2] * d[2]; if (v > bv) { bv = v; best = f; } }
-  return [best, ...faceUvJS(best, d)];
-}
-function faceUvJS(f, d) {
-  const [ex, ey, em] = BASIS[f];
-  const z = em[0] * d[0] + em[1] * d[1] + em[2] * d[2];
-  const x = ex[0] * d[0] + ex[1] * d[1] + ex[2] * d[2], y = ey[0] * d[0] + ey[1] * d[1] + ey[2] * d[2];
-  return [(Math.atan2(x, z) / QP + 1) / 2, (Math.atan2(y, z) / QP + 1) / 2];
-}
-async function buildRivers() {
-  if (!device || !RS.river || S.style === 'orig') return;
-  const token = ++riverToken;
-  if (!S.rivers) { RS.nRiver = 0; return; }
-  const n = coarse ? 256 : 512, NR = coarse ? 1024 : 2048;
-  const mode = 1, ero = S.erosion;
-  // 1) Höhen auf der GPU erzeugen und zurücklesen
-  const tx = device.createTexture({ size: [n, n, 6], format: 'rgba16float', usage: GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.COPY_SRC });
-  const bg = device.createBindGroup({ layout: L.gen16, entries: [{ binding: 0, resource: { buffer: jBuf, size: 128 } }, { binding: 1, resource: tx.createView({ dimension: '2d-array' }) }] });
-  const enc = device.createCommandEncoder();
-  const ctx = makeCtx(enc);
-  for (let f = 0; f < 6; f++) dispatch(ctx, P.gen, bg, tileParams(genParams(mode, n, ero), f, 0, 0, n, n, n), n / 8, n / 8);
-  const rb = device.createBuffer({ size: n * 8 * n * 6, usage: GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST });
-  enc.copyTextureToBuffer({ texture: tx }, { buffer: rb, bytesPerRow: n * 8, rowsPerImage: n }, [n, n, 6]);
-  device.queue.submit([enc.finish()]);
-  await rb.mapAsync(GPUMapMode.READ);
-  const hb = new Uint16Array(rb.getMappedRange().slice(0));
-  rb.unmap(); rb.destroy(); tx.destroy();
-  if (token !== riverToken) return;
-  const C = 6 * n * n, sea = seaH;
-  const H = new Float32Array(C), rain = new Float32Array(C);
-  for (let i = 0; i < C; i++) { H[i] = half(hb[i * 4]); rain[i] = 0.4 + clamp((half(hb[i * 4 + 1]) - moistQ[0]) / (moistQ[1] - moistQ[0] + 1e-6), 0, 1.2); }
-  const n1 = n - 1;
-  const idx = (f, i, j) => (f * n + j) * n + i;
-  // Nachbar über Seitenkanten hinweg: Richtung bilden, zur passenden Seite zurückrechnen
-  const nb = (f, i, j, di, dj) => {
-    const a = i + di, b = j + dj;
-    if (a >= 0 && a <= n1 && b >= 0 && b <= n1) return idx(f, a, b);
-    const [g, u, v] = toFaceJS(faceDirJS(f, a / n1, b / n1));
-    return idx(g, clamp(Math.round(u * n1), 0, n1), clamp(Math.round(v * n1), 0, n1));
-  };
-  // 2) Priority-Flood mit Binärheap; jede Zelle fließt zu der Zelle, von der aus sie erreicht wurde
-  const hk = new Float32Array(C + 8), hv = new Int32Array(C + 8);
-  let hn = 0;
-  const push = (k, v) => { let i = hn++; while (i > 0) { const p = (i - 1) >> 1; if (hk[p] <= k) break; hk[i] = hk[p]; hv[i] = hv[p]; i = p; } hk[i] = k; hv[i] = v; };
-  const pop = () => { const v = hv[0], k = hk[--hn], x = hv[hn]; let i = 0; for (;;) { let c = 2 * i + 1; if (c >= hn) break; if (c + 1 < hn && hk[c + 1] < hk[c]) c++; if (hk[c] >= k) break; hk[i] = hk[c]; hv[i] = hv[c]; i = c; } hk[i] = k; hv[i] = x; return v; };
-  const down = new Int32Array(C).fill(-2), fill = new Float32Array(C), order = new Int32Array(C);
-  let seeds = 0;
-  for (let c = 0; c < C; c++) if (H[c] < sea) { down[c] = -1; fill[c] = H[c]; push(H[c], c); seeds++; }
-  if (!seeds) { let m = 0; for (let c = 1; c < C; c++) if (H[c] < H[m]) m = c; down[m] = -1; fill[m] = H[m]; push(H[m], m); }
-  let on = 0;
-  const DI = [1, -1, 0, 0, 1, 1, -1, -1], DJ = [0, 0, 1, -1, 1, -1, 1, -1];
-  while (hn) {
-    const c = pop();
-    order[on++] = c;
-    const f = (c / (n * n)) | 0, r = c - f * n * n, j = (r / n) | 0, i = r - j * n;
-    for (let k = 0; k < 8; k++) {
-      const q = nb(f, i, j, DI[k], DJ[k]);
-      if (down[q] !== -2) continue;
-      down[q] = c;
-      fill[q] = Math.max(H[q], fill[c] + 1e-7);
-      push(fill[q], q);
-    }
-  }
-  // 3) Abfluss sammeln (von oben nach unten), Hauptzufluss merken
-  const acc = new Float32Array(C), up = new Int32Array(C).fill(-1);
-  for (let c = 0; c < C; c++) if (H[c] >= sea) acc[c] = rain[c];
-  for (let k = on - 1; k >= 0; k--) {
-    const c = order[k], d = down[c];
-    if (d < 0 || H[c] < sea) continue;
-    acc[d] += acc[c];
-    if (up[d] < 0 || acc[c] > acc[up[d]]) up[d] = c;
-  }
-  if (token !== riverToken) return;
-  // 4) Maske zeichnen: quadratische Bézier-Kurven durch die Kantenmitten, Breite ~ √Abfluss
-  const T = C * 0.00015, sc = (NR - 1) / n1;
-  const mask = new Uint8Array(6 * NR * NR);
-  const jit = (c) => { const x = Math.sin(c * 12.9898) * 43758.5453, y = Math.sin(c * 78.233) * 12345.6789; return [(x - Math.floor(x) - 0.5) * 0.7, (y - Math.floor(y) - 0.5) * 0.7]; };
-  const posOn = (f, c) => {
-    const g = (c / (n * n)) | 0, r = c - g * n * n, j = (r / n) | 0, i = r - j * n;
-    const J = jit(c);
-    if (g === f) return [(i + J[0]) * sc, (j + J[1]) * sc];
-    const [u, v] = faceUvJS(f, faceDirJS(g, i / n1, j / n1));
-    return [u * n1 * sc, v * n1 * sc];
-  };
-  const stamp = (f, x, y, w) => {
-    const R = Math.ceil(w + 1.5), base = f * NR * NR;
-    const x0 = Math.max(0, Math.floor(x - R)), x1 = Math.min(NR - 1, Math.ceil(x + R));
-    const y0 = Math.max(0, Math.floor(y - R)), y1 = Math.min(NR - 1, Math.ceil(y + R));
-    for (let py = y0; py <= y1; py++) for (let px = x0; px <= x1; px++) {
-      const v = clamp(w + 0.5 - Math.hypot(px - x, py - y), 0, 1) * 255;
-      const o = base + py * NR + px;
-      if (v > mask[o]) mask[o] = v;
-    }
-  };
-  const wK = NR / 2048;
-  for (let c = 0; c < C; c++) {
-    if (H[c] < sea || acc[c] < T || down[c] < 0) continue;
-    const f = (c / (n * n)) | 0;
-    const Pc = posOn(f, c), Pd = posOn(f, down[c]);
-    const u = up[c];
-    const Pa = u >= 0 && acc[u] >= T ? posOn(f, u) : Pc;
-    const A = [(Pa[0] + Pc[0]) / 2, (Pa[1] + Pc[1]) / 2], B = [(Pc[0] + Pd[0]) / 2, (Pc[1] + Pd[1]) / 2];
-    const w0 = clamp(0.55 * Math.sqrt(acc[c] / T), 0.7, 5) * wK;
-    const w1 = clamp(0.55 * Math.sqrt(acc[down[c]] / T), 0.7, 5) * wK;
-    const len = Math.hypot(A[0] - Pc[0], A[1] - Pc[1]) + Math.hypot(B[0] - Pc[0], B[1] - Pc[1]);
-    const steps = Math.max(2, Math.ceil(len / 0.7));
-    for (let s = 0; s <= steps; s++) {
-      const t = s / steps, a = (1 - t) * (1 - t), b = 2 * t * (1 - t), e = t * t;
-      stamp(f, a * A[0] + b * Pc[0] + e * B[0], a * A[1] + b * Pc[1] + e * B[1], w0 + (w1 - w0) * t * 0.5);
-    }
-  }
-  if (token !== riverToken) return;
-  // 5) Hochladen mit Mipmaps (2×2-Mittel auf der CPU)
-  const levels = mipLevels(NR);
-  const tex = tagged(device.createTexture({ size: [NR, NR, 6], format: 'r8unorm', mipLevelCount: levels, usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST }));
-  let cur = mask, m = NR;
-  for (let l = 0; l < levels; l++) {
-    const bpr = Math.max(256, m);
-    for (let f = 0; f < 6; f++) {
-      let data = cur.subarray(f * m * m, (f + 1) * m * m);
-      if (bpr !== m) { const pad = new Uint8Array(bpr * m); for (let y = 0; y < m; y++) pad.set(data.subarray(y * m, y * m + m), y * bpr); data = pad; }
-      device.queue.writeTexture({ texture: tex, mipLevel: l, origin: [0, 0, f] }, data, { bytesPerRow: bpr, rowsPerImage: m }, [m, m, 1]);
-    }
-    if (m === 1) break;
-    const h2 = m >> 1, nx = new Uint8Array(6 * h2 * h2);
-    for (let f = 0; f < 6; f++) for (let y = 0; y < h2; y++) for (let x = 0; x < h2; x++) {
-      const o = f * m * m + 2 * y * m + 2 * x;
-      nx[f * h2 * h2 + y * h2 + x] = (cur[o] + cur[o + 1] + cur[o + m] + cur[o + m + 1] + 2) >> 2;
-    }
-    cur = nx; m = h2;
-  }
-  const old = RS.river;
-  RS.river = tex; RS.nRiver = NR;
-  if (old) setTimeout(() => old.destroy(), 500);
-}
-
-async function regenerate(full) {
-  const token = ++genToken;
-  jobs = []; jobTotal = 0; jobDone = 0;
-  regenBusy++;
-  try {
-    const mode = S.style === 'orig' ? 0 : 1;
-    const ero = mode === 1 ? S.erosion : 0;
-    // 1) Vorschau 128² sofort, daraus die Höhenverteilung für den Meeresspiegel
-    const n = RS.nPrev;
-    const enc = device.createCommandEncoder();
-    const ctx = makeCtx(enc);
-    for (let f = 0; f < 6; f++) dispatch(ctx, P.gen, RS.bgGenPrev, tileParams(genParams(mode, n, 0), f, 0, 0, n, n, n), n / 8, n / 8);
-    genMips(enc, RS.hmPrev, n, L.mip16, P.mip16);
-    const rb = device.createBuffer({ size: n * 8 * n * 6, usage: GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST });
-    enc.copyTextureToBuffer({ texture: RS.hmPrev }, { buffer: rb, bytesPerRow: n * 8, rowsPerImage: n }, [n, n, 6]);
-    device.queue.submit([enc.finish()]);
-    RS.shown = RS.hmPrev; RS.nShown = n; RS.fullReady = false;
-    await rb.mapAsync(GPUMapMode.READ);
-    const hb = new Uint16Array(rb.getMappedRange().slice(0));
-    rb.unmap(); rb.destroy();
-    if (token !== genToken) return;
-    const hs = [], ms = [];
-    for (let i = 0; i < 6 * n * n; i += 3) { hs.push(half(hb[i * 4])); ms.push(half(hb[i * 4 + 1])); }
-    hs.sort((a, b) => a - b); ms.sort((a, b) => a - b);
-    cdf = Float32Array.from(hs);
-    moistQ = [quantile(ms, 0.04), quantile(ms, 0.96)];
-    if (S.sea < 0) S.sea = PP.water;
-    seaH = seaFromFraction(S.sea);
-    drawBiome(S.seed, clamp(seaH, 0, 1));
-    buildRivers();
-    // 2) volle Auflösung
-    if (full !== false) {
-      let N = S.res;
-      if (!RS.hmFull || RS.nFull !== N) {
-        if (RS.hmFull) RS.hmFull.destroy();
-        RS.hmFull = await makeFullMap(N);
-        // zu wenig Grafikspeicher: halbe Auflösung
-        while (!RS.hmFull && N > 512) { N = S.res = N >> 1; RS.hmFull = await makeFullMap(N); }
-        RS.nFull = N;
-        RS.bgGenFull = RS.hmFull && device.createBindGroup({ layout: L.gen16, entries: [{ binding: 0, resource: { buffer: jBuf, size: 128 } }, { binding: 1, resource: lvl0(RS.hmFull) }] });
-        if (token !== genToken) return;
-      }
-      if (RS.hmFull) {
-        const full = RS.hmFull;
-        queueTiles(N, 256, () => genParams(mode, N, ero), () => P.gen, () => RS.bgGenFull, (c) => {
-          genMips(c.enc, full, N, L.mip16, P.mip16);
-          RS.shown = full; RS.nShown = N; RS.fullReady = true;
-        });
-      }
-    }
-    // 3) Wolken und Nebel gehören zum Seed
-    if (RS.cloudSeed !== S.seed) initCyclones(S.seed);
-    if (RS.cloudSeed !== S.seed || !RS.cloudReady) {
-      RS.cloudSeed = S.seed; RS.cloudReady = false;
-      queueTiles(cloudRes, 256, () => new Float32Array([PP.cloudSeed, 0, 0, 0, ...new Array(28).fill(0)]), () => P.cloudGen, () => RS.bgCloudGen, (c) => {
-        genMips(c.enc, RS.cloud, cloudRes, L.mip8, P.mip8);
-        RS.cloudReady = true;
-      });
-    }
-    if (RS.nebSeed !== S.seed || !RS.nebReady) queueSky();
-  } finally { regenBusy--; }
-}
-
-function atmoParams() {
-  const k = S.thick, Rkm = 6371;
-  const scale = Rkm * 1000 / k;
-  return {
-    HR: 8 / Rkm * k, HM: 1.2 / Rkm * k, Rt: 1 + 60 / Rkm * k,
-    bR: [5.802e-6, 13.558e-6, 33.1e-6].map((v) => v * scale * S.atmo),
-    bM: 3.996e-6 * scale * S.haze, bMe: 4.44e-6 * scale * S.haze,
-    bO: [0.65e-6, 1.881e-6, 0.085e-6].map((v) => v * scale * S.atmo),
-    oz: [25 / Rkm * k, 15 / Rkm * k],
-  };
-}
-function updateTrans(enc) {
-  const key = `${S.thick}|${S.atmo}|${S.haze}`;
-  if (key === RS.transKey) return;
-  RS.transKey = key;
-  const A = atmoParams();
-  const p = new Float32Array(32);
-  p.set([1, A.Rt, A.HR, A.HM, ...A.bR, A.bMe, ...A.bO, 0, A.oz[0], A.oz[1], 0, 0]);
-  dispatch(makeCtx(enc), P.trans, RS.bgTrans, p, 32, 8);
-}
-
-// ------------------------------------------------------------------ Ziele (HDR, Tiefe, Überstrahlung)
-function ensureTargets(w, h) {
-  if (RS.w === w && RS.h === h) return;
-  for (const k of ['scene', 'hdr2', 'depth']) if (RS[k]) RS[k].destroy();
-  for (const b of RS.bloom || []) b.tx.destroy();
-  RS.w = w; RS.h = h;
-  const rt = (W, H, fmt) => device.createTexture({ size: [W, H], format: fmt || 'rgba16float', usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING });
-  RS.scene = rt(w, h); RS.hdr2 = rt(w, h); RS.depth = rt(w, h, 'depth24plus');
-  RS.sceneV = RS.scene.createView(); RS.hdr2V = RS.hdr2.createView(); RS.depthV = RS.depth.createView();
-  if (OFFSCREEN) {
-    if (RS.out) RS.out.destroy();
-    RS.out = device.createTexture({ size: [w, h], format, usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.COPY_SRC });
-    RS.outV = RS.out.createView();
-  }
-  RS.bloom = [];
-  let bw = w >> 1, bh = h >> 1;
-  for (let i = 0; i < 6 && bw >= 4 && bh >= 4; i++) {
-    const tx = rt(bw, bh);
-    RS.bloom.push({ tx, v: tx.createView(), w: bw, h: bh, pd: ubuf(16), pu: ubuf(16) });
-    bw >>= 1; bh >>= 1;
-  }
-  const pg = (buf, a, b) => device.createBindGroup({ layout: L.post, entries: [{ binding: 0, resource: { buffer: buf } }, { binding: 1, resource: a }, { binding: 2, resource: b || a }] });
-  RS.pgComp = pg(ppDummy, RS.sceneV);
-  RS.pgFinNoBloom = pg(ppDummy, RS.hdr2V);
-  RS.pgFin = RS.bloom.length ? pg(ppDummy, RS.hdr2V, RS.bloom[0].v) : RS.pgFinNoBloom;
-  RS.bloom.forEach((b, i) => {
-    b.gDown = pg(b.pd, i === 0 ? RS.hdr2V : RS.bloom[i - 1].v);
-    b.gUp = pg(b.pu, b.v);
-  });
-}
-
-// ------------------------------------------------------------------ Mathe
-const V = {
-  sub: (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]],
-  dot: (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2],
-  cross: (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]],
-  norm: (a) => { const l = Math.hypot(a[0], a[1], a[2]) || 1; return [a[0] / l, a[1] / l, a[2] / l]; },
-};
-// Tiefe 0..1 wie in WebGPU (statt −1..1 in GL)
-function persp(fovy, aspect, n, f) {
-  const tt = 1 / Math.tan(fovy / 2);
-  return new Float32Array([tt / aspect, 0, 0, 0, 0, tt, 0, 0, 0, 0, f / (n - f), -1, 0, 0, n * f / (n - f), 0]);
-}
-function lookAt(e, c, up) {
-  const z = V.norm(V.sub(e, c)), x = V.norm(V.cross(up, z)), y = V.cross(z, x);
-  return new Float32Array([x[0], y[0], z[0], 0, x[1], y[1], z[1], 0, x[2], y[2], z[2], 0, -V.dot(x, e), -V.dot(y, e), -V.dot(z, e), 1]);
-}
-function mul4(a, b) {
-  const o = new Float32Array(16);
-  for (let c = 0; c < 4; c++) for (let r = 0; r < 4; r++) {
-    let s = 0;
-    for (let k = 0; k < 4; k++) s += a[k * 4 + r] * b[c * 4 + k];
-    o[c * 4 + r] = s;
-  }
-  return o;
-}
-function inv4(m) {
-  const a = m, o = new Float32Array(16);
-  const b00 = a[0] * a[5] - a[1] * a[4], b01 = a[0] * a[6] - a[2] * a[4], b02 = a[0] * a[7] - a[3] * a[4];
-  const b03 = a[1] * a[6] - a[2] * a[5], b04 = a[1] * a[7] - a[3] * a[5], b05 = a[2] * a[7] - a[3] * a[6];
-  const b06 = a[8] * a[13] - a[9] * a[12], b07 = a[8] * a[14] - a[10] * a[12], b08 = a[8] * a[15] - a[11] * a[12];
-  const b09 = a[9] * a[14] - a[10] * a[13], b10 = a[9] * a[15] - a[11] * a[13], b11 = a[10] * a[15] - a[11] * a[14];
-  const det = 1 / (b00 * b11 - b01 * b10 + b02 * b09 + b03 * b08 - b04 * b07 + b05 * b06);
-  o[0] = (a[5] * b11 - a[6] * b10 + a[7] * b09) * det; o[1] = (a[2] * b10 - a[1] * b11 - a[3] * b09) * det;
-  o[2] = (a[13] * b05 - a[14] * b04 + a[15] * b03) * det; o[3] = (a[10] * b04 - a[9] * b05 - a[11] * b03) * det;
-  o[4] = (a[6] * b08 - a[4] * b11 - a[7] * b07) * det; o[5] = (a[0] * b11 - a[2] * b08 + a[3] * b07) * det;
-  o[6] = (a[14] * b02 - a[12] * b05 - a[15] * b01) * det; o[7] = (a[8] * b05 - a[10] * b02 + a[11] * b01) * det;
-  o[8] = (a[4] * b10 - a[5] * b08 + a[7] * b06) * det; o[9] = (a[1] * b08 - a[0] * b10 - a[3] * b06) * det;
-  o[10] = (a[12] * b04 - a[13] * b02 + a[15] * b00) * det; o[11] = (a[9] * b02 - a[8] * b04 - a[11] * b00) * det;
-  o[12] = (a[5] * b07 - a[4] * b09 - a[6] * b06) * det; o[13] = (a[0] * b09 - a[1] * b07 + a[2] * b06) * det;
-  o[14] = (a[13] * b01 - a[12] * b03 - a[14] * b00) * det; o[15] = (a[8] * b03 - a[9] * b01 + a[10] * b00) * det;
-  return o;
-}
-// Drehung des Planeten: erst um die eigene Achse (y), dann Achsneigung (z). Spaltenweise.
-function planetMatrix(spin, tilt) {
-  const c = Math.cos(spin), s = Math.sin(spin), ct = Math.cos(tilt), st = Math.sin(tilt);
-  const ry = [c, 0, -s, 0, 1, 0, s, 0, c];
-  const rz = [ct, st, 0, -st, ct, 0, 0, 0, 1];
-  const o = new Float32Array(9);
-  for (let col = 0; col < 3; col++) for (let r = 0; r < 3; r++) {
-    let v = 0;
-    for (let k = 0; k < 3; k++) v += rz[k * 3 + r] * ry[col * 3 + k];
-    o[col * 3 + r] = v;
-  }
-  return o;
-}
-
-// ------------------------------------------------------------------ Kamera & Eingabe
-const cam = { yaw: 0.25, pitch: 0.12, dist: 3.4, tDist: 3.4, vYaw: 0, vPitch: 0, zoomed: false };
-// Abstand so, dass der Planet etwa 78 % der kleineren Bildhälfte füllt
-function fitDist(aspect) {
-  const hv = S.fov * Math.PI / 360, hh = Math.atan(Math.tan(hv) * aspect);
-  return 1 / Math.sin(0.78 * Math.min(hv, hh));
-}
-const pointers = new Map();
-let pinch0 = 0, dist0 = 0;
-canvas.addEventListener('pointerdown', (e) => {
-  canvas.setPointerCapture(e.pointerId);
-  pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
-  canvas.classList.add('drag');
-  if (pointers.size === 2) { const [a, b] = [...pointers.values()]; pinch0 = Math.hypot(a.x - b.x, a.y - b.y); dist0 = cam.tDist; }
-});
-canvas.addEventListener('pointermove', (e) => {
-  const p = pointers.get(e.pointerId);
-  if (!p) return;
-  const dx = e.clientX - p.x, dy = e.clientY - p.y;
-  p.x = e.clientX; p.y = e.clientY;
-  if (pointers.size === 1) {
-    const k = 0.0045 * Math.min(1, (cam.dist - 1) / 1.5);
-    cam.vYaw = -dx * k; cam.vPitch = dy * k;
-    cam.yaw += cam.vYaw; cam.pitch = clamp(cam.pitch + cam.vPitch, -1.45, 1.45);
-  } else if (pointers.size === 2) {
-    const [a, b] = [...pointers.values()];
-    const d = Math.hypot(a.x - b.x, a.y - b.y);
-    if (pinch0 > 0) { cam.tDist = clamp(1 + (dist0 - 1) * pinch0 / d, 1.06, 14); cam.zoomed = true; }
-  }
-});
-const endPtr = (e) => { pointers.delete(e.pointerId); if (!pointers.size) canvas.classList.remove('drag'); pinch0 = 0; };
-canvas.addEventListener('pointerup', endPtr);
-canvas.addEventListener('pointercancel', endPtr);
-canvas.addEventListener('wheel', (e) => {
-  e.preventDefault();
-  cam.tDist = clamp(1 + (cam.tDist - 1) * Math.exp(e.deltaY * 0.0012), 1.06, 14);
-  cam.zoomed = true;
-}, { passive: false });
-
-// ------------------------------------------------------------------ Regler-Reaktionen
-function changed(it) {
-  const k = it.k;
-  if (!device) return;
-  if (k === 'res' || k === 'erosion' || k === 'volcanoes') { regenerate(); }
-  else if (it.regen === 'rivers') { buildRivers(); }
-  else if (it.regen === 'sky') queueSky();
-  else if (k === 'sea') { seaH = seaFromFraction(S.sea); lutDirty = true; clearTimeout(riverT); riverT = setTimeout(buildRivers, 400); }
-  else if (k === 'lang') buildUI();
-}
-function setStyle(st) {
-  if (S.style === st) return;
-  S.style = st;
-  buildUI();
-  if (device) regenerate();
-}
-$('st-orig').addEventListener('click', () => setStyle('orig'));
-$('st-plus').addEventListener('click', () => setStyle('plus'));
-$('lang').addEventListener('click', () => { lang = lang === 'de' ? 'en' : 'de'; try { localStorage.setItem('fgp-lang', lang); } catch {} buildUI(); });
-function newSeed(sd) {
-  S.seed = String(sd).trim() || randomSeed();
-  PP = planetParams(S.seed);
-  S.sea = PP.water;
-  S.cover = PP.cloudCover;
-  try { const u = new URL(location.href); u.searchParams.set('seed', S.seed); history.replaceState(null, '', u); } catch {}
-  buildUI();
-  if (device) regenerate();
-}
-$('rnd').addEventListener('click', () => newSeed(randomSeed()));
-$('seed').addEventListener('change', (e) => newSeed(e.target.value));
-
-// ------------------------------------------------------------------ Wirbel (Tiefdruckgebiete, ein tropischer Wirbelsturm)
-// Sie entstehen, drehen sich auf, ziehen mit dem Wind ihrer Breite und lösen sich wieder auf.
-const CLOUD_PERIOD = 70;
-const cyclones = [];
-function windOmegaJS(lat) {
-  const a = Math.abs(lat);
-  const u = -0.9 * Math.sin(6 * a) + 0.35 * Math.exp(-(((a - 0.75) / 0.18) ** 2));
-  return u / Math.max(Math.cos(lat), 0.3);
-}
-function spawnCyclone(R, birth, tropical) {
-  const north = R() < 0.5;
-  const lat = (north ? 1 : -1) * (tropical ? 0.2 + R() * 0.2 : 0.55 + R() * 0.5);
-  return { R, tropical, lat, lon: R() * Math.PI * 2, birth, life: tropical ? 90 + R() * 60 : 55 + R() * 55,
-    s: (north ? -1 : 1) * (tropical ? 5.5 + R() * 2 : 2.2 + R() * 2.2), r: tropical ? 0.045 + R() * 0.025 : 0.1 + R() * 0.09 };
-}
-function initCyclones(seed) {
-  const R = rng(seed + '|cyclones');
-  cyclones.length = 0;
-  for (let i = 0; i < 6; i++) {
-    const c = spawnCyclone(R, 0, i === 0);
-    c.birth = simTime - R() * c.life;
-    cyclones.push(c);
-  }
-}
-const cycA = new Float32Array(24), cycB = new Float32Array(24);
-function updateCyclones() {
-  for (let i = 0; i < cyclones.length; i++) {
-    let c = cyclones[i];
-    let age = simTime - c.birth;
-    if (age > c.life || age < 0) { c = cyclones[i] = spawnCyclone(c.R, simTime, c.tropical); age = 0; }
-    const lon = c.lon + windOmegaJS(c.lat) * S.wind * 0.35 * age / CLOUD_PERIOD;
-    const env = Math.sin(Math.PI * age / c.life);
-    cycA.set([Math.cos(c.lat) * Math.sin(lon), Math.sin(c.lat), Math.cos(c.lat) * Math.cos(lon), c.s * env], i * 4);
-    cycB.set([c.r, age / c.life, c.tropical ? 1 : 0, 0], i * 4);
-  }
-}
-
-// ------------------------------------------------------------------ Zeichnen
-let spin = 0.6, simTime = 0;
-function sunDir() {
-  const az = S.sunAz * Math.PI / 180, el = S.sunEl * Math.PI / 180;
-  return [Math.cos(el) * Math.sin(az), Math.sin(el), Math.cos(el) * Math.cos(az)];
-}
-// Alle Werte für die Shader in einem Puffer (Reihenfolge wie struct Uf)
-function fillUniforms(o) {
-  const u = uData;
-  u.set(o.vp, 0); u.set(o.ivp, 16);
-  const m = o.model;
-  u.set([m[0], m[1], m[2], 0, m[3], m[4], m[5], 0, m[6], m[7], m[8], 0], 32);
-  u.set([...o.eye, simTime], 44);
-  u.set([...o.sun, o.sunE], 48);
-  const A = o.A;
-  u.set([1, A.Rt, A.HR, A.HM], 52);
-  u.set([...A.bR, A.bM], 56);
-  u.set([...A.bO, A.bMe], 60);
-  u.set([A.oz[0], A.oz[1], 0.8, coarse ? 16 : 28], 64);
-  u.set([S.nscale, S.rough, S.metal, S.ambient], 68);
-  u.set([S.waves, S.clarity, S.foam, S.rivers && RS.nRiver && S.style !== 'orig' ? RS.nRiver : 0], 72);
-  u.set([S.bump, S.gloss, S.detail, S.terrace], 76);
-  u.set([S.shadows, S.ambientP, 0, 0], 80);
-  u.set([moistQ[0], moistQ[1], S.sunI, 0.0095], 84);
-  u.set([S.erosion * Math.pow(0.5, eroOct(RS.nShown)), 34 * Math.pow(2, eroOct(RS.nShown)), 0, 0], 88);
-  u.set(o.clU, 92); u.set(o.clU2, 96);
-  u.set([RS.nShown, cloudRes, seaH, o.orig ? 1.2 : o.sunE], 100);
-  u.set([o.orig ? 0 : 1, S.palette === 'earth' ? 1 : 0, S.view, RS.nebReady ? 1 : 0], 104);
-  u.set([S.nebula, S.stars, nebRes, 0], 108);
-  u.set([0.45, 0.7, 1.0, S.glow], 112);
-  u.set([o.orig ? 1 : S.exposure * 1.25, o.bloomOn ? S.bloom * 0.12 : 0, o.orig ? 0 : 1, 0], 116);
-  u.set(o.fl, 120);
-  u.set(cycA, 124); u.set(cycB, 148);
-  device.queue.writeBuffer(uBuf, 0, u);
-}
-function render(enc) {
-  const w = canvas.width, h = canvas.height;
-  ensureTargets(w, h);
-  updateTrans(enc);
-  if (lutDirty) { drawBiome(S.seed, clamp(seaH, 0, 1)); lutDirty = false; }
-  const orig = S.style === 'orig';
-  const A = atmoParams();
-  const aspect = w / h, fov = S.fov * Math.PI / 180;
-  if (!cam.zoomed) cam.tDist = fitDist(aspect);
-  cam.dist += (cam.tDist - cam.dist) * 0.18;
-  const eye = [cam.dist * Math.cos(cam.pitch) * Math.sin(cam.yaw), cam.dist * Math.sin(cam.pitch), cam.dist * Math.cos(cam.pitch) * Math.cos(cam.yaw)];
-  const near = Math.max(0.0015, (cam.dist - 1.05) * 0.6), far = cam.dist + 4;
-  const view = lookAt(eye, [0, 0, 0], [0, 1, 0]);
-  const proj = persp(fov, aspect, near, far);
-  const vp = mul4(proj, view), ivp = inv4(vp);
-  const model = planetMatrix(spin, S.tilt * Math.PI / 180);
-  const sun = sunDir();
-  const sunE = orig ? 1 : 3.2;
-  const cloudOn = RS.cloudReady && S.cover > 0;
-  updateCyclones();
-  const clU = [cloudOn ? S.cover : 0, simTime / CLOUD_PERIOD, S.wind * 0.35, orig ? 0 : S.cloudShadow];
-  const clU2 = [orig ? 0.006 : S.cloudH, spin * 0.12, orig ? S.cloudOpO : S.cloudOp, orig ? 0 : 1];
-  const bloomOn = !orig && S.bloom > 0 && RS.bloom.length > 1;
-
-  // Sonne auf dem Bild und ob der Planet sie verdeckt (für die Blendenflecke)
-  const far4 = mul4(vp, new Float32Array([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, eye[0] + sun[0] * 50, eye[1] + sun[1] * 50, eye[2] + sun[2] * 50, 1]));
-  const cw = far4[15];
-  let fl = [0, 0, 0, aspect];
-  if (cw > 0 && S.flare > 0) {
-    const sx = far4[12] / cw * 0.5 + 0.5, sy = far4[13] / cw * 0.5 + 0.5;
-    const toC = V.norm([-eye[0], -eye[1], -eye[2]]);
-    const alpha = Math.asin(Math.min(1, 1.01 / cam.dist));
-    const beta = Math.acos(clamp(V.dot(sun, toC), -1, 1));
-    const vis = clamp((beta - alpha + 0.012) / 0.024, 0, 1);
-    const onScreen = clamp(1.4 - Math.max(Math.abs(sx - 0.5), Math.abs(sy - 0.5)) * 2, 0, 1);
-    fl = [sx, sy, vis * onScreen * S.flare * (orig ? 0.9 : 0.5), aspect];
-  }
-  fillUniforms({ vp, ivp, model, eye, sun, sunE, A, orig, clU, clU2, bloomOn, fl });
-  device.queue.writeBuffer(dPlanet, 0, new Float32Array([1, 0, orig ? 0 : S.relief, 0]));
-  device.queue.writeBuffer(dCloud, 0, new Float32Array([1 + clU2[0], 0, 0, orig ? 0 : S.relief]));
-  const g0 = mainGroup();
-
-  // Hintergrund, Planet, Wolken
-  const sp = enc.beginRenderPass({
-    colorAttachments: [{ view: RS.sceneV, loadOp: 'clear', clearValue: [0, 0, 0, 1], storeOp: 'store' }],
-    depthStencilAttachment: { view: RS.depthV, depthClearValue: 1, depthLoadOp: 'clear', depthStoreOp: 'discard' },
-  });
-  sp.setBindGroup(0, g0);
-  sp.setBindGroup(1, RS.bgDrawPlanet);
-  sp.setPipeline(P.bg);
-  sp.draw(3);
-  sp.setPipeline(P.planet);
-  {
-    // Kamera in den Planetenraum (Modellmatrix ist eine Drehung: transponiert = invers)
-    const eo = [0, 1, 2].map((c) => model[c * 3] * eye[0] + model[c * 3 + 1] * eye[1] + model[c * 3 + 2] * eye[2]);
-    buildPatches(meshPlanet, eo, Math.max(2, Math.round(Math.log2(RS.nShown / PATCH_G)) + 1));
-  }
-  sp.setVertexBuffer(0, meshPlanet.vb);
-  sp.setVertexBuffer(1, meshPlanet.inst);
-  sp.setIndexBuffer(meshPlanet.ib, 'uint32');
-  sp.drawIndexed(meshPlanet.count, meshPlanet.n);
-  if (cloudOn && S.view === 0) {
-    sp.setPipeline(P.cloud);
-    sp.setBindGroup(1, RS.bgDrawCloud);
-    sp.setVertexBuffer(0, meshCloud.vb);
-    sp.setIndexBuffer(meshCloud.ib, 'uint32');
-    sp.drawIndexed(meshCloud.count);
-  }
-  sp.end();
-
-  const full = (view, pipe, group, load) => {
-    const p = enc.beginRenderPass({ colorAttachments: [{ view, loadOp: load ? 'load' : 'clear', clearValue: [0, 0, 0, 1], storeOp: 'store' }] });
-    p.setPipeline(pipe);
-    p.setBindGroup(0, g0);
-    p.setBindGroup(1, group);
-    p.draw(3);
-    p.end();
-  };
-  // Luft / Leuchtsaum
-  full(RS.hdr2V, P.comp, RS.pgComp);
-
-  // Überstrahlung
-  if (bloomOn) {
-    let sw = w, sh = h;
-    RS.bloom.forEach((b, i) => {
-      device.queue.writeBuffer(b.pd, 0, new Float32Array([1 / sw, 1 / sh, 1.2 / Math.max(S.exposure, 0.05), i === 0 ? 1 : 0]));
-      device.queue.writeBuffer(b.pu, 0, new Float32Array([1 / b.w, 1 / b.h, 0, 0]));
-      full(b.v, P.down, b.gDown);
-      sw = b.w; sh = b.h;
+`;let p,De,ft,Pe,J,R;const Ne=Z.has("offscreen"),Ue=Number(Z.get("msaa"))===1?1:4,ze=3,qe=t=>Math.floor(Math.log2(t))+1,Tt=1024,an=256;let Ce,st=0,Lt,sn=new Float32Array(172),ut,ht,Oe,ln;async function Xn(){navigator.gpu||Me(o("Dieser Browser kann kein WebGPU. Bitte Chrome oder Edge ab 113, Safari ab 26 oder Firefox ab 141 nehmen.","This browser has no WebGPU. Please use Chrome or Edge 113+, Safari 26+ or Firefox 141+.")),De=await navigator.gpu.requestAdapter({powerPreference:"high-performance"}),De||Me(o("Keine WebGPU-Grafikkarte gefunden.","No WebGPU adapter found."));const t=De.limits.maxTextureDimension2D;p=await De.requestDevice({requiredLimits:{maxTextureDimension2D:t}}),p.lost.then(e=>{e.reason!=="destroyed"&&Me(o("Die Grafikkarte wurde verloren: ","The GPU device was lost: ")+e.message)}),p.addEventListener("uncapturederror",e=>console.error("WebGPU: "+e.error.message)),Ne?Pe="rgba8unorm":(ft=_.getContext("webgpu"),Pe=navigator.gpu.getPreferredCanvasFormat(),ft.configure({device:p,format:Pe,alphaMode:"opaque"})),d.res>t&&(d.res=t)}function Qn(){const t=(r,a)=>({binding:r,visibility:ze,texture:a?{viewDimension:a}:{}}),e=(r,a)=>p.createBindGroupLayout({entries:[{binding:0,visibility:GPUShaderStage.COMPUTE,buffer:{hasDynamicOffset:!0,minBindingSize:128}},{binding:1,visibility:GPUShaderStage.COMPUTE,storageTexture:{access:"write-only",format:r,viewDimension:a}}]}),n=r=>p.createBindGroupLayout({entries:[{binding:0,visibility:GPUShaderStage.COMPUTE,texture:{sampleType:"unfilterable-float",viewDimension:"2d-array"}},{binding:1,visibility:GPUShaderStage.COMPUTE,storageTexture:{access:"write-only",format:r,viewDimension:"2d-array"}}]});R={main:p.createBindGroupLayout({entries:[{binding:0,visibility:ze,buffer:{}},{binding:1,visibility:ze,sampler:{}},t(2,"2d-array"),t(3),t(4,"2d-array"),t(5,"2d-array"),t(6),t(7,"2d-array")]}),draw:p.createBindGroupLayout({entries:[{binding:0,visibility:ze,buffer:{}}]}),post:p.createBindGroupLayout({entries:[{binding:0,visibility:ze,buffer:{}},t(1),t(2)]}),gen16:e("rgba16float","2d-array"),gen8:e("rgba8unorm","2d-array"),trans:e("rgba16float","2d"),mip16:n("rgba16float"),mip8:n("rgba8unorm")}}function Zn(){const t={gen:[Ge+at+In,"gen"],cloudGen:[Ge+at+Jn,"cloudGen"],nebGen:[En,"nebGen"],trans:[jn,"trans"],mip16:[Wt("rgba16float"),"mip16"],mip8:[Wt("rgba8unorm"),"mip8"],scene:[It+Ge+Vt+at+Jt+Kn+$n+Gn,"scene"],post:[It+Ge+Vt+Jt+Yn,"post"]},e={};for(const[x,[M,v]]of Object.entries(t))e[x]=p.createShaderModule({code:M,label:v});const n=(...x)=>p.createPipelineLayout({bindGroupLayouts:x}),r=(x,M,v="main")=>p.createComputePipelineAsync({layout:n(M),compute:{module:x,entryPoint:v}}),a="rgba16float",s=[{arrayStride:12,attributes:[{shaderLocation:0,offset:0,format:"float32x3"}]}],l=[s[0],{arrayStride:16,stepMode:"instance",attributes:[{shaderLocation:1,offset:0,format:"float32x4"}]}],c={color:{srcFactor:"one",dstFactor:"one-minus-src-alpha"},alpha:{srcFactor:"one",dstFactor:"one-minus-src-alpha"}},u={color:{srcFactor:"one",dstFactor:"one"},alpha:{srcFactor:"one",dstFactor:"one"}},g=(x,M,v,W,G,z={})=>p.createRenderPipelineAsync({layout:W,vertex:{module:x,entryPoint:M,buffers:z.mesh==="patch"?l:z.mesh?s:[]},fragment:{module:x,entryPoint:v,targets:[{format:G,...z.blend?{blend:z.blend}:{}}]},primitive:{topology:"triangle-list",cullMode:z.mesh?"back":"none"},...z.ms&&Ue>1?{multisample:{count:Ue}}:{},...z.depth?{depthStencil:{format:"depth24plus",depthWriteEnabled:z.depth==="write",depthCompare:z.depth==="always"?"always":"less"}}:{}}),h=n(R.main,R.draw),f=n(R.main,R.post);return{list:{gen:r(e.gen,R.gen16),cloudGen:r(e.cloudGen,R.gen8),nebGen:r(e.nebGen,R.gen16,"skyGen"),trans:r(e.trans,R.trans),mip16:r(e.mip16,R.mip16),mip8:r(e.mip8,R.mip8),bg:g(e.scene,"vsFull","fsBg",h,a,{depth:"always",ms:!0}),planet:g(e.scene,"vsPatch","fsPlanet",h,a,{mesh:"patch",depth:"write",ms:!0}),cloud:g(e.scene,"vsPlanet","fsCloud",h,a,{mesh:!0,depth:"always",blend:c,ms:!0}),comp:g(e.post,"vsFull","fsComp",f,a),down:g(e.post,"vsFull","fsDown",f,a),up:g(e.post,"vsFull","fsUp",f,a,{blend:u}),fin:g(e.post,"vsFull","fsFinal",f,Pe)},mods:e}}function _e(t,e,n,r=0){return p.createTexture({size:[t,t,6],format:e,mipLevelCount:n,usage:GPUTextureUsage.TEXTURE_BINDING|GPUTextureUsage.STORAGE_BINDING|r})}const Be=t=>t.createView({dimension:"2d-array"}),mt=t=>t.createView({dimension:"2d-array",baseMipLevel:0,mipLevelCount:1}),be=t=>p.createBuffer({size:t,usage:GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST});let er=0;const Ve=t=>(t.fgpId=++er,t),Xe=[[[0,0,-1],[0,1,0],[1,0,0]],[[0,0,1],[0,1,0],[-1,0,0]],[[1,0,0],[0,0,-1],[0,1,0]],[[1,0,0],[0,0,1],[0,-1,0]],[[1,0,0],[0,1,0],[0,0,1]],[[-1,0,0],[0,1,0],[0,0,-1]]];function tr(t){const e=(t+1)*(t+1),n=new Float32Array(6*e*3),r=new Uint32Array(6*t*t*6);let a=0,s=0;for(let u=0;u<6;u++){const[g,h,f]=Xe[u],y=u*e;for(let x=0;x<=t;x++)for(let M=0;M<=t;M++){const v=Math.tan((M/t*2-1)*Math.PI/4),W=Math.tan((x/t*2-1)*Math.PI/4),G=f[0]+v*g[0]+W*h[0],z=f[1]+v*g[1]+W*h[1],A=f[2]+v*g[2]+W*h[2],H=Math.hypot(G,z,A);n[a++]=G/H,n[a++]=z/H,n[a++]=A/H}for(let x=0;x<t;x++)for(let M=0;M<t;M++){const v=y+x*(t+1)+M,W=v+1,G=v+t+1,z=G+1;r[s++]=v,r[s++]=W,r[s++]=z,r[s++]=v,r[s++]=z,r[s++]=G}}const l=p.createBuffer({size:n.byteLength,usage:GPUBufferUsage.VERTEX|GPUBufferUsage.COPY_DST});p.queue.writeBuffer(l,0,n);const c=p.createBuffer({size:r.byteLength,usage:GPUBufferUsage.INDEX|GPUBufferUsage.COPY_DST});return p.queue.writeBuffer(c,0,r),{vb:l,ib:c,count:r.length,G:t}}let le,He;function nr(t){const e=t+3,n=new Float32Array(e*e*3),r=new Uint32Array((e-1)*(e-1)*6);let a=0,s=0;for(let h=0;h<e;h++)for(let f=0;f<e;f++){const y=Math.min(Math.max(f-1,0),t),x=Math.min(Math.max(h-1,0),t);n[a++]=y/t,n[a++]=x/t,n[a++]=f===0||h===0||f===e-1||h===e-1?1:0}for(let h=0;h<e-1;h++)for(let f=0;f<e-1;f++){const y=h*e+f,x=y+1,M=y+e,v=M+1;r[s++]=y,r[s++]=x,r[s++]=v,r[s++]=y,r[s++]=v,r[s++]=M}const l=p.createBuffer({size:n.byteLength,usage:GPUBufferUsage.VERTEX|GPUBufferUsage.COPY_DST});p.queue.writeBuffer(l,0,n);const c=p.createBuffer({size:r.byteLength,usage:GPUBufferUsage.INDEX|GPUBufferUsage.COPY_DST});p.queue.writeBuffer(c,0,r);const u=6144,g=p.createBuffer({size:u*16,usage:GPUBufferUsage.VERTEX|GPUBufferUsage.COPY_DST});return{vb:l,ib:c,count:r.length,G:t,inst:g,MAXI:u,data:new Float32Array(u*4),n:0}}const pt=(t,e,n)=>{const[r,a,s]=Xe[t],l=Math.tan((e*2-1)*Math.PI/4),c=Math.tan((n*2-1)*Math.PI/4),u=s[0]+l*r[0]+c*a[0],g=s[1]+l*r[1]+c*a[1],h=s[2]+l*r[2]+c*a[2],f=Math.hypot(u,g,h);return[u/f,g/f,h/f]},on=Y?3.5:6;function rr(t,e,n){const r=Math.hypot(e[0],e[1],e[2]),a=1/r;t.n=0;const s=(l,c,u,g,h)=>{const f=pt(l,c+g/2,u+g/2),y=g*1.1;if((f[0]*e[0]+f[1]*e[1]+f[2]*e[2])/r<a-y-.03)return;const M=e[0]-f[0],v=e[1]-f[1],W=e[2]-f[2],G=Math.hypot(M,v,W);if(h<n&&G<y*on&&t.n<t.MAXI-4){const z=g/2;s(l,c,u,z,h+1),s(l,c+z,u,z,h+1),s(l,c,u+z,z,h+1),s(l,c+z,u+z,z,h+1);return}t.n>=t.MAXI||(t.data.set([l,c,u,g],t.n*4),t.n++)};for(let l=0;l<6;l++)s(l,0,0,1,0);p.queue.writeBuffer(t.inst,0,t.data,0,t.n*4)}const i={nPrev:128,nFull:0,fullReady:!1,cloudReady:!1,nebReady:!1,transKey:"",w:0,h:0};function ar(){ln=p.createSampler({magFilter:"linear",minFilter:"linear",mipmapFilter:"linear",maxAnisotropy:8,addressModeU:"clamp-to-edge",addressModeV:"clamp-to-edge"}),Ce=p.createBuffer({size:Tt*an,usage:GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST}),Lt=be(sn.byteLength),ut=be(16),ht=be(16),Oe=be(16),i.hmPrev=Ve(_e(i.nPrev,"rgba16float",qe(i.nPrev),GPUTextureUsage.COPY_SRC)),i.cloud=_e(Re,"rgba8unorm",qe(Re)),i.neb=_e(Mt,"rgba16float",1),i.trans=p.createTexture({size:[256,64],format:"rgba16float",usage:GPUTextureUsage.TEXTURE_BINDING|GPUTextureUsage.STORAGE_BINDING}),i.biome=p.createTexture({size:[512,512],format:"rgba8unorm",usage:GPUTextureUsage.TEXTURE_BINDING|GPUTextureUsage.COPY_DST|GPUTextureUsage.RENDER_ATTACHMENT});const t=(e,n)=>p.createBindGroup({layout:e,entries:[{binding:0,resource:{buffer:Ce,size:128}},{binding:1,resource:n}]});i.bgGenPrev=t(R.gen16,mt(i.hmPrev)),i.bgCloudGen=t(R.gen8,mt(i.cloud)),i.bgNebGen=t(R.gen16,Be(i.neb)),i.bgTrans=t(R.trans,i.trans.createView()),i.bgDrawPlanet=p.createBindGroup({layout:R.draw,entries:[{binding:0,resource:{buffer:ut}}]}),i.bgDrawCloud=p.createBindGroup({layout:R.draw,entries:[{binding:0,resource:{buffer:ht}}]}),i.views={cloud:Be(i.cloud),neb:Be(i.neb),trans:i.trans.createView(),biome:i.biome.createView()},i.shown=i.hmPrev,i.nShown=i.nPrev,le=nr(Bt),i.river=Ve(p.createTexture({size:[1,1,6],format:"r8unorm",usage:GPUTextureUsage.TEXTURE_BINDING|GPUTextureUsage.COPY_DST})),i.nRiver=0,He=tr(Y?48:72)}function sr(){const t=i.shown.fgpId+":"+i.river.fgpId;return i.mainKey===t||(i.mainKey=t,i.mainBG=p.createBindGroup({layout:R.main,entries:[{binding:0,resource:{buffer:Lt}},{binding:1,resource:ln},{binding:2,resource:Be(i.shown)},{binding:3,resource:i.views.biome},{binding:4,resource:i.views.cloud},{binding:5,resource:i.views.neb},{binding:6,resource:i.views.trans},{binding:7,resource:Be(i.river)}]})),i.mainBG}function Qe(t){return{enc:t,used:0}}function Ze(t,e,n,r,a,s,l=1){const c=st*an;st=(st+1)%Tt,t.used++,p.queue.writeBuffer(Ce,c,r);const u=t.enc.beginComputePass();u.setPipeline(e),u.setBindGroup(0,n,[c]),u.dispatchWorkgroups(a,s,l),u.end()}function it(t,e,n,r,a){for(let s=1;s<e.mipLevelCount;s++){const l=Math.max(1,n>>s),c=p.createBindGroup({layout:r,entries:[{binding:0,resource:e.createView({dimension:"2d-array",baseMipLevel:s-1,mipLevelCount:1})},{binding:1,resource:e.createView({dimension:"2d-array",baseMipLevel:s,mipLevelCount:1})}]}),u=t.beginComputePass();u.setPipeline(a),u.setBindGroup(0,c),u.dispatchWorkgroups(Math.ceil(l/8),Math.ceil(l/8),6),u.end()}}function Rt(t,e,n,r,a,s,l){return t.set([n+a,r+s,0,0,n,r,e,l],24),t}function jt(t,e,n){t=(t%360+360)%360/360;const r=n<.5?n*(1+e):n+e-n*e,a=2*n-r,s=l=>(l=(l+1)%1,l<1/6?a+(r-a)*6*l:l<.5?r:l<2/3?a+(r-a)*(2/3-l)*6:a);return[Math.round(s(t+1/3)*255),Math.round(s(t)*255),Math.round(s(t-1/3)*255)]}function cn(t,e){const n=Pt(t+"|biome"),r=(P,D)=>P+(D-P)*n(),a=de.getContext("2d"),s=512,l=512,c={h:n()*360,s:r(.08,.45),l:r(.3,.58)},u=r(.2,.4),g=r(.15,.35),h=r(.3,.5),f=r(30,250),y=()=>jt(c.h+r(-1,1)*u*180,E(c.s+r(-g,g),0,1),E(c.l+r(-h,h),.05,.92)),x=(P,D)=>`rgba(${P[0]},${P[1]},${P[2]},${D})`;a.globalCompositeOperation="source-over",a.fillStyle=x(jt(c.h,c.s,c.l),1),a.fillRect(0,0,s,l);const M=(P,D,C,j)=>{const U=a.createLinearGradient(r(0,s),r(0,l),r(0,s),r(0,l)),q=y();U.addColorStop(r(0,.5),x(q,0)),U.addColorStop(.5,x(q,.8)),U.addColorStop(r(.5,1),x(q,0)),a.fillStyle=U,a.fillRect(P,D,C,j)};for(let P=0;P<5;P++)M(0,0,s,l);for(let P=0;P<100;P++){const D=r(0,s),C=r(0,l)-l*e,j=r(10,f),U=a.createRadialGradient(D,C,0,D,C,j),q=y();U.addColorStop(0,x(q,.5)),U.addColorStop(1,x(q,0)),a.fillStyle=U,a.fillRect(0,0,s,l)}const v=Math.round(r(0,5));for(let P=0;P<5;P++){const D=r(0,s),C=r(0,l),j=r(0,s),U=r(0,l);P<v?M(D,C,j-D,U-C):(y(),n(),n(),n(),n(),n(),n())}const W=(P,D,C,j,U)=>{const q=a.createLinearGradient(0,P,0,P+D);q.addColorStop(0,x(C,j)),q.addColorStop(1,x(C,U)),a.fillStyle=q,a.fillRect(0,P,s,D)},G=l-l*e;W(G-100,100,y(),0,.5),W(G-7,7,y(),0,.3);const z=y(),A=a.createLinearGradient(0,G,0,l),H=P=>[Math.min(255,Math.round(z[0]*P)),Math.min(255,Math.round(z[1]*P)),Math.min(255,Math.round(z[2]*P))];A.addColorStop(0,x(H(1.3),.9)),A.addColorStop(.2,x(H(1),.9)),A.addColorStop(.8,x(H(.7),.9)),a.fillStyle=A,a.fillRect(0,G,s,l-G),p.queue.copyExternalImageToTexture({source:de,flipY:!0},{texture:i.biome},[512,512])}let ae=[],We=0,Ie=0,ye=0,Te=0,xe=null,we=[0,1],fe=.5,gt=!1;const vt=t=>E(Math.floor(Math.log2(t/213))+1,1,6);function xt(t,e,n){const r=I.h,a=I.m;return new Float32Array([r.res1,r.res2,r.resMix,r.mixScale,r.type,I.noiseSeed,a.type,I.noiseSeed+392.253,a.res1*I.moistM,a.res2,a.resMix,a.mixScale,n,34,.9,1,I.mountains,I.beltFreq,7,.35,t,vt(e),fe,d.volcanoes,0,0,0,0,0,0,0,e])}function bt(t,e,n,r,a,s){const l=ye;for(let c=0;c<6;c++)for(let u=0;u<t;u+=e)for(let g=0;g<t;g+=e){const h=Math.min(e,t-g),f=Math.min(e,t-u);ae.push({cost:h*f,run:y=>{l===ye&&Ze(y,r(),a(),Rt(n(),c,g,u,h,f,t),Math.ceil(h/8),Math.ceil(f/8))}}),We+=h*f}ae.push({cost:0,run:c=>{l===ye&&s(c)}})}function dn(t,e){const n=Qe(t);let r=0;for(;ae.length&&r<e&&n.used<Tt-8;){const a=ae.shift();a.run(n),r+=a.cost,Ie+=a.cost}}function yt(t,e){return t[E(Math.round(e*(t.length-1)),0,t.length-1)]}function fn(t){return xe?t<=0?xe[0]-.01:t>=1?xe[xe.length-1]+.01:yt(xe,t):.5}const Je=t=>{const e=t>>10&31,n=t&1023,r=t&32768?-1:1;return e===0?r*n*5960464477539063e-23:e===31?r*65504:r*(1+n/1024)*Math.pow(2,e-15)};async function Kt(t){p.pushErrorScope("out-of-memory");const e=_e(t,"rgba16float",qe(t));return await p.popErrorScope()?(e.destroy(),null):Ve(e)}function un(){i.nebSeed!==d.seed&&(i.nebReady=!1),i.nebSeed=d.seed;const t=_n(String(d.seed),{width:d.mwWidth,core:d.mwCore,dust:d.mwDust,hii:d.mwHii,bright:I.nebBright,hue:I.nebHue});i.galCore=[t[8],t[9],t[10]],bt(Mt,256,()=>t.slice(),()=>J.nebGen,()=>i.bgNebGen,()=>{i.nebReady=!0})}let $t=0,Ae=0;const Yt=Math.PI/4;function ir(t){let e=0,n=-2;for(let r=0;r<6;r++){const a=Xe[r][2],s=a[0]*t[0]+a[1]*t[1]+a[2]*t[2];s>n&&(n=s,e=r)}return[e,...hn(e,t)]}function hn(t,e){const[n,r,a]=Xe[t],s=a[0]*e[0]+a[1]*e[1]+a[2]*e[2],l=n[0]*e[0]+n[1]*e[1]+n[2]*e[2],c=r[0]*e[0]+r[1]*e[1]+r[2]*e[2];return[(Math.atan2(l,s)/Yt+1)/2,(Math.atan2(c,s)/Yt+1)/2]}async function wt(){if(!p||!i.river||d.style==="orig")return;const t=++Ae;if(!d.rivers){i.nRiver=0;return}const e=Y?256:512,n=Y?1024:2048,r=1,a=d.erosion,s=p.createTexture({size:[e,e,6],format:"rgba16float",usage:GPUTextureUsage.STORAGE_BINDING|GPUTextureUsage.COPY_SRC}),l=p.createBindGroup({layout:R.gen16,entries:[{binding:0,resource:{buffer:Ce,size:128}},{binding:1,resource:s.createView({dimension:"2d-array"})}]}),c=p.createCommandEncoder(),u=Qe(c);for(let m=0;m<6;m++)Ze(u,J.gen,l,Rt(xt(r,e,a),m,0,0,e,e,e),e/8,e/8);const g=p.createBuffer({size:e*8*e*6,usage:GPUBufferUsage.MAP_READ|GPUBufferUsage.COPY_DST});c.copyTextureToBuffer({texture:s},{buffer:g,bytesPerRow:e*8,rowsPerImage:e},[e,e,6]),p.queue.submit([c.finish()]),await g.mapAsync(GPUMapMode.READ);const h=new Uint16Array(g.getMappedRange().slice(0));if(g.unmap(),g.destroy(),s.destroy(),t!==Ae)return;const f=6*e*e,y=fe,x=new Float32Array(f),M=new Float32Array(f);for(let m=0;m<f;m++)x[m]=Je(h[m*4]),M[m]=.4+E((Je(h[m*4+1])-we[0])/(we[1]-we[0]+1e-6),0,1.2);const v=e-1,W=(m,k,b)=>(m*e+b)*e+k,G=(m,k,b,T,S)=>{const L=k+T,B=b+S;if(L>=0&&L<=v&&B>=0&&B<=v)return W(m,L,B);const[F,se,ke]=ir(pt(m,L/v,B/v));return W(F,E(Math.round(se*v),0,v),E(Math.round(ke*v),0,v))},z=new Float32Array(f+8),A=new Int32Array(f+8);let H=0;const P=(m,k)=>{let b=H++;for(;b>0;){const T=b-1>>1;if(z[T]<=m)break;z[b]=z[T],A[b]=A[T],b=T}z[b]=m,A[b]=k},D=()=>{const m=A[0],k=z[--H],b=A[H];let T=0;for(;;){let S=2*T+1;if(S>=H||(S+1<H&&z[S+1]<z[S]&&S++,z[S]>=k))break;z[T]=z[S],A[T]=A[S],T=S}return z[T]=k,A[T]=b,m},C=new Int32Array(f).fill(-2),j=new Float32Array(f),U=new Int32Array(f);let q=0;for(let m=0;m<f;m++)x[m]<y&&(C[m]=-1,j[m]=x[m],P(x[m],m),q++);if(!q){let m=0;for(let k=1;k<f;k++)x[k]<x[m]&&(m=k);C[m]=-1,j[m]=x[m],P(x[m],m)}let X=0;const $=[1,-1,0,0,1,1,-1,-1],O=[0,0,1,-1,1,-1,1,-1];for(;H;){const m=D();U[X++]=m;const k=m/(e*e)|0,b=m-k*e*e,T=b/e|0,S=b-T*e;for(let L=0;L<8;L++){const B=G(k,S,T,$[L],O[L]);C[B]===-2&&(C[B]=m,j[B]=Math.max(x[B],j[m]+1e-7),P(j[B],B))}}const K=new Float32Array(f),Q=new Int32Array(f).fill(-1);for(let m=0;m<f;m++)x[m]>=y&&(K[m]=M[m]);for(let m=X-1;m>=0;m--){const k=U[m],b=C[k];b<0||x[k]<y||(K[b]+=K[k],(Q[b]<0||K[k]>K[Q[b]])&&(Q[b]=k))}if(t!==Ae)return;const he=f*15e-5,me=(n-1)/v,et=new Uint8Array(6*n*n),Mn=m=>{const k=Math.sin(m*12.9898)*43758.5453,b=Math.sin(m*78.233)*12345.6789;return[(k-Math.floor(k)-.5)*.7,(b-Math.floor(b)-.5)*.7]},tt=(m,k)=>{const b=k/(e*e)|0,T=k-b*e*e,S=T/e|0,L=T-S*e,B=Mn(k);if(b===m)return[(L+B[0])*me,(S+B[1])*me];const[F,se]=hn(m,pt(b,L/v,S/v));return[F*v*me,se*v*me]},Pn=(m,k,b,T)=>{const S=Math.ceil(T+1.5),L=m*n*n,B=Math.max(0,Math.floor(k-S)),F=Math.min(n-1,Math.ceil(k+S)),se=Math.max(0,Math.floor(b-S)),ke=Math.min(n-1,Math.ceil(b+S));for(let ge=se;ge<=ke;ge++)for(let ie=B;ie<=F;ie++){const ve=E(T+.5-Math.hypot(ie-k,ge-b),0,1)*255,ee=L+ge*n+ie;ve>et[ee]&&(et[ee]=ve)}},Ct=n/2048;for(let m=0;m<f;m++){if(x[m]<y||K[m]<he||C[m]<0)continue;const k=m/(e*e)|0,b=tt(k,m),T=tt(k,C[m]),S=Q[m],L=S>=0&&K[S]>=he?tt(k,S):b,B=[(L[0]+b[0])/2,(L[1]+b[1])/2],F=[(b[0]+T[0])/2,(b[1]+T[1])/2],se=E(.55*Math.sqrt(K[m]/he),.7,5)*Ct,ke=E(.55*Math.sqrt(K[C[m]]/he),.7,5)*Ct,ge=Math.hypot(B[0]-b[0],B[1]-b[1])+Math.hypot(F[0]-b[0],F[1]-b[1]),ie=Math.max(2,Math.ceil(ge/.7));for(let ve=0;ve<=ie;ve++){const ee=ve/ie,Gt=(1-ee)*(1-ee),Dt=2*ee*(1-ee),At=ee*ee;Pn(k,Gt*B[0]+Dt*b[0]+At*F[0],Gt*B[1]+Dt*b[1]+At*F[1],se+(ke-se)*ee*.5)}}if(t!==Ae)return;const Nt=qe(n),Ft=Ve(p.createTexture({size:[n,n,6],format:"r8unorm",mipLevelCount:Nt,usage:GPUTextureUsage.TEXTURE_BINDING|GPUTextureUsage.COPY_DST}));let pe=et,N=n;for(let m=0;m<Nt;m++){const k=Math.max(256,N);for(let S=0;S<6;S++){let L=pe.subarray(S*N*N,(S+1)*N*N);if(k!==N){const B=new Uint8Array(k*N);for(let F=0;F<N;F++)B.set(L.subarray(F*N,F*N+N),F*k);L=B}p.queue.writeTexture({texture:Ft,mipLevel:m,origin:[0,0,S]},L,{bytesPerRow:k,rowsPerImage:N},[N,N,1])}if(N===1)break;const b=N>>1,T=new Uint8Array(6*b*b);for(let S=0;S<6;S++)for(let L=0;L<b;L++)for(let B=0;B<b;B++){const F=S*N*N+2*L*N+2*B;T[S*b*b+L*b+B]=pe[F]+pe[F+1]+pe[F+N]+pe[F+N+1]+2>>2}pe=T,N=b}const Et=i.river;i.river=Ft,i.nRiver=n,Et&&setTimeout(()=>Et.destroy(),500)}async function Fe(t){const e=++ye;ae=[],We=0,Ie=0,Te++;try{const n=d.style==="orig"?0:1,r=n===1?d.erosion:0,a=i.nPrev,s=p.createCommandEncoder(),l=Qe(s);for(let f=0;f<6;f++)Ze(l,J.gen,i.bgGenPrev,Rt(xt(n,a,0),f,0,0,a,a,a),a/8,a/8);it(s,i.hmPrev,a,R.mip16,J.mip16);const c=p.createBuffer({size:a*8*a*6,usage:GPUBufferUsage.MAP_READ|GPUBufferUsage.COPY_DST});s.copyTextureToBuffer({texture:i.hmPrev},{buffer:c,bytesPerRow:a*8,rowsPerImage:a},[a,a,6]),p.queue.submit([s.finish()]),i.shown=i.hmPrev,i.nShown=a,i.fullReady=!1,await c.mapAsync(GPUMapMode.READ);const u=new Uint16Array(c.getMappedRange().slice(0));if(c.unmap(),c.destroy(),e!==ye)return;const g=[],h=[];for(let f=0;f<6*a*a;f+=3)g.push(Je(u[f*4])),h.push(Je(u[f*4+1]));if(g.sort((f,y)=>f-y),h.sort((f,y)=>f-y),xe=Float32Array.from(g),we=[yt(h,.04),yt(h,.96)],d.sea<0&&(d.sea=I.water),fe=fn(d.sea),cn(d.seed,E(fe,0,1)),wt(),t!==!1){let f=d.res;if(!i.hmFull||i.nFull!==f){for(i.hmFull&&i.hmFull.destroy(),i.hmFull=await Kt(f);!i.hmFull&&f>512;)f=d.res=f>>1,i.hmFull=await Kt(f);if(i.nFull=f,i.bgGenFull=i.hmFull&&p.createBindGroup({layout:R.gen16,entries:[{binding:0,resource:{buffer:Ce,size:128}},{binding:1,resource:mt(i.hmFull)}]}),e!==ye)return}if(i.hmFull){const y=i.hmFull;bt(f,256,()=>xt(n,f,r),()=>J.gen,()=>i.bgGenFull,x=>{it(x.enc,y,f,R.mip16,J.mip16),i.shown=y,i.nShown=f,i.fullReady=!0})}}i.cloudSeed!==d.seed&&pr(d.seed),(i.cloudSeed!==d.seed||!i.cloudReady)&&(i.cloudSeed=d.seed,i.cloudReady=!1,bt(Re,256,()=>new Float32Array([I.cloudSeed,0,0,0,...new Array(28).fill(0)]),()=>J.cloudGen,()=>i.bgCloudGen,f=>{it(f.enc,i.cloud,Re,R.mip8,J.mip8),i.cloudReady=!0})),(i.nebSeed!==d.seed||!i.nebReady)&&un()}finally{Te--}}function mn(){const t=d.thick,e=6371,n=e*1e3/t;return{HR:8/e*t,HM:1.2/e*t,Rt:1+60/e*t,bR:[5802e-9,13558e-9,331e-7].map(r=>r*n*d.atmo),bM:3996e-9*n*d.haze,bMe:444e-8*n*d.haze,bO:[65e-8,1881e-9,85e-9].map(r=>r*n*d.atmo),oz:[25/e*t,15/e*t]}}function lr(t){const e=`${d.thick}|${d.atmo}|${d.haze}`;if(e===i.transKey)return;i.transKey=e;const n=mn(),r=new Float32Array(32);r.set([1,n.Rt,n.HR,n.HM,...n.bR,n.bMe,...n.bO,0,n.oz[0],n.oz[1],0,0]),Ze(Qe(t),J.trans,i.bgTrans,r,32,8)}function or(t,e){if(i.w===t&&i.h===e)return;for(const l of["scene","hdr2","depth","msaa"])i[l]&&i[l].destroy();for(const l of i.bloom||[])l.tx.destroy();i.w=t,i.h=e;const n=(l,c,u)=>p.createTexture({size:[l,c],format:"rgba16float",usage:GPUTextureUsage.RENDER_ATTACHMENT|GPUTextureUsage.TEXTURE_BINDING});i.scene=n(t,e),i.hdr2=n(t,e),i.depth=p.createTexture({size:[t,e],format:"depth24plus",sampleCount:Ue,usage:GPUTextureUsage.RENDER_ATTACHMENT}),i.msaa=Ue>1?p.createTexture({size:[t,e],format:"rgba16float",sampleCount:Ue,usage:GPUTextureUsage.RENDER_ATTACHMENT}):null,i.sceneV=i.scene.createView(),i.hdr2V=i.hdr2.createView(),i.depthV=i.depth.createView(),i.msaaV=i.msaa?i.msaa.createView():null,Ne&&(i.out&&i.out.destroy(),i.out=p.createTexture({size:[t,e],format:Pe,usage:GPUTextureUsage.RENDER_ATTACHMENT|GPUTextureUsage.COPY_SRC}),i.outV=i.out.createView()),i.bloom=[];let r=t>>1,a=e>>1;for(let l=0;l<6&&r>=4&&a>=4;l++){const c=n(r,a);i.bloom.push({tx:c,v:c.createView(),w:r,h:a,pd:be(16),pu:be(16)}),r>>=1,a>>=1}const s=(l,c,u)=>p.createBindGroup({layout:R.post,entries:[{binding:0,resource:{buffer:l}},{binding:1,resource:c},{binding:2,resource:u||c}]});i.pgComp=s(Oe,i.sceneV),i.pgFinNoBloom=s(Oe,i.hdr2V),i.pgFin=i.bloom.length?s(Oe,i.hdr2V,i.bloom[0].v):i.pgFinNoBloom,i.bloom.forEach((l,c)=>{l.gDown=s(l.pd,c===0?i.hdr2V:i.bloom[c-1].v),l.gUp=s(l.pu,l.v)})}const ne={sub:(t,e)=>[t[0]-e[0],t[1]-e[1],t[2]-e[2]],dot:(t,e)=>t[0]*e[0]+t[1]*e[1]+t[2]*e[2],cross:(t,e)=>[t[1]*e[2]-t[2]*e[1],t[2]*e[0]-t[0]*e[2],t[0]*e[1]-t[1]*e[0]],norm:t=>{const e=Math.hypot(t[0],t[1],t[2])||1;return[t[0]/e,t[1]/e,t[2]/e]}};function cr(t,e,n,r){const a=1/Math.tan(t/2);return new Float32Array([a/e,0,0,0,0,a,0,0,0,0,r/(n-r),-1,0,0,n*r/(n-r),0])}function dr(t,e,n){const r=ne.norm(ne.sub(t,e)),a=ne.norm(ne.cross(n,r)),s=ne.cross(r,a);return new Float32Array([a[0],s[0],r[0],0,a[1],s[1],r[1],0,a[2],s[2],r[2],0,-ne.dot(a,t),-ne.dot(s,t),-ne.dot(r,t),1])}function Xt(t,e){const n=new Float32Array(16);for(let r=0;r<4;r++)for(let a=0;a<4;a++){let s=0;for(let l=0;l<4;l++)s+=t[l*4+a]*e[r*4+l];n[r*4+a]=s}return n}function fr(t){const e=t,n=new Float32Array(16),r=e[0]*e[5]-e[1]*e[4],a=e[0]*e[6]-e[2]*e[4],s=e[0]*e[7]-e[3]*e[4],l=e[1]*e[6]-e[2]*e[5],c=e[1]*e[7]-e[3]*e[5],u=e[2]*e[7]-e[3]*e[6],g=e[8]*e[13]-e[9]*e[12],h=e[8]*e[14]-e[10]*e[12],f=e[8]*e[15]-e[11]*e[12],y=e[9]*e[14]-e[10]*e[13],x=e[9]*e[15]-e[11]*e[13],M=e[10]*e[15]-e[11]*e[14],v=1/(r*M-a*x+s*y+l*f-c*h+u*g);return n[0]=(e[5]*M-e[6]*x+e[7]*y)*v,n[1]=(e[2]*x-e[1]*M-e[3]*y)*v,n[2]=(e[13]*u-e[14]*c+e[15]*l)*v,n[3]=(e[10]*c-e[9]*u-e[11]*l)*v,n[4]=(e[6]*f-e[4]*M-e[7]*h)*v,n[5]=(e[0]*M-e[2]*f+e[3]*h)*v,n[6]=(e[14]*s-e[12]*u-e[15]*a)*v,n[7]=(e[8]*u-e[10]*s+e[11]*a)*v,n[8]=(e[4]*x-e[5]*f+e[7]*g)*v,n[9]=(e[1]*f-e[0]*x-e[3]*g)*v,n[10]=(e[12]*c-e[13]*s+e[15]*r)*v,n[11]=(e[9]*s-e[8]*c-e[11]*r)*v,n[12]=(e[5]*h-e[4]*y-e[6]*g)*v,n[13]=(e[0]*y-e[1]*h+e[2]*g)*v,n[14]=(e[13]*a-e[12]*l-e[14]*r)*v,n[15]=(e[8]*l-e[9]*a+e[10]*r)*v,n}function ur(t,e){const n=Math.cos(t),r=Math.sin(t),a=Math.cos(e),s=Math.sin(e),l=[n,0,-r,0,1,0,r,0,n],c=[a,s,0,-s,a,0,0,0,1],u=new Float32Array(9);for(let g=0;g<3;g++)for(let h=0;h<3;h++){let f=0;for(let y=0;y<3;y++)f+=c[y*3+h]*l[g*3+y];u[g*3+h]=f}return u}const w={yaw:.25,pitch:.12,dist:3.4,tDist:3.4,vYaw:0,vPitch:0,zoomed:!1};function pn(t){const e=d.fov*Math.PI/360,n=Math.atan(Math.tan(e)*t);return 1/Math.sin(.78*Math.min(e,n))}const re=new Map;let je=0,gn=0;_.addEventListener("pointerdown",t=>{if(_.setPointerCapture(t.pointerId),re.set(t.pointerId,{x:t.clientX,y:t.clientY}),_.classList.add("drag"),re.size===2){const[e,n]=[...re.values()];je=Math.hypot(e.x-n.x,e.y-n.y),gn=w.tDist}});_.addEventListener("pointermove",t=>{const e=re.get(t.pointerId);if(!e)return;const n=t.clientX-e.x,r=t.clientY-e.y;if(e.x=t.clientX,e.y=t.clientY,re.size===1){const a=.0045*Math.min(1,(w.dist-1)/1.5);w.vYaw=-n*a,w.vPitch=r*a,w.yaw+=w.vYaw,w.pitch=E(w.pitch+w.vPitch,-1.45,1.45)}else if(re.size===2){const[a,s]=[...re.values()],l=Math.hypot(a.x-s.x,a.y-s.y);je>0&&(w.tDist=E(1+(gn-1)*je/l,1.06,14),w.zoomed=!0)}});const vn=t=>{re.delete(t.pointerId),re.size||_.classList.remove("drag"),je=0};_.addEventListener("pointerup",vn);_.addEventListener("pointercancel",vn);_.addEventListener("wheel",t=>{t.preventDefault(),w.tDist=E(1+(w.tDist-1)*Math.exp(t.deltaY*.0012),1.06,14),w.zoomed=!0},{passive:!1});function xn(t){const e=t.k;p&&(e==="res"||e==="erosion"||e==="volcanoes"?Fe():t.regen==="rivers"?wt():t.regen==="sky"?un():e==="sea"?(fe=fn(d.sea),gt=!0,clearTimeout($t),$t=setTimeout(wt,400)):e==="lang"&&ce())}function hr(t,e){d.style=t,ce(),p&&Fe()}V("lang").addEventListener("click",()=>{Bn($e==="de"?"en":"de"),ce()});function kt(t){d.seed=String(t).trim()||St(),I=nn(d.seed),d.sea=I.water,d.cover=I.cloudCover;try{const e=new URL(location.href);e.searchParams.set("seed",d.seed),history.replaceState(null,"",e)}catch{}ce(),p&&Fe()}const bn=70,Le=[];function mr(t){const e=Math.abs(t);return(-.9*Math.sin(6*e)+.35*Math.exp(-(((e-.75)/.18)**2)))/Math.max(Math.cos(t),.3)}function yn(t,e,n){const r=t()<.5,a=(r?1:-1)*(n?.2+t()*.2:.55+t()*.5);return{R:t,tropical:n,lat:a,lon:t()*Math.PI*2,birth:e,life:n?90+t()*60:55+t()*55,s:(r?-1:1)*(n?5.5+t()*2:2.2+t()*2.2),r:n?.045+t()*.025:.1+t()*.09}}function pr(t){const e=Pt(t+"|cyclones");Le.length=0;for(let n=0;n<6;n++){const r=yn(e,0,n===0);r.birth=ue-e()*r.life,Le.push(r)}}const wn=new Float32Array(24),kn=new Float32Array(24);function gr(){for(let t=0;t<Le.length;t++){let e=Le[t],n=ue-e.birth;(n>e.life||n<0)&&(e=Le[t]=yn(e.R,ue,e.tropical),n=0);const r=e.lon+mr(e.lat)*d.wind*.35*n/bn,a=Math.sin(Math.PI*n/e.life);wn.set([Math.cos(e.lat)*Math.sin(r),Math.sin(e.lat),Math.cos(e.lat)*Math.cos(r),e.s*a],t*4),kn.set([e.r,n/e.life,e.tropical?1:0,0],t*4)}}let Ke=.6,ue=0;function vr(){const t=d.sunAz*Math.PI/180,e=d.sunEl*Math.PI/180;return[Math.cos(e)*Math.sin(t),Math.sin(e),Math.cos(e)*Math.cos(t)]}function xr(t){const e=sn;e.set(t.vp,0),e.set(t.ivp,16);const n=t.model;e.set([n[0],n[1],n[2],0,n[3],n[4],n[5],0,n[6],n[7],n[8],0],32),e.set([...t.eye,ue],44),e.set([...t.sun,t.sunE],48);const r=t.A;e.set([1,r.Rt,r.HR,r.HM],52),e.set([...r.bR,r.bM],56),e.set([...r.bO,r.bMe],60),e.set([r.oz[0],r.oz[1],.8,Y?16:28],64),e.set([d.nscale,d.rough,d.metal,d.ambient],68),e.set([d.waves,d.clarity,d.foam,d.rivers&&i.nRiver&&d.style!=="orig"?i.nRiver:0],72),e.set([d.bump,d.gloss,d.detail,d.terrace],76),e.set([d.shadows,d.ambientP,0,0],80),e.set([we[0],we[1],d.sunI,.0095],84),e.set([d.erosion*Math.pow(.5,vt(i.nShown)),34*Math.pow(2,vt(i.nShown)),0,0],88),e.set(t.clU,92),e.set(t.clU2,96),e.set([i.nShown,Re,fe,t.orig?1.2:t.sunE],100),e.set([t.orig?0:1,d.palette==="earth"?1:0,d.view,i.nebReady?1:0],104),e.set([d.nebula,d.stars,Mt,0],108),e.set([.45,.7,1,d.glow],112),e.set([t.orig?1:d.exposure*1.25,t.bloomOn?d.bloom*.12:0,t.orig?0:1,0],116),e.set(t.fl,120),e.set(wn,124),e.set(kn,148),p.queue.writeBuffer(Lt,0,e)}function zn(t){const e=_.width,n=_.height;or(e,n),lr(t),gt&&(cn(d.seed,E(fe,0,1)),gt=!1);const r=d.style==="orig",a=mn(),s=e/n,l=d.fov*Math.PI/180;w.zoomed||(w.tDist=pn(s)),w.dist+=(w.tDist-w.dist)*.18;const c=[w.dist*Math.cos(w.pitch)*Math.sin(w.yaw),w.dist*Math.sin(w.pitch),w.dist*Math.cos(w.pitch)*Math.cos(w.yaw)],u=Math.max(.0015,(w.dist-1.05)*.6),g=w.dist+4,h=dr(c,[0,0,0],[0,1,0]),f=cr(l,s,u,g),y=Xt(f,h),x=fr(y),M=ur(Ke,d.tilt*Math.PI/180),v=vr(),W=r?1:3.2,G=i.cloudReady&&d.cover>0;gr();const z=[G?d.cover:0,ue/bn,d.wind*.35,r?0:d.cloudShadow],A=[r?.006:d.cloudH,Ke*.12,r?d.cloudOpO:d.cloudOp,r?0:1],H=!r&&d.bloom>0&&i.bloom.length>1,P=Xt(y,new Float32Array([1,0,0,0,0,1,0,0,0,0,1,0,c[0]+v[0]*50,c[1]+v[1]*50,c[2]+v[2]*50,1])),D=P[15];let C=[0,0,0,s];if(D>0&&d.flare>0){const X=P[12]/D*.5+.5,$=P[13]/D*.5+.5,O=ne.norm([-c[0],-c[1],-c[2]]),K=Math.asin(Math.min(1,1.01/w.dist)),Q=Math.acos(E(ne.dot(v,O),-1,1)),he=E((Q-K+.012)/.024,0,1),me=E(1.4-Math.max(Math.abs(X-.5),Math.abs($-.5))*2,0,1);C=[X,$,he*me*d.flare*(r?.9:.5),s]}xr({vp:y,ivp:x,model:M,eye:c,sun:v,sunE:W,A:a,orig:r,clU:z,clU2:A,bloomOn:H,fl:C}),p.queue.writeBuffer(ut,0,new Float32Array([1,on,r?0:d.relief,0])),p.queue.writeBuffer(ht,0,new Float32Array([1+A[0],0,0,r?0:d.relief]));const j=sr(),U=t.beginRenderPass({colorAttachments:[i.msaaV?{view:i.msaaV,resolveTarget:i.sceneV,loadOp:"clear",clearValue:[0,0,0,1],storeOp:"discard"}:{view:i.sceneV,loadOp:"clear",clearValue:[0,0,0,1],storeOp:"store"}],depthStencilAttachment:{view:i.depthV,depthClearValue:1,depthLoadOp:"clear",depthStoreOp:"discard"}});U.setBindGroup(0,j),U.setBindGroup(1,i.bgDrawPlanet),U.setPipeline(J.bg),U.draw(3),U.setPipeline(J.planet);{const X=[0,1,2].map($=>M[$*3]*c[0]+M[$*3+1]*c[1]+M[$*3+2]*c[2]);rr(le,X,Math.max(2,Math.round(Math.log2(i.nShown/Bt))+1))}U.setVertexBuffer(0,le.vb),U.setVertexBuffer(1,le.inst),U.setIndexBuffer(le.ib,"uint32"),U.drawIndexed(le.count,le.n),G&&d.view===0&&(U.setPipeline(J.cloud),U.setBindGroup(1,i.bgDrawCloud),U.setVertexBuffer(0,He.vb),U.setIndexBuffer(He.ib,"uint32"),U.drawIndexed(He.count)),U.end();const q=(X,$,O,K)=>{const Q=t.beginRenderPass({colorAttachments:[{view:X,loadOp:K?"load":"clear",clearValue:[0,0,0,1],storeOp:"store"}]});Q.setPipeline($),Q.setBindGroup(0,j),Q.setBindGroup(1,O),Q.draw(3),Q.end()};if(q(i.hdr2V,J.comp,i.pgComp),H){let X=e,$=n;i.bloom.forEach((O,K)=>{p.queue.writeBuffer(O.pd,0,new Float32Array([1/X,1/$,1.2/Math.max(d.exposure,.05),K===0?1:0])),p.queue.writeBuffer(O.pu,0,new Float32Array([1/O.w,1/O.h,0,0])),q(O.v,J.down,O.gDown),X=O.w,$=O.h});for(let O=i.bloom.length-1;O>0;O--)q(i.bloom[O-1].v,J.up,i.bloom[O].gUp,!0)}q(Ne?i.outV:ft.getCurrentTexture().createView(),J.fin,H?i.pgFin:i.pgFinNoBloom)}let Qt=performance.now(),Se=256*256*2,lt=0,ot=0,Zt=0;const zt=Number(Z.get("scale"))||0;let oe=1,en=0,ct=0,dt=0;function br(){const t=_.getBoundingClientRect();let e=Math.min(window.devicePixelRatio||1,2);if(zt)e*=zt;else if(d.quality>0)e*=d.quality;else{e*=oe;const a=t.width*t.height*e*e,s=Y?36e5:17e6;a>s&&(e*=Math.sqrt(s/a))}const n=Math.max(2,Math.round(t.width*e)),r=Math.max(2,Math.round(t.height*e));(_.width!==n||_.height!==r)&&(_.width=n,_.height=r)}function yr(t,e){if(d.quality>0||zt||ae.length||(ct+=t,dt++,e-en<1200))return;const n=1e3*ct/Math.max(dt,1);ct=0,dt=0,en=e;const r=Y?1:2;n>(Y?24:17.5)&&oe>.45?oe=Math.max(.45,oe*.85):n<(Y?14:11)&&oe<r&&(oe=Math.min(r,oe*1.08))}function Sn(t){const e=Math.min(.1,(t-Qt)/1e3);Qt=t,yr(e,t),br(),re.size||(w.yaw+=w.vYaw,w.pitch=E(w.pitch+w.vPitch,-1.45,1.45),w.vYaw*=.92,w.vPitch*=.92),d.rotate&&(Ke+=d.spin*Math.PI/180*e*Math.pow(E((w.dist-1)/1.2,0,1),d.spinZoom)),ue+=e;const n=p.createCommandEncoder();ae.length&&(Se=e<.03?Math.min(Se*1.3,8e6):e>.05?Math.max(Se*.6,32768):Se,dn(n,Se));const r=V("genbar");ae.length?(r.hidden=!1,V("gen-text").textContent=`${o("Erzeuge Planet","Generating planet")} ${Math.round(100*Ie/Math.max(We,1))} %`,V("gen-fill").style.width=`${100*Ie/Math.max(We,1)}%`):r.hidden=!0,Ne||zn(n),p.queue.submit([n.finish()]),lt+=e,ot++,t-Zt>500&&(V("fps").textContent=`${Math.round(ot/Math.max(lt,.001))} fps`,lt=0,ot=0,Zt=t),requestAnimationFrame(Sn)}async function wr(t){const e=i.w,n=i.h,r=Math.ceil(e*4/256)*256,a=p.createBuffer({size:r*n,usage:GPUBufferUsage.MAP_READ|GPUBufferUsage.COPY_DST});t.copyTextureToBuffer({texture:i.out},{buffer:a,bytesPerRow:r},[e,n]),p.queue.submit([t.finish()]),await a.mapAsync(GPUMapMode.READ);const s=new Uint8Array(a.getMappedRange()),l=new ImageData(e,n);for(let u=0;u<n;u++)l.data.set(s.subarray(u*r,u*r+e*4),u*e*4);a.unmap(),a.destroy();const c=document.createElement("canvas");return c.width=e,c.height=n,c.getContext("2d").putImageData(l,0,0),c.toDataURL("image/png")}const kr={S:d,get busy(){return ae.length>0||Te>0},set(t,e){d[t]=e,t==="style"?(ce(),Fe()):t==="seed"?kt(e):xn({k:t}),ce()},async finish(){for(;Te>0||ae.length;){if(Te>0){await new Promise(e=>setTimeout(e,20));continue}const t=p.createCommandEncoder();dn(t,1/0),p.queue.submit([t.finish()])}await p.queue.onSubmittedWorkDone()},shot(t={}){if(t.spin!==void 0&&(Ke=t.spin),t.time!==void 0&&(ue=t.time),t.yaw!==void 0&&(w.yaw=t.yaw),t.pitch!==void 0&&(w.pitch=t.pitch),t.core&&i.galCore){const n=i.galCore;w.yaw=Math.atan2(-n[0],-n[2]),w.pitch=E(Math.asin(-n[1]),-1.45,1.45)}t.dist!==void 0?(w.dist=w.tDist=t.dist,w.zoomed=!0):w.zoomed||(w.dist=w.tDist=pn(_.width/_.height));const e=p.createCommandEncoder();return zn(e),Ne?wr(e):(p.queue.submit([e.finish()]),_.toDataURL("image/png"))}};d.sea=d.sea<0?I.water:d.sea;Z.get("cover")||(d.cover=I.cloudCover);ce();async function zr(){await Xn(),Qn();const{list:t,mods:e}=Zn(),n=Object.keys(t);let r=0;const a=()=>{V("genbar").hidden=!1,V("gen-text").textContent=`${o("Übersetze Shader","Compiling shaders")} ${r}/${n.length}`,V("gen-fill").style.width=`${100*r/n.length}%`};a();try{const s=await Promise.all(n.map(l=>t[l].then(c=>(r++,a(),c))));J=Object.fromEntries(n.map((l,c)=>[l,s[c]]))}catch(s){const l=[];for(const[c,u]of Object.entries(e)){const g=await u.getCompilationInfo();for(const h of g.messages)h.type==="error"&&l.push(`${c}:${h.lineNum}:${h.linePos} ${h.message}`)}console.error(l.join(`
+`)),Me("Shader: "+(l.slice(0,6).join(`
+`)||String(s.message||s)))}ar(),window.planets=kr,Fe(),requestAnimationFrame(Sn)}zr().catch(t=>{V("status").textContent||Me(String(t.message||t))});</script>
+  <style rel="stylesheet" crossorigin>:root{color-scheme:dark;--space: #07080b;--panel: rgba(16, 17, 22, .86);--line: #2a2a30;--text: #ece4d4;--muted: #9a9384;--accent: #d7a15f;--accent-dim: #6b5234;--focus: #f1c98f;--display: "Barlow Condensed", "Arial Narrow", "Roboto Condensed", sans-serif;--body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;--mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace}html,body{height:100%}body{margin:0;background:var(--space);color:var(--text);font:14px/1.45 var(--body);overflow:hidden}#app{position:relative;height:100%;display:grid;grid-template-columns:1fr 340px}#stage{position:relative;min-width:0;min-height:0}#view{display:block;width:100%;height:100%;touch-action:none;cursor:grab}#view:active{cursor:grabbing}#view.map{cursor:default}.hud{position:absolute;left:16px;top:calc(12px + env(safe-area-inset-top,0px));right:16px;display:flex;flex-direction:column;gap:2px;pointer-events:none}.hud h1{margin:0;font:600 26px/1.05 var(--display);letter-spacing:.04em;text-transform:uppercase;text-wrap:balance}.hud .meta{font:12px/1.4 var(--mono);color:var(--muted);font-variant-numeric:tabular-nums}.facts-name{font:13px/1.4 var(--mono);color:var(--text);margin-top:2px}.facts-name span{color:var(--muted)}.facts{display:grid;grid-template-columns:max-content max-content;gap:1px 12px;margin:4px 0 6px;padding:7px 10px;font:11.5px/1.4 var(--mono);background:#0a0c108c;border:1px solid var(--line);border-radius:6px;width:max-content;max-width:100%}.facts dt{color:#8fa6c4}.facts dd{margin:0;color:var(--text);font-variant-numeric:tabular-nums}@media(max-width:760px){.facts{display:none}}#fps{color:var(--accent);display:inline-block;min-width:26ch;white-space:nowrap}.row .info{display:inline-grid;place-items:center;width:18px;height:18px;padding:0;border:0;border-radius:50%;background:none;color:#7f8aa0;cursor:pointer;justify-self:start}.row .info svg{width:16px;height:16px}.row .info:hover,.row .info:focus-visible{color:var(--accent)}.tip{position:fixed;z-index:20;max-width:280px;padding:7px 10px;pointer-events:none;background:#0d0e12;border:1px solid var(--line);border-radius:6px;color:var(--text);font-size:12.5px;line-height:1.4;box-shadow:0 4px 16px #00000080}.detail{position:fixed;z-index:15;left:16px;bottom:16px;width:min(420px,calc(100vw - 32px));max-height:45vh;overflow-y:auto;padding:12px 14px;box-sizing:border-box;background:#0d0e12f2;border:1px solid var(--line);border-radius:8px;color:var(--muted);font-size:13px;line-height:1.5}.detail h3{margin:0 24px 6px 0;font:600 15px var(--display);letter-spacing:.06em;text-transform:uppercase;color:var(--text)}.detail .detail-close{position:absolute;top:8px;right:8px;padding:2px 7px}.detail .reset-hint{margin:8px 0 0;font-size:12px}#loading{position:absolute;inset:0;display:grid;place-items:center;background:radial-gradient(circle at 50% 55%,#14120f 0%,var(--space) 70%);transition:opacity .8s ease;z-index:2}#loading.done{opacity:0;pointer-events:none}.load-box{width:min(320px,80%);display:grid;gap:10px;text-align:center}#load-title{margin:0;font:600 18px var(--display);letter-spacing:.08em;text-transform:uppercase;color:var(--text)}.load-track{height:3px;background:var(--line);border-radius:2px;overflow:hidden}#load-bar{display:block;height:100%;width:0%;background:var(--accent);transition:width .2s linear}#load-note{margin:0;min-height:1.4em;font:12px var(--mono);color:var(--muted)}@media(prefers-reduced-motion:reduce){#loading{transition:none}}#status{position:absolute;inset:auto 16px 16px;max-width:520px;padding:12px 14px;background:#2a1512;border:1px solid #7a3326;border-radius:6px;color:#f6d9cf}aside{background:var(--panel);border-left:1px solid var(--line);overflow-y:auto;overscroll-behavior:contain;padding-block:calc(12px + env(safe-area-inset-top,0px)) calc(24px + env(safe-area-inset-bottom,0px));padding-inline:16px;backdrop-filter:blur(8px)}#panel-toggle{display:none}.panel-head{display:flex;justify-content:flex-end;align-items:center;gap:8px;position:sticky;top:calc(-12px - env(safe-area-inset-top,0px));z-index:3;margin:-12px -16px 8px;padding:10px 16px;background:var(--panel);border-bottom:1px solid var(--line)}#toolbar{display:flex;gap:6px;flex:1;flex-wrap:wrap}#toolbar button{padding:5px 8px;font-size:12.5px;white-space:nowrap}#lang{font:600 12px var(--mono);letter-spacing:.08em;padding:5px 9px}.switch{font:12.5px var(--body, inherit);color:var(--text);white-space:nowrap;padding:5px 9px;border:1px solid var(--line);border-radius:5px;text-decoration:none}.fx{display:block;margin-top:6px;font:11.5px/1.45 var(--mono);color:#d9c7a6;white-space:normal}.note.formula{margin-top:0}details{border-top:1px solid var(--line);padding-block:8px 10px}summary{cursor:pointer;list-style:none;display:flex;justify-content:space-between;align-items:center;font:600 15px/1.2 var(--display);letter-spacing:.08em;text-transform:uppercase;color:var(--text);padding-block:4px}summary::-webkit-details-marker{display:none}summary:after{content:"+";font-family:var(--mono);color:var(--muted)}details[open]>summary:after{content:"–"}.note{margin:2px 0 8px;font-size:12px;color:var(--muted)}.row{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:2px 8px;padding-block:5px}.row[hidden]{display:none}.row label{font-size:13px}.row output{font:12px var(--mono);color:var(--accent);font-variant-numeric:tabular-nums}.row input[type=range]{grid-column:1 / -1;width:100%;margin:0;accent-color:var(--accent);height:22px}.row-select{grid-template-columns:minmax(0,max-content) auto minmax(0,1.3fr)}select,button{font:13px var(--body);color:var(--text);background:#1b1c22;border:1px solid var(--line);border-radius:5px;padding:6px 8px;min-width:0}select{width:100%}.row-toggle label{display:flex;align-items:center;gap:8px;cursor:pointer}.row-toggle input{accent-color:var(--accent);width:16px;height:16px;margin:0}.row-buttons{display:flex;flex-wrap:wrap;gap:8px}.row-save{display:flex;gap:8px;align-items:center}.row-save input,.row-save select{flex:1;min-width:0}input[type=text]{font:13px var(--body);color:var(--text);background:#1b1c22;border:1px solid var(--line);border-radius:5px;padding:6px 8px}button:disabled{opacity:.45;cursor:default}.reset-hint{color:var(--muted)}.row label{cursor:default;user-select:none}.row-file input{grid-column:1 / -1;width:100%;font:12px var(--body);color:var(--muted)}.row-file input::file-selector-button{font:13px var(--body);color:var(--text);background:#1b1c22;border:1px solid var(--line);border-radius:5px;padding:6px 8px;margin-right:8px;cursor:pointer}button{cursor:pointer}button:hover{border-color:var(--accent-dim)}:focus-visible{outline:2px solid var(--focus);outline-offset:2px}.credits{margin-top:14px;font-size:11.5px;color:var(--muted)}.credits a{color:var(--muted)}@media(max-width:760px){#app{grid-template-columns:1fr}aside{position:absolute;left:0;right:0;bottom:0;max-height:58%;border-left:0;border-top:1px solid var(--line);border-radius:12px 12px 0 0;transform:translateY(calc(100% - 48px - env(safe-area-inset-bottom,0px)));transition:transform .25s ease;padding-block:0 calc(24px + env(safe-area-inset-bottom,0px))}aside.open{transform:none}.panel-head{top:0;margin:0 -16px 8px;padding:0 16px 8px;flex-wrap:wrap}.detail{top:16px;bottom:auto;max-height:40vh}#panel-toggle{display:flex;flex:1;justify-content:space-between;align-items:center;position:sticky;top:0;z-index:1;margin-bottom:8px;padding:14px 2px;background:none;border:0;border-radius:0;color:var(--text);font:600 15px var(--display);letter-spacing:.08em;text-transform:uppercase;background:var(--panel)}.hud h1{font-size:22px}}@media(prefers-reduced-motion:reduce){aside{transition:none}}.seg{display:flex;flex:1;border:1px solid var(--line);border-radius:6px;overflow:hidden;min-width:0}.seg a,.seg button{flex:1;display:grid;place-items:center;border:0;border-radius:0;padding:6px;background:#16171d;color:var(--muted);font:600 13.5px var(--display);letter-spacing:.06em;text-transform:uppercase;text-decoration:none;white-space:nowrap}.seg a[aria-current=page],.seg button[aria-pressed=true]{background:var(--accent);color:#1a1208}#toolbar{position:absolute;left:16px;bottom:calc(16px + env(safe-area-inset-bottom,0px));z-index:4;display:flex;gap:6px;flex-wrap:wrap;max-width:calc(100% - 32px)}#toolbar:empty{display:none}#toolbar button{padding:5px 9px;font-size:12.5px;white-space:nowrap;background:#16171dd9;backdrop-filter:blur(6px)}.detail{bottom:64px}.row.off{opacity:.42}.row.off input,.row.off select{pointer-events:none}details.inactive>summary{color:var(--muted)}.seedrow{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:6px;align-items:center;padding-block:5px}.seedrow label{font:12px var(--mono);color:var(--muted)}.seedrow input{width:100%;box-sizing:border-box;font-family:var(--mono);color:var(--accent)}#genbar{position:absolute;left:16px;bottom:calc(16px + env(safe-area-inset-bottom,0px));width:min(320px,calc(100% - 32px));font:12px var(--mono);color:var(--muted);pointer-events:none;text-shadow:0 1px 3px #000}#genbar .track{height:3px;margin-top:4px;background:var(--line);border-radius:2px;overflow:hidden}#genbar .fill{height:100%;width:0;background:var(--accent)}#lut{display:block;width:100%;height:auto;aspect-ratio:1;margin:6px 0 4px;border:1px solid var(--line);border-radius:4px}#view.drag{cursor:grabbing}@media(max-width:760px){.panel-head .seg{order:3;flex-basis:100%}.panel-head #lang{order:2}#toolbar,#genbar{bottom:calc(60px + env(safe-area-inset-bottom,0px))}}</style>
+</head>
+<body>
+<div id="app">
+  <div id="stage">
+    <canvas id="view" aria-label="Planet view: drag to turn, scroll or pinch to zoom"></canvas>
+    <div class="hud">
+      <h1 id="t-title">Procedural Planets</h1>
+      <div class="meta"><span id="fps">– fps</span> <span id="version"></span></div>
+      <div class="meta"><span id="mode-tag"></span> · <span id="t-hint"></span></div>
+    </div>
+    <div id="genbar" hidden><span id="gen-text"></span><div class="track"><div class="fill" id="gen-fill"></div></div></div>
+    <div id="toolbar"></div>
+    <div id="status" hidden></div>
+  </div>
+  <aside id="panel">
+    <div class="panel-head"><button id="panel-toggle" type="button" aria-expanded="false" aria-controls="panel-body"><span id="panel-title">Controls</span> <span aria-hidden="true">▴</span></button><nav id="ptype" class="seg"></nav><button id="lang" type="button">DE</button></div>
+    <div id="panel-body"></div>
+    <p class="credits" id="credits"></p>
+  </aside>
+</div>
+<script>
+  (function () {
+    var aside = document.getElementById('panel');
+    var btn = document.getElementById('panel-toggle');
+    btn.addEventListener('click', function () {
+      var open = aside.classList.toggle('open');
+      btn.setAttribute('aria-expanded', String(open));
+      btn.querySelector('[aria-hidden]').textContent = open ? '▾' : '▴';
     });
-    for (let i = RS.bloom.length - 1; i > 0; i--) full(RS.bloom[i - 1].v, P.up, RS.bloom[i].gUp, true);
-  }
-  full(OFFSCREEN ? RS.outV : context.getCurrentTexture().createView(), P.fin, bloomOn ? RS.pgFin : RS.pgFinNoBloom);
-}
-
-// ------------------------------------------------------------------ Schleife
-let last = performance.now(), budget = 256 * 256 * 2, fpsAcc = 0, fpsN = 0, fpsT = 0;
-// Bildauflösung: fest oder automatisch (hält etwa 40–60 Bilder pro Sekunde)
-const urlScale = Number(Q.get('scale')) || 0;
-let dynScale = 1, perfT = 0, perfAcc = 0, perfN = 0;
-function resize() {
-  const r = canvas.getBoundingClientRect();
-  let dpr = Math.min(window.devicePixelRatio || 1, 2);
-  if (urlScale) dpr *= urlScale;
-  else if (S.quality > 0) dpr *= S.quality;
-  else {
-    dpr *= dynScale;
-    const px = r.width * r.height * dpr * dpr;
-    const cap = coarse ? 3.6e6 : 17e6;
-    if (px > cap) dpr *= Math.sqrt(cap / px);
-  }
-  const w = Math.max(2, Math.round(r.width * dpr)), h = Math.max(2, Math.round(r.height * dpr));
-  if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; }
-}
-function adaptScale(dt, now) {
-  if (S.quality > 0 || urlScale || jobs.length) return;
-  perfAcc += dt; perfN++;
-  if (now - perfT < 1200) return;
-  const ms = 1000 * perfAcc / Math.max(perfN, 1);
-  perfAcc = 0; perfN = 0; perfT = now;
-  // Starke Grafikkarten: über 100 % hinaus (Supersampling), bis die Bildrate gegen 60 fällt
-  const top = coarse ? 1 : 2;
-  if (ms > (coarse ? 24 : 17.5) && dynScale > 0.45) dynScale = Math.max(0.45, dynScale * 0.85);
-  else if (ms < (coarse ? 14 : 11) && dynScale < top) dynScale = Math.min(top, dynScale * 1.08);
-}
-function step(now) {
-  const dt = Math.min(0.1, (now - last) / 1000);
-  last = now;
-  adaptScale(dt, now);
-  resize();
-  if (!pointers.size) {
-    cam.yaw += cam.vYaw; cam.pitch = clamp(cam.pitch + cam.vPitch, -1.45, 1.45);
-    cam.vYaw *= 0.92; cam.vPitch *= 0.92;
-  }
-  if (S.rotate) spin += S.spin * Math.PI / 180 * dt * Math.pow(clamp((cam.dist - 1) / 1.2, 0, 1), S.spinZoom);
-  simTime += dt;
-  const enc = device.createCommandEncoder();
-  // Erzeugung im Zeitbudget
-  if (jobs.length) {
-    budget = dt < 0.03 ? Math.min(budget * 1.3, 8e6) : dt > 0.05 ? Math.max(budget * 0.6, 32768) : budget;
-    runJobs(enc, budget);
-  }
-  const gb = $('genbar');
-  if (jobs.length) {
-    gb.hidden = false;
-    $('gen-text').textContent = `${t('Erzeuge Planet', 'Generating planet')} ${Math.round(100 * jobDone / Math.max(jobTotal, 1))} %`;
-    $('gen-fill').style.width = `${100 * jobDone / Math.max(jobTotal, 1)}%`;
-  } else gb.hidden = true;
-  if (!OFFSCREEN) render(enc);          // im Testmodus nur für Fotos zeichnen
-  device.queue.submit([enc.finish()]);
-  fpsAcc += dt; fpsN++;
-  if (now - fpsT > 500) { $('fps').textContent = `${Math.round(fpsN / Math.max(fpsAcc, 1e-3))} fps`; fpsAcc = 0; fpsN = 0; fpsT = now; }
-  requestAnimationFrame(step);
-}
-
-// Offscreen-Bild zurücklesen und als PNG liefern
-async function readOut(enc) {
-  const w = RS.w, h = RS.h, bpr = Math.ceil(w * 4 / 256) * 256;
-  const buf = device.createBuffer({ size: bpr * h, usage: GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST });
-  enc.copyTextureToBuffer({ texture: RS.out }, { buffer: buf, bytesPerRow: bpr }, [w, h]);
-  device.queue.submit([enc.finish()]);
-  await buf.mapAsync(GPUMapMode.READ);
-  const src = new Uint8Array(buf.getMappedRange());
-  const img = new ImageData(w, h);
-  for (let y = 0; y < h; y++) img.data.set(src.subarray(y * bpr, y * bpr + w * 4), y * w * 4);
-  buf.unmap(); buf.destroy();
-  const c = document.createElement('canvas');
-  c.width = w; c.height = h;
-  c.getContext('2d').putImageData(img, 0, 0);
-  return c.toDataURL('image/png');
-}
-
-// Schnittstelle für Tests und Bildschirmfotos
-const planetsApi = {
-  S, get busy() { return jobs.length > 0 || regenBusy > 0; },
-  set(k, v) { S[k] = v; if (k === 'style') { buildUI(); regenerate(); } else if (k === 'seed') newSeed(v); else changed({ k }); buildUI(); },
-  async finish() {
-    while (regenBusy > 0 || jobs.length) {
-      if (regenBusy > 0) { await new Promise((r) => setTimeout(r, 20)); continue; }
-      const enc = device.createCommandEncoder();
-      runJobs(enc, Infinity);
-      device.queue.submit([enc.finish()]);
-    }
-    await device.queue.onSubmittedWorkDone();
-  },
-  shot(opt = {}) {
-    if (opt.spin !== undefined) spin = opt.spin;
-    if (opt.time !== undefined) simTime = opt.time;
-    if (opt.yaw !== undefined) cam.yaw = opt.yaw;
-    if (opt.pitch !== undefined) cam.pitch = opt.pitch;
-    // Kamera auf das Zentrum der Milchstraße richten (für Testbilder)
-    if (opt.core && RS.galCore) { const c = RS.galCore; cam.yaw = Math.atan2(-c[0], -c[2]); cam.pitch = clamp(Math.asin(-c[1]), -1.45, 1.45); }
-    if (opt.dist !== undefined) { cam.dist = cam.tDist = opt.dist; cam.zoomed = true; }
-    else if (!cam.zoomed) { cam.dist = cam.tDist = fitDist(canvas.width / canvas.height); }
-    const enc = device.createCommandEncoder();
-    render(enc);
-    if (!OFFSCREEN) { device.queue.submit([enc.finish()]); return canvas.toDataURL('image/png'); }
-    return readOut(enc);
-  },
-};
-
-S.sea = S.sea < 0 ? PP.water : S.sea;
-if (!Q.get('cover')) S.cover = PP.cloudCover;
-buildUI();
-// Start, sobald alle Pipelines übersetzt sind
-async function boot() {
-  await initGPU();
-  makeLayouts();
-  const { list, mods } = startPipelines();
-  const names = Object.keys(list);
-  let done = 0;
-  const show = () => {
-    $('genbar').hidden = false;
-    $('gen-text').textContent = `${t('Übersetze Shader', 'Compiling shaders')} ${done}/${names.length}`;
-    $('gen-fill').style.width = `${100 * done / names.length}%`;
-  };
-  show();
-  try {
-    const res = await Promise.all(names.map((k) => list[k].then((p) => { done++; show(); return p; })));
-    P = Object.fromEntries(names.map((k, i) => [k, res[i]]));
-  } catch (e) {
-    const msgs = [];
-    for (const [k, m] of Object.entries(mods)) {
-      const info = await m.getCompilationInfo();
-      for (const x of info.messages) if (x.type === 'error') msgs.push(`${k}:${x.lineNum}:${x.linePos} ${x.message}`);
-    }
-    console.error(msgs.join('\n'));
-    fail('Shader: ' + (msgs.slice(0, 6).join('\n') || String(e.message || e)));
-  }
-  initResources();
-  window.planets = planetsApi;
-  regenerate();
-  requestAnimationFrame(step);
-}
-boot().catch((e) => { if (!$('status').textContent) fail(String(e.message || e)); });
+  })();
 </script>
-
+</body>
 </html>

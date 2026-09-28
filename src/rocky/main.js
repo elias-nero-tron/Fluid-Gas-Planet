@@ -1,113 +1,7 @@
-<title>Procedural Planets</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500&display=swap">
-<style>
-  /* Prozedurale Planeten: eigene Seite, teilt keinen Code mit dem Gasplaneten. Bewusst nur dunkel (Weltraum). */
-  :root {
-    color-scheme: dark;
-    --bg: #04050a;
-    --panel: rgba(13, 14, 20, 0.95);
-    --field: #0c0d12;
-    --line: #262833;
-    --text: #ece8e1;
-    --muted: #9a968f;
-    --accent: #e0a36a;
-    --ink: #1a1208;
-    --focus: #f3cf9c;
-    --cool: #8fb8d8;
-    --display: 'Barlow Condensed', 'Arial Narrow', sans-serif;
-    --body: 'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
-    --mono: 'IBM Plex Mono', ui-monospace, Menlo, monospace;
-  }
-  html, body { height: 100%; }
-  body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.45 var(--body); overflow: hidden; }
-  #app { height: 100%; display: grid; grid-template-columns: minmax(0, 1fr) 340px; }
-  #stage { position: relative; min-width: 0; min-height: 0; background: #000; }
-  #view { display: block; width: 100%; height: 100%; touch-action: none; cursor: grab; }
-  #view.drag { cursor: grabbing; }
-  .hud { position: absolute; left: 16px; right: 16px; top: calc(12px + env(safe-area-inset-top, 0px)); pointer-events: none; text-shadow: 0 1px 3px #000; }
-  .hud h1 { margin: 0; font: 600 26px/1.05 var(--display); letter-spacing: 0.04em; text-transform: uppercase; text-wrap: balance; }
-  .hud p { margin: 2px 0 0; font: 12px var(--mono); color: var(--muted); }
-  #fps { color: var(--accent); font-variant-numeric: tabular-nums; }
-  #mode-tag { color: var(--cool); }
-  #genbar { position: absolute; left: 16px; bottom: calc(16px + env(safe-area-inset-bottom, 0px)); width: min(320px, calc(100% - 32px)); font: 12px var(--mono); color: var(--muted); pointer-events: none; text-shadow: 0 1px 3px #000; }
-  #genbar .track { height: 3px; margin-top: 4px; background: var(--line); border-radius: 2px; overflow: hidden; }
-  #genbar .fill { height: 100%; width: 0; background: var(--accent); }
-  #status { position: absolute; left: 16px; right: 16px; bottom: 16px; max-width: 560px; padding: 12px 14px; background: #2a1512; border: 1px solid #7a3326; border-radius: 6px; white-space: pre-wrap; font: 12.5px/1.45 var(--mono); }
-  aside {
-    background: var(--panel); border-left: 1px solid var(--line); overflow-y: auto;
-    padding-inline: 16px; padding-block: calc(12px + env(safe-area-inset-top, 0px)) calc(20px + env(safe-area-inset-bottom, 0px));
-  }
-  .head { display: flex; gap: 8px; align-items: stretch; margin-bottom: 10px; }
-  .seg { display: flex; flex: 1; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
-  .seg button { flex: 1; border: 0; border-radius: 0; padding: 7px 6px; background: #16171d; color: var(--muted); font: 600 14px var(--display); letter-spacing: 0.06em; text-transform: uppercase; }
-  .seg button[aria-pressed="true"] { background: var(--accent); color: var(--ink); }
-  button, select { font: 13px var(--body); color: var(--text); background: #1b1c22; border: 1px solid var(--line); border-radius: 5px; padding: 6px 9px; cursor: pointer; }
-  #lang { font: 600 12px var(--mono); letter-spacing: 0.08em; }
-  .switch { display: flex; align-items: center; padding: 0 9px; font: 13px var(--body); color: var(--text); background: #1b1c22; border: 1px solid var(--line); border-radius: 5px; text-decoration: none; }
-  .seedrow { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 6px; align-items: center; margin-bottom: 10px; }
-  .seedrow label { font: 12px var(--mono); color: var(--muted); }
-  .seedrow input { width: 100%; box-sizing: border-box; padding: 6px 8px; font: 13px var(--mono); color: var(--accent); background: var(--field); border: 1px solid var(--line); border-radius: 5px; }
-  .help { position: sticky; top: 0; z-index: 1; margin: 0 0 10px; padding: 10px 12px; height: 8.8em; overflow-y: auto; box-sizing: border-box; border: 1px solid var(--line); border-radius: 6px; background: var(--field); color: var(--muted); font-size: 12.5px; }
-  .help b { color: var(--text); font-weight: 500; }
-  .fx { display: block; margin-top: 6px; font: 11.5px/1.45 var(--mono); color: #d9c7a6; }
-  details { border-top: 1px solid var(--line); }
-  summary { display: flex; justify-content: space-between; align-items: baseline; padding: 9px 0 7px; cursor: pointer; list-style: none; font: 600 15px var(--display); letter-spacing: 0.08em; text-transform: uppercase; }
-  summary::-webkit-details-marker { display: none; }
-  summary::after { content: '+'; color: var(--muted); font-family: var(--mono); }
-  details[open] > summary::after { content: '\2212'; }
-  .row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 8px; align-items: center; padding-block: 4px; }
-  .row label { font-size: 13px; }
-  .row output { font: 12px var(--mono); color: var(--accent); font-variant-numeric: tabular-nums; }
-  .row input[type=range] { grid-column: 1 / -1; width: 100%; margin: 0; height: 22px; accent-color: var(--accent); }
-  .row-select { grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr); }
-  .row-check { grid-template-columns: minmax(0, 1fr) auto; }
-  .row input[type=checkbox] { width: 18px; height: 18px; accent-color: var(--accent); }
-  .tag { margin-left: 6px; padding: 0 4px; border: 1px solid #2b3a47; border-radius: 3px; font: 10.5px var(--mono); color: var(--cool); vertical-align: 1px; }
-  #lut { display: block; width: 100%; max-width: 100%; height: auto; aspect-ratio: 1; margin: 6px 0 4px; border: 1px solid var(--line); border-radius: 4px; image-rendering: auto; }
-  .note { margin: 12px 0 0; font-size: 12px; color: var(--muted); }
-  a { color: var(--muted); }
-  :focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
-  @media (max-width: 760px) {
-    #app { grid-template-columns: 1fr; grid-template-rows: 56% 44%; }
-    aside { border-left: 0; border-top: 1px solid var(--line); }
-    .help { height: 7em; }
-    .hud h1 { font-size: 21px; }
-  }
-</style>
-
-<div id="app">
-  <div id="stage">
-    <canvas id="view" aria-label="Planet view: drag to turn, scroll or pinch to zoom"></canvas>
-    <div class="hud">
-      <h1 id="t-title">Procedural Planets</h1><span id="ver" style="font:11px var(--mono);opacity:.6">Stand 2026-09-28 · v23</span>
-      <p><span id="fps">– fps</span> · <span id="mode-tag"></span> · <span id="t-hint"></span></p>
-    </div>
-    <div id="genbar" hidden><span id="gen-text"></span><div class="track"><div class="fill" id="gen-fill"></div></div></div>
-    <div id="status" hidden></div>
-  </div>
-  <aside>
-    <div class="head">
-      <div class="seg" role="group" id="style-group">
-        <button id="st-orig" type="button" aria-pressed="false">Original 1:1</button>
-        <button id="st-plus" type="button" aria-pressed="true">+20 %</button>
-      </div>
-      <a id="to-gas" class="switch" href="../index.html">Gas</a>
-      <button id="lang" type="button">DE</button>
-    </div>
-    <div class="seedrow">
-      <label for="seed">seed</label>
-      <input id="seed" type="text" inputmode="numeric" autocomplete="off" spellcheck="false">
-      <button id="rnd" type="button"></button>
-    </div>
-    <p class="help" id="help"></p>
-    <div id="controls"></div>
-    <p class="note" id="t-foot"></p>
-  </aside>
-</div>
-
-<script type="module">
+import { Panel } from '../ui';
+import { t, lang, setLang } from '../i18n';
+import { initShell } from '../shell';
+import { SKY_GEN_WGSL, SKY_DRAW_WGSL, skyParams } from '../sky/sky';
 // ============================================================================================
 // Prozedurale Planeten, nachgebaut nach colordodge "ProceduralPlanet" (three.js, WTFPL) und erweitert.
 //
@@ -146,8 +40,6 @@
 //   ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 // ============================================================================================
 
-let lang = (() => { try { const v = localStorage.getItem('fgp-lang'); if (v === 'de' || v === 'en') return v; } catch {} return (navigator.language || 'en').toLowerCase().startsWith('de') ? 'de' : 'en'; })();
-const t = (de, en) => (lang === 'de' ? de : en);
 const Q = new URLSearchParams(location.search);
 const coarse = matchMedia('(max-width: 760px), (pointer: coarse)').matches;
 
@@ -223,8 +115,6 @@ let PP = planetParams(S.seed);
 
 // ------------------------------------------------------------------ Oberfläche (Texte, Regler)
 const $ = (id) => document.getElementById(id);
-const help = $('help');
-const tag = (m) => (m === 'orig' ? ` <span class="tag">1:1</span>` : '');
 const pct = (v) => `${Math.round(v * 100)} %`;
 
 function controls() {
@@ -358,83 +248,66 @@ function controls() {
   ];
 }
 
+// Menü: dasselbe Panel wie beim Gasriesen (ⓘ-Erklärung, Blase beim Drüberfahren, Doppelklick = zurücksetzen).
+// Regler des anderen Stils stehen ausgegraut in einem eigenen Abschnitt ganz unten.
+let panel = null;
 const openState = {};
-function showHelp(it) {
-  const h = it.help || '';
-  help.innerHTML = `<b>${it.label}.</b> ${h}${it.fx ? `<code class="fx">${it.fx}</code>` : ''}`;
-}
+function hintOf(it) { return (it.help || it.label) + (it.fx ? `<code class="fx">${it.fx}</code>` : ''); }
 function fmtVal(it, v) { return it.fmt ? it.fmt(v) : Number(v).toFixed(it.step < 0.01 ? 3 : it.step < 1 ? 2 : 0); }
-
-function buildUI() {
-  const box = $('controls');
-  box.innerHTML = '';
-  for (const sec of controls()) {
-    const det = document.createElement('details');
-    det.open = sec.id in openState ? openState[sec.id] : !!sec.open;
-    det.addEventListener('toggle', () => { openState[sec.id] = det.open; });
-    const sum = document.createElement('summary');
-    sum.textContent = sec.title;
-    det.append(sum);
-    for (const it of sec.items) {
-      if (it.mode && it.mode !== S.style) continue;
-      const row = document.createElement('div');
-      row.className = 'row';
-      const lab = document.createElement('label');
-      lab.innerHTML = it.label + tag(it.mode);
-      lab.htmlFor = 'ctl-' + it.k;
-      const show = () => showHelp(it);
-      row.addEventListener('pointerenter', show);
-      row.addEventListener('focusin', show);
-      lab.title = t('Doppelklick: zurücksetzen', 'Double-click: reset');
-      lab.addEventListener('dblclick', () => { S[it.k] = it.k === 'sea' ? PP.water : DEF[it.k]; changed(it); buildUI(); });
-      if (it.type === 'select') {
-        row.classList.add('row-select');
-        const sel = document.createElement('select');
-        sel.id = 'ctl-' + it.k;
-        for (const [v, txt] of it.opts) { const o = document.createElement('option'); o.value = v; o.textContent = txt; sel.append(o); }
-        sel.value = String(S[it.k]);
-        sel.addEventListener('change', () => { S[it.k] = isNaN(Number(sel.value)) ? sel.value : Number(sel.value); changed(it); });
-        row.append(lab, sel);
-      } else if (it.type === 'check') {
-        row.classList.add('row-check');
-        const cb = document.createElement('input');
-        cb.type = 'checkbox'; cb.id = 'ctl-' + it.k; cb.checked = !!S[it.k];
-        cb.addEventListener('change', () => { S[it.k] = cb.checked; changed(it); });
-        row.append(lab, cb);
-      } else {
-        const out = document.createElement('output');
-        const inp = document.createElement('input');
-        inp.type = 'range'; inp.id = 'ctl-' + it.k; inp.min = it.min; inp.max = it.max; inp.step = it.step; inp.value = S[it.k];
-        out.textContent = fmtVal(it, S[it.k]);
-        inp.addEventListener('input', () => { S[it.k] = Number(inp.value); out.textContent = fmtVal(it, S[it.k]); if (!it.regen) changed(it); });
-        inp.addEventListener('change', () => { if (it.regen) changed(it); });
-        row.append(lab, out, inp);
-      }
-      det.append(row);
-    }
-    if (sec.id === 'debug') det.append(lutCanvas);
-    box.append(det);
+function itemByKey(k) { for (const sec of controls()) for (const it of sec.items) if (it.k === k) return it; return { k }; }
+function addItem(P, it) {
+  if (it.type === 'select') P.select(it.k, it.label, it.opts.map(([v, x]) => [String(v), x]), hintOf(it));
+  else if (it.type === 'check') P.toggle(it.k, it.label, hintOf(it));
+  else {
+    if (it.regen) Panel.heavy.add(it.k);   // teure Regler: erst beim Loslassen neu rechnen
+    P.range(it.k, it.label, it.min, it.max, it.step, hintOf(it), (v) => fmtVal(it, v));
   }
-  help.innerHTML = t('Fahre über einen Regler: Hier steht, was er bewirkt und welche Formel dahintersteht. Ziehen dreht die Ansicht, Mausrad oder zwei Finger zoomen.',
-    'Hover a control: this box explains what it does and which formula is behind it. Drag to turn the view, scroll or pinch to zoom.');
+}
+function buildUI() {
+  const root = $('panel-body');
+  for (const d of root.querySelectorAll('details')) if (d.dataset.id) openState[d.dataset.id] = d.open;
+  root.innerHTML = '';
+  DEF.sea = PP.water;
+  panel = new Panel(root, S, (k) => { if (k === 'style') { setStyle(S.style, true); return; } changed(itemByKey(k)); }, DEF);
+  const secs = controls();
+  const inactive = [];
+  // Kopf: Stil und Seed
+  panel.section(t('Stil & Seed', 'Style & seed'), undefined, true);
+  panel.select('style', t('Stil', 'Style'), [['plus', t('+20 % besser', '+20 % better')], ['orig', 'Original 1:1 (colordodge)']],
+    t('Original 1:1: genau wie das three.js-Vorbild von colordodge. +20 % besser: dieselbe Grundform mit echter Physik für Licht, Wasser, Luft und Gelände.',
+      'Original 1:1: exactly like colordodge\'s three.js model. +20 % better: the same base shape with real physics for light, water, air and terrain.'));
+  const sr = document.createElement('div');
+  sr.className = 'seedrow';
+  sr.innerHTML = `<label for="seed">seed</label><input id="seed" type="text" inputmode="numeric" autocomplete="off" spellcheck="false"><button id="rnd" type="button">${t('Zufall', 'Randomize')}</button>`;
+  panel.custom(sr);
+  sr.querySelector('#seed').value = S.seed;
+  sr.querySelector('#seed').addEventListener('change', (e) => newSeed(e.target.value));
+  sr.querySelector('#rnd').addEventListener('click', () => newSeed(randomSeed()));
+  for (const sec of secs) {
+    const act = sec.items.filter((it) => !it.mode || it.mode === S.style);
+    for (const it of sec.items) if (it.mode && it.mode !== S.style) inactive.push(it);
+    if (!act.length) continue;
+    panel.section(sec.title, undefined, sec.id in openState ? openState[sec.id] : !!sec.open);
+    root.lastElementChild.dataset.id = sec.id;
+    for (const it of act) addItem(panel, it);
+    if (sec.id === 'debug') panel.custom(lutCanvas);
+  }
+  if (inactive.length) {
+    panel.section(S.style === 'orig' ? t('Nur in „+20 % besser“', 'Only in “+20 % better”') : t('Nur in „Original 1:1“', 'Only in “Original 1:1”'),
+      t('Diese Regler wirken im gewählten Stil nicht.', 'These controls have no effect in the chosen style.'), !!openState.inactive);
+    root.lastElementChild.dataset.id = 'inactive';
+    root.lastElementChild.classList.add('inactive');
+    for (const it of inactive) { addItem(panel, it); panel.disable(it.k, true); }
+  }
+  initShell('rocky');
+  $('t-title').textContent = t('Gesteinsplanet', 'Rocky planet');
+  $('version').textContent = __VERSION__;
+  $('panel-title').textContent = t('Regler', 'Controls');
   $('t-hint').textContent = coarse ? t('wischen: drehen · zwei Finger: zoomen', 'swipe: turn · pinch: zoom') : t('ziehen: drehen · Rad: zoomen', 'drag: turn · wheel: zoom');
-  $('rnd').textContent = t('Zufall', 'Randomize');
-  $('to-gas').textContent = t('Gasriesen', 'Gas giants');
-  // in demo/ liegen beide Seiten nebeneinander
-  if (/\/demo\/[^/]*$/.test(location.pathname)) $('to-gas').href = 'index.html';
-  // Einzeln gespeicherte Datei (file://, z. B. aus dem Download-Ordner): Nachbarseite liegt nicht daneben -> Online-Fassung
-  if (location.protocol === 'file:' && !/Fluid-Gas-Planet\/(demo|demos)\//.test(location.pathname)) $('to-gas').href = 'https://raw.githack.com/elias-nero-tron/Fluid-Gas-Planet/main/demo/index.html';
-  $('lang').textContent = lang === 'de' ? 'EN' : 'DE';
-  $('st-plus').textContent = t('+20 % besser', '+20 % better');
-  $('st-orig').textContent = 'Original 1:1';
-  $('st-orig').setAttribute('aria-pressed', String(S.style === 'orig'));
-  $('st-plus').setAttribute('aria-pressed', String(S.style === 'plus'));
-  $('style-group').setAttribute('aria-label', t('Stil', 'Style'));
-  $('mode-tag').textContent = S.style === 'orig' ? t('Original 1:1 (colordodge)', 'Original 1:1 (colordodge)') : t('verbessert', 'improved');
-  $('seed').value = S.seed;
-  $('t-foot').innerHTML = t(
-    'Verfahren nach <a href="https://github.com/colordodge/ProceduralPlanet" target="_blank" rel="noopener">colordodge/ProceduralPlanet</a> (WTFPL), nachgebaut in WebGPU. Teil von <a href="https://github.com/elias-nero-tron/Fluid-Gas-Planet" target="_blank" rel="noopener">Fluid Gas Planet</a>, Idee: elias-nero-tron.',
-    'Method after <a href="https://github.com/colordodge/ProceduralPlanet" target="_blank" rel="noopener">colordodge/ProceduralPlanet</a> (WTFPL), rebuilt in WebGPU. Part of <a href="https://github.com/elias-nero-tron/Fluid-Gas-Planet" target="_blank" rel="noopener">Fluid Gas Planet</a>, idea: elias-nero-tron.');
+  $('mode-tag').textContent = S.style === 'orig' ? 'Original 1:1 (colordodge)' : t('+20 % besser', '+20 % better');
+  $('credits').innerHTML = t(
+    'Echtzeit-WebGPU, keine Bilddateien. Grundform nach <a href="https://github.com/colordodge/ProceduralPlanet" target="_blank" rel="noopener">colordodge/ProceduralPlanet</a> (WTFPL). Idee: elias-nero-tron. <a href="https://github.com/elias-nero-tron/Fluid-Gas-Planet" target="_blank" rel="noopener">Quellcode</a>',
+    'Real-time WebGPU, no image files. Base shape after <a href="https://github.com/colordodge/ProceduralPlanet" target="_blank" rel="noopener">colordodge/ProceduralPlanet</a> (WTFPL). Idea: elias-nero-tron. <a href="https://github.com/elias-nero-tron/Fluid-Gas-Planet" target="_blank" rel="noopener">Source code</a>');
   document.documentElement.lang = lang;
 }
 
@@ -814,46 +687,6 @@ fn main(@builtin(global_invocation_id) gid: vec3u) {
 // Aufbau wie am echten Nachthimmel: helles Band (Scheibe der Galaxie) mit Kern (Bulge), dunkle Staubbahnen
 // genau in der Mitte des Bandes, vereinzelte rote Gaswolken (H-alpha) im Band. Alpha = Sterndichte.
 // a = (Seed, Helligkeit, -, -), b = Pol der Galaxie, c = Richtung zum Kern, d = Farbton-Verschiebung
-const NEBGEN = JDECL + /* wgsl */`
-@group(0) @binding(1) var dst: texture_storage_2d_array<rgba16float, write>;
-@compute @workgroup_size(8, 8)
-fn main(@builtin(global_invocation_id) gid: vec3u) {
-  let px = vec2f(gid.xy) + J.h.xy;
-  if (px.x >= J.g.x || px.y >= J.g.y) { return; }
-  let seed = J.a.x;
-  let face = i32(J.h.z);
-  let d = faceDir(face, px / (J.h.w - 1.0));
-  let pole = J.b.xyz;
-  let core = J.c.xyz;
-  // galaktische Breite, leicht verbogen, damit das Band nicht wie mit dem Lineal gezogen aussieht
-  let warp = fbmS(d * 2.2 + seed, 4) * 0.07;
-  let b = asin(clamp(dot(d, pole), -1.0, 1.0)) + warp;
-  let toCore = acos(clamp(dot(d, core), -1.0, 1.0));
-  let wd = J.a.z;
-  let disk = exp(-sq(b / (0.16 * wd)));                    // Scheibe
-  let thin = exp(-sq(b / (0.045 * wd)));                   // dünne Mittelebene (Staub)
-  let bulge = exp(-sq(toCore / 0.42)) * exp(-sq(b / (0.3 * wd))) * J.a.w;
-  let glowN = fbmS(d * 5.0 + seed + 3.0, 6) * 0.5 + 0.5;          // Sternwolken, wolkig-körnig
-  let grain = fbmS(d * 28.0 + seed + 9.0, 4) * 0.5 + 0.5;
-  var lum = disk * (0.25 + 0.75 * glowN) * (0.7 + 0.6 * grain) * (0.55 + 0.45 * exp(-sq(toCore / 1.4)));
-  lum += bulge * 1.6 * (0.8 + 0.4 * glowN);
-  lum += 0.02;                                                    // schwaches Zodiakal-/Hintergrundlicht
-  // Staubbahnen: verzweigte dunkle Adern in der Mittelebene
-  let q = d * 7.0 + vec3f(fbmS(d * 3.0 + seed + 21.0, 4), fbmS(d * 3.0 + seed + 37.0, 4), 0.0) * 1.2;
-  let lanes = smoothstep(-0.1, 0.45, fbmS(q + seed, 6));
-  let dust = clamp(lanes * (thin * 1.2 + disk * 0.35) * J.d.y, 0.0, 0.8);
-  lum *= 1.0 - dust;
-  // Farbe: warmer Kern, weißlich-blaue Scheibe (mehr junge Sterne außen)
-  let tint = J.d.x;
-  var col = mix(vec3f(0.78, 0.84, 1.0), vec3f(1.0, 0.82, 0.6), clamp(bulge * 1.4 + tint, 0.0, 1.0)) * lum;
-  // rote Emissionsnebel, klein und selten, nur im Band
-  let hii = pow(max(fbmS(d * 9.0 + seed + 51.0, 5) - 0.18, 0.0) * 3.0, 3.0) * disk * (1.0 - dust);
-  col += vec3f(1.0, 0.22, 0.28) * hii * 0.35 * J.d.z;
-  col *= J.a.y;
-  let dens = clamp(0.15 + disk * (1.0 - 0.7 * dust) + bulge, 0.0, 2.0);
-  textureStore(dst, vec2u(px), face, vec4f(col, dens));
-}
-`;
 
 // ---------------------------------------------------------------- Atmosphäre: Durchlässigkeits-Tabelle (Compute)
 // a = (R, R_oben, H_Rayleigh, H_Mie), b = (β_R, β_M,ext), c = β_Ozon, d = (Ozon-Höhe, -Breite)
@@ -1064,10 +897,18 @@ struct PV { @builtin(position) pos: vec4f, @location(0) obj: vec3f, @location(1)
 
 // Gelände-Kacheln (Quadtree wie CDLOD, Strugar 2009): pro Kachel ein Gitter, fein nahe der Kamera.
 // Rand-Schürzen (skirt) verdecken die Spalten zwischen Kacheln verschiedener Stufe.
+// Geomorphing (Strugar 2009): nahe der Grenze zur gröberen Kachel wandern die ungeraden Gitterpunkte auf die Linie
+// ihrer Nachbarn, und die Mipmap-Stufe hängt nur vom Abstand ab. So haben Nachbarkacheln an der Naht dieselbe Höhe.
 @vertex fn vsPatch(@location(0) g: vec3f, @location(1) inst: vec4f) -> PV {
-  let uv = inst.yz + g.xy * inst.w;
+  let M = modelM();
+  let d0 = faceDir(i32(inst.x), inst.yz + g.xy * inst.w);
+  let dist = length(U.cam.xyz - M * d0);
+  let rTile = inst.w * 1.1 * D.y;
+  let mk = clamp((dist / rTile - 1.3) / 0.5, 0.0, 1.0);    // Kachel lebt etwa bei dist/rTile ∈ [1, 2]
+  let gm = g.xy - fract(g.xy * PATCH_G * 0.5) * (2.0 / PATCH_G) * mk;
+  let uv = inst.yz + gm * inst.w;
   let d = faceDir(i32(inst.x), uv);
-  let lod = max(log2(U.T.x * inst.w / PATCH_G), 0.0);
+  let lod = max(log2(U.T.x * dist / (1.1 * D.y * PATCH_G)), 0.0);
   var disp = 0.0;
   if (D.z > 0.0) { disp = D.z * max(texDirLod(tHm, d, U.T.x, lod).x - U.T.z, 0.0); }
   let p = d * (D.x + disp - g.z * (0.02 * inst.w + D.z * 0.3));
@@ -1492,37 +1333,12 @@ fn earthBiome(d: vec3f, h: f32, m: f32, slope: f32, nz: f32) -> vec4f {
   return vec4f(col * alpha, alpha);
 }
 
-// ---- Hintergrund: Nebel, Sterne, Sonne
-fn stars(d: vec3f, pix: f32, dens: f32) -> vec3f {
-  var acc = vec3f(0.0);
-  let F = toFace(d, vec3f(0.0), vec3f(0.0));
-  var keeps = array<f32, 3>(0.3, 0.2, 0.12);
-  var gains = array<f32, 3>(1.0, 0.55, 0.3);
-  for (var L = 0; L < 3; L++) {
-    let cells = 70.0 * exp2(f32(L));
-    let g = F.uv * cells;
-    let id = floor(g);
-    let h = hash33(vec3f(id, f32(F.f) * 17.0 + f32(L) * 131.0));
-    if (h.z > keeps[L] * mix(0.6, 1.6, clamp(dens * 0.6, 0.0, 1.0))) { continue; }
-    let pos = id + 0.25 + 0.5 * h.xy;
-    let r = length(g - pos) / cells * 1.5708;
-    let b = hash13(vec3f(id * 1.37, f32(F.f) + f32(L) * 7.0));
-    let flux = (pow(b, 16.0) * 5.0 + 0.018 * b * b) * gains[L];
-    let sig = pix * 0.55;
-    let I = flux * exp(-r * r / (2.0 * sig * sig));
-    let tc = hash13(vec3f(id, 5.0 + f32(L)));
-    acc += I * mix(vec3f(1.0, 0.78, 0.6), vec3f(0.72, 0.82, 1.0), tc);
-  }
-  return acc;
-}
+// ---- Hintergrund: gemeinsamer Himmel (src/sky), dazu die Sonne
 @fragment fn fsBg(vin: VO) -> @location(0) vec4f {
   let w = U.ivp * vec4f(vin.uv * 2.0 - 1.0, 1.0, 1.0);
   let dir = normalize(w.xyz / w.w - U.cam.xyz);
   let pix = max(length(fwidth(dir)), 1e-5);
-  var col = vec3f(0.0);
-  var dens = 0.4;
-  if (U.Md.w > 0.5) { let nb = texDirLod(tNeb, dir, U.Bg.z, 0.0); col = nb.rgb * U.Bg.x; dens = nb.a; }
-  col += stars(dir, pix, dens) * U.Bg.y;
+  var col = skyColor(tNeb, samp, dir, pix, select(0.0, U.Bg.z, U.Md.w > 0.5), U.Bg.x, U.Bg.y);
   let c = dot(dir, U.sun.xyz);
   let ang = acos(clamp(c, -1.0, 1.0));
   let sunR = U.Mq.w;
@@ -1605,8 +1421,31 @@ fn ign(p: vec2f) -> f32 { return fract(52.9829189 * fract(dot(p, vec2f(0.0671105
   return vec4f(col * exp(-od) + Ls, 1.0);
 }
 fn tp(uv: vec2f, o: vec2f) -> vec3f { return textureSampleLevel(tSrc, samp, uv + o * Pp.xy, 0.0).rgb; }
+// Erste Stufe mit Karis-Mittel (Jimenez 2014, CoD: Advanced Warfare): jeder Abtastwert zählt mit 1/(1+Helligkeit).
+// Einzelne superhelle Pixel (Glanzpunkte auf Wellen und Fels) flackern sonst als Lichtblitze durch die Überstrahlung.
+fn karisTap(uv: vec2f, o: vec2f, k: f32, acc: ptr<function, vec4f>) {
+  let s = tp(uv, o);
+  let w = k / (1.0 + max(s.r, max(s.g, s.b)));
+  *acc += vec4f(s * w, w);
+}
 @fragment fn fsDown(vin: VO) -> @location(0) vec4f {
   let uv = tuvOf(vin.uv);
+  if (Pp.w > 0.5) {
+    var a = vec4f(0.0);
+    karisTap(uv, vec2f(0.0), 0.125, &a);
+    karisTap(uv, vec2f(-2.0, 2.0), 0.03125, &a); karisTap(uv, vec2f(2.0, 2.0), 0.03125, &a);
+    karisTap(uv, vec2f(-2.0, -2.0), 0.03125, &a); karisTap(uv, vec2f(2.0, -2.0), 0.03125, &a);
+    karisTap(uv, vec2f(0.0, 2.0), 0.0625, &a); karisTap(uv, vec2f(-2.0, 0.0), 0.0625, &a);
+    karisTap(uv, vec2f(2.0, 0.0), 0.0625, &a); karisTap(uv, vec2f(0.0, -2.0), 0.0625, &a);
+    karisTap(uv, vec2f(-1.0, 1.0), 0.125, &a); karisTap(uv, vec2f(1.0, 1.0), 0.125, &a);
+    karisTap(uv, vec2f(-1.0, -1.0), 0.125, &a); karisTap(uv, vec2f(1.0, -1.0), 0.125, &a);
+    var c = a.rgb / max(a.w, 1e-6);
+    let br = max(c.r, max(c.g, c.b));
+    var soft = clamp(br - Pp.z + 0.5, 0.0, 1.0);
+    soft = soft * soft * 0.5;
+    c *= max(soft, br - Pp.z) / max(br, 1e-4);
+    return vec4f(min(c, vec3f(60.0)), 1.0);
+  }
   var c = tp(uv, vec2f(0.0)) * 0.125
     + (tp(uv, vec2f(-2.0, 2.0)) + tp(uv, vec2f(2.0, 2.0)) + tp(uv, vec2f(-2.0, -2.0)) + tp(uv, vec2f(2.0, -2.0))) * 0.03125
     + (tp(uv, vec2f(0.0, 2.0)) + tp(uv, vec2f(-2.0, 0.0)) + tp(uv, vec2f(2.0, 0.0)) + tp(uv, vec2f(0.0, -2.0))) * 0.0625
@@ -1665,6 +1504,8 @@ fn flare(uv: vec2f) -> vec3f {
 // ------------------------------------------------------------------ GPU-Objekte
 let device, adapter, context, format, P, L;
 const OFFSCREEN = Q.has('offscreen');
+// Kantenglättung der Szene (MSAA): glättet Planetenrand, Bergsilhouetten und Wolkenränder; Nachbearbeitung läuft auf dem aufgelösten Bild
+const MSAA = Number(Q.get('msaa')) === 1 ? 1 : 4;
 const GPU_RS = {};
 const VF = 3;          // GPUShaderStage.VERTEX | FRAGMENT
 const mipLevels = (n) => Math.floor(Math.log2(n)) + 1;
@@ -1715,15 +1556,15 @@ function makeLayouts() {
 // Pipelines werden parallel und ohne Blockieren übersetzt (createRenderPipelineAsync), wie früher KHR_parallel_shader_compile
 function startPipelines() {
   const mods = {
-    gen: [COMMON + NOISE + GEN, 'gen'], cloudGen: [COMMON + NOISE + CLOUDGEN, 'cloudGen'], nebGen: [COMMON + NOISE + NEBGEN, 'nebGen'],
+    gen: [COMMON + NOISE + GEN, 'gen'], cloudGen: [COMMON + NOISE + CLOUDGEN, 'cloudGen'], nebGen: [SKY_GEN_WGSL, 'nebGen'],
     trans: [TRANS, 'trans'], mip16: [MIP('rgba16float'), 'mip16'], mip8: [MIP('rgba8unorm'), 'mip8'],
-    scene: [UDECL + COMMON + TEXH + NOISE + ATMO + CLOUDF + SCENE, 'scene'],
+    scene: [UDECL + COMMON + TEXH + NOISE + ATMO + CLOUDF + SCENE + SKY_DRAW_WGSL, 'scene'],
     post: [UDECL + COMMON + TEXH + ATMO + POST, 'post'],
   };
   const M = {};
   for (const [k, [code, label]] of Object.entries(mods)) M[k] = device.createShaderModule({ code, label });
   const pl = (...ls) => device.createPipelineLayout({ bindGroupLayouts: ls });
-  const comp = (m, lay) => device.createComputePipelineAsync({ layout: pl(lay), compute: { module: m, entryPoint: 'main' } });
+  const comp = (m, lay, entry = 'main') => device.createComputePipelineAsync({ layout: pl(lay), compute: { module: m, entryPoint: entry } });
   const hdr = 'rgba16float';
   const vtx = [{ arrayStride: 12, attributes: [{ shaderLocation: 0, offset: 0, format: 'float32x3' }] }];
   const vtxPatch = [vtx[0], { arrayStride: 16, stepMode: 'instance', attributes: [{ shaderLocation: 1, offset: 0, format: 'float32x4' }] }];
@@ -1734,15 +1575,16 @@ function startPipelines() {
     vertex: { module: m, entryPoint: vs, buffers: o.mesh === 'patch' ? vtxPatch : o.mesh ? vtx : [] },
     fragment: { module: m, entryPoint: fs, targets: [{ format: fmt, ...(o.blend ? { blend: o.blend } : {}) }] },
     primitive: { topology: 'triangle-list', cullMode: o.mesh ? 'back' : 'none' },
+    ...(o.ms && MSAA > 1 ? { multisample: { count: MSAA } } : {}),
     ...(o.depth ? { depthStencil: { format: 'depth24plus', depthWriteEnabled: o.depth === 'write', depthCompare: o.depth === 'always' ? 'always' : 'less' } } : {}),
   });
   const scene = pl(L.main, L.draw), post = pl(L.main, L.post);
   const list = {
-    gen: comp(M.gen, L.gen16), cloudGen: comp(M.cloudGen, L.gen8), nebGen: comp(M.nebGen, L.gen16), trans: comp(M.trans, L.trans),
+    gen: comp(M.gen, L.gen16), cloudGen: comp(M.cloudGen, L.gen8), nebGen: comp(M.nebGen, L.gen16, 'skyGen'), trans: comp(M.trans, L.trans),
     mip16: comp(M.mip16, L.mip16), mip8: comp(M.mip8, L.mip8),
-    bg: rend(M.scene, 'vsFull', 'fsBg', scene, hdr, { depth: 'always' }),
-    planet: rend(M.scene, 'vsPatch', 'fsPlanet', scene, hdr, { mesh: 'patch', depth: 'write' }),
-    cloud: rend(M.scene, 'vsPlanet', 'fsCloud', scene, hdr, { mesh: true, depth: 'always', blend: premul }),
+    bg: rend(M.scene, 'vsFull', 'fsBg', scene, hdr, { depth: 'always', ms: true }),
+    planet: rend(M.scene, 'vsPatch', 'fsPlanet', scene, hdr, { mesh: 'patch', depth: 'write', ms: true }),
+    cloud: rend(M.scene, 'vsPlanet', 'fsCloud', scene, hdr, { mesh: true, depth: 'always', blend: premul, ms: true }),
     comp: rend(M.post, 'vsFull', 'fsComp', post, hdr),
     down: rend(M.post, 'vsFull', 'fsDown', post, hdr),
     up: rend(M.post, 'vsFull', 'fsUp', post, hdr, { blend: add }),
@@ -2043,13 +1885,9 @@ function queueSky() {
   // altes Bild bleibt stehen, bis das neue fertig ist (nur bei neuem Seed ausblenden)
   if (RS.nebSeed !== S.seed) RS.nebReady = false;
   RS.nebSeed = S.seed;
-  // Lage der Galaxie am Himmel: zufälliger Pol, Kern senkrecht dazu
-  const R = rng(S.seed + '|galaxy');
-  const pole = V.norm([R() * 2 - 1, R() * 2 - 1, R() * 2 - 1]);
-  const core = V.norm(V.cross(pole, V.norm([R() * 2 - 1, R() * 2 - 1, R() * 2 - 1])));
-  RS.galCore = core;
-  const prm = new Float32Array(32);
-  prm.set([PP.nebSeed, 0.1 * PP.nebBright, S.mwWidth, S.mwCore, ...pole, 0, ...core, 0, (PP.nebHue - 0.5) * 0.3, S.mwDust, S.mwHii, 0]);
+  // Gemeinsamer Himmel (src/sky): Lage der Galaxie und Aussehen aus dem Seed
+  const prm = skyParams(String(S.seed), { width: S.mwWidth, core: S.mwCore, dust: S.mwDust, hii: S.mwHii, bright: PP.nebBright, hue: PP.nebHue });
+  RS.galCore = [prm[8], prm[9], prm[10]];
   queueTiles(nebRes, 256, () => prm.slice(), () => P.nebGen, () => RS.bgNebGen, () => { RS.nebReady = true; });
 }
 
@@ -2283,12 +2121,15 @@ function updateTrans(enc) {
 // ------------------------------------------------------------------ Ziele (HDR, Tiefe, Überstrahlung)
 function ensureTargets(w, h) {
   if (RS.w === w && RS.h === h) return;
-  for (const k of ['scene', 'hdr2', 'depth']) if (RS[k]) RS[k].destroy();
+  for (const k of ['scene', 'hdr2', 'depth', 'msaa']) if (RS[k]) RS[k].destroy();
   for (const b of RS.bloom || []) b.tx.destroy();
   RS.w = w; RS.h = h;
   const rt = (W, H, fmt) => device.createTexture({ size: [W, H], format: fmt || 'rgba16float', usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING });
-  RS.scene = rt(w, h); RS.hdr2 = rt(w, h); RS.depth = rt(w, h, 'depth24plus');
+  RS.scene = rt(w, h); RS.hdr2 = rt(w, h);
+  RS.depth = device.createTexture({ size: [w, h], format: 'depth24plus', sampleCount: MSAA, usage: GPUTextureUsage.RENDER_ATTACHMENT });
+  RS.msaa = MSAA > 1 ? device.createTexture({ size: [w, h], format: 'rgba16float', sampleCount: MSAA, usage: GPUTextureUsage.RENDER_ATTACHMENT }) : null;
   RS.sceneV = RS.scene.createView(); RS.hdr2V = RS.hdr2.createView(); RS.depthV = RS.depth.createView();
+  RS.msaaV = RS.msaa ? RS.msaa.createView() : null;
   if (OFFSCREEN) {
     if (RS.out) RS.out.destroy();
     RS.out = device.createTexture({ size: [w, h], format, usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.COPY_SRC });
@@ -2416,15 +2257,13 @@ function changed(it) {
   else if (k === 'sea') { seaH = seaFromFraction(S.sea); lutDirty = true; clearTimeout(riverT); riverT = setTimeout(buildRivers, 400); }
   else if (k === 'lang') buildUI();
 }
-function setStyle(st) {
-  if (S.style === st) return;
+function setStyle(st, already) {
+  if (!already && S.style === st) return;
   S.style = st;
   buildUI();
   if (device) regenerate();
 }
-$('st-orig').addEventListener('click', () => setStyle('orig'));
-$('st-plus').addEventListener('click', () => setStyle('plus'));
-$('lang').addEventListener('click', () => { lang = lang === 'de' ? 'en' : 'de'; try { localStorage.setItem('fgp-lang', lang); } catch {} buildUI(); });
+$('lang').addEventListener('click', () => { setLang(lang === 'de' ? 'en' : 'de'); buildUI(); });
 function newSeed(sd) {
   S.seed = String(sd).trim() || randomSeed();
   PP = planetParams(S.seed);
@@ -2434,8 +2273,6 @@ function newSeed(sd) {
   buildUI();
   if (device) regenerate();
 }
-$('rnd').addEventListener('click', () => newSeed(randomSeed()));
-$('seed').addEventListener('change', (e) => newSeed(e.target.value));
 
 // ------------------------------------------------------------------ Wirbel (Tiefdruckgebiete, ein tropischer Wirbelsturm)
 // Sie entstehen, drehen sich auf, ziehen mit dem Wind ihrer Breite und lösen sich wieder auf.
@@ -2547,13 +2384,13 @@ function render(enc) {
     fl = [sx, sy, vis * onScreen * S.flare * (orig ? 0.9 : 0.5), aspect];
   }
   fillUniforms({ vp, ivp, model, eye, sun, sunE, A, orig, clU, clU2, bloomOn, fl });
-  device.queue.writeBuffer(dPlanet, 0, new Float32Array([1, 0, orig ? 0 : S.relief, 0]));
+  device.queue.writeBuffer(dPlanet, 0, new Float32Array([1, SPLIT, orig ? 0 : S.relief, 0]));
   device.queue.writeBuffer(dCloud, 0, new Float32Array([1 + clU2[0], 0, 0, orig ? 0 : S.relief]));
   const g0 = mainGroup();
 
   // Hintergrund, Planet, Wolken
   const sp = enc.beginRenderPass({
-    colorAttachments: [{ view: RS.sceneV, loadOp: 'clear', clearValue: [0, 0, 0, 1], storeOp: 'store' }],
+    colorAttachments: [RS.msaaV ? { view: RS.msaaV, resolveTarget: RS.sceneV, loadOp: 'clear', clearValue: [0, 0, 0, 1], storeOp: 'discard' } : { view: RS.sceneV, loadOp: 'clear', clearValue: [0, 0, 0, 1], storeOp: 'store' }],
     depthStencilAttachment: { view: RS.depthV, depthClearValue: 1, depthLoadOp: 'clear', depthStoreOp: 'discard' },
   });
   sp.setBindGroup(0, g0);
@@ -2744,4 +2581,3 @@ async function boot() {
   requestAnimationFrame(step);
 }
 boot().catch((e) => { if (!$('status').textContent) fail(String(e.message || e)); });
-</script>

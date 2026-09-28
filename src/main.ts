@@ -6,6 +6,8 @@ import { presets, randomPreset, newSeed, bandsFromImage, windTable, bandTable, h
 import { perspective, lookAt, multiply, invert, planetRotation, normalize, type Vec3 } from './math';
 import { Panel } from './ui';
 import { t, lang, setLang } from './i18n';
+import { initShell } from './shell';
+import { Sky, SKY_DRAW_WGSL } from './sky/sky';
 
 // ---------------------------------------------------------------------------
 // Einstellungen (alles, was ein Regler verändern kann)
@@ -80,6 +82,8 @@ const S = {
   limb: 1.15,
   atmosphere: 1,
   exposure: 0.95,
+  nebula: 1,              // Milchstraße (gemeinsamer Himmel aller Planeten-Seiten)
+  stars: 1,
   spinSpeed: 0.5,
   view: 0,
   map: false,
@@ -177,7 +181,7 @@ const OFF_STORMS = OFF_BANDS + TABLE * 4;
 const OFF_INFO = OFF_STORMS + MAX_STORMS * 4;
 const OFF_WEIGHT = OFF_INFO + MAX_STORMS * 4;
 const SIM_FLOATS = OFF_WEIGHT + MAX_STORMS;
-const RENDER_FLOATS = 16 + 4 * 11;
+const RENDER_FLOATS = 16 + 4 * 12;
 // Fester Zeitschritt: Zeitraffer und Einschwingen machen mehr Schritte, nicht größere.
 const DT = 1 / 60;
 // Vorrechnen beim Start (unsichtbar, hinter dem Ladebild): 20 s Simulationszeit, damit der
@@ -216,6 +220,7 @@ class App {
   private pipes: Record<string, GPUComputePipeline> = {};
   private pipesBuilt: boolean | null = null;
   private renderPipe: GPURenderPipeline;
+  private sky!: Sky;
 
   private vel: CubeField[] = [];
   private prs: CubeField[] = [];
@@ -278,7 +283,9 @@ class App {
     this.tracerModule = this.module('tracers', commonWGSL + tracersWGSL);
     this.buildPipes(false);
 
-    const render = this.module('render', renderWGSL);
+    const render = this.module('render', renderWGSL + SKY_DRAW_WGSL);
+    this.sky = new Sky(device, isPhone ? 512 : 1024);
+    this.sky.generate(String(S.seed) + S.preset);
     this.renderPipe = device.createRenderPipeline({
       layout: 'auto',
       vertex: { module: render, entryPoint: 'vs' },
@@ -737,7 +744,8 @@ class App {
       S.map ? 1 : 0, ring ? ring.inner : 0, ring ? ring.outer : 0, ring ? ring.opacity : 0,
       w / h, this.time, S.exposure, S.dyeRes,
       rc[0], rc[1], rc[2], 0.6,
-      1 / Math.max(S.jetStrength, 1e-4), (2 * Math.tan((16 * Math.PI) / 180)) / h, 0, 0,
+      1 / Math.max(S.jetStrength, 1e-4), (2 * Math.tan((16 * Math.PI) / 180)) / h, this.sky.ready ? this.sky.n : 0, S.nebula,
+      S.stars, 0, 0, 0,
     ], 16);
     this.device.queue.writeBuffer(this.renderBuf, 0, d);
   }
@@ -1128,6 +1136,7 @@ class App {
     // Sichtbare Drehung in Simulationszeit: Zeitraffer beschleunigt Wolken und Drehung gleich.
     this.spin += n * this.dtStep() * 0.08 * S.spinSpeed * (9.93 / this.preset.rotationHours) * this.dir();
     const enc = this.device.createCommandEncoder();
+    this.sky.tick(enc);
     this.writeRender();
 
     const rbg = this.device.createBindGroup({
@@ -1139,6 +1148,7 @@ class App {
         { binding: 3, resource: flowSrc.cube },
         { binding: 4, resource: this.aux.cube },
         { binding: 5, resource: this.prs[this.pc].cube },
+        { binding: 6, resource: this.sky.view },
       ],
     });
     const rp = enc.beginRenderPass({
@@ -1387,6 +1397,10 @@ class App {
         t('Minnaert-Exponent k. 1 = matte Kugel; höher = dunkler Rand wie bei echten Gasplaneten.', 'Minnaert exponent k. 1 = matte sphere; higher = darker limb, as on real gas giants.') + fx('I = (n·l)<sup>k</sup> · (n·v)<sup>k−1</sup>'), f2)
       .range('atmosphere', t('Dunstsaum', 'Haze rim'), 0, 6, 0.05, t('Helligkeit des Atmosphärensaums am Planetenrand.', 'Brightness of the atmospheric rim at the planet’s edge.') + fx(t('Saum = e<sup>−h/0,025</sup>', 'rim = e<sup>−h/0.025</sup>')), f2)
       .range('exposure', t('Belichtung', 'Exposure'), 0.1, 5, 0.05, t('Gesamthelligkeit vor der ACES-Tonwertkurve.', 'Overall brightness before the ACES tone curve.'), f2)
+      .range('nebula', t('Milchstraße', 'Milky Way'), 0, 3, 0.01,
+        t('Derselbe Himmel wie beim Gesteinsplaneten: helles Band mit Kern, Staubbahnen, rote Gaswolken. Steht fest, nur der Planet dreht sich.',
+          'The same sky as on the rocky planet: bright band with a core, dust lanes, red gas clouds. It stays fixed, only the planet turns.'), f2)
+      .range('stars', t('Sterne', 'Stars'), 0, 3, 0.01, t('Helligkeit der Sterne; im Milchstraßenband stehen mehr.', 'Brightness of the stars; more of them sit in the Milky Way band.'), f2)
       .toggle('map', t('Kartenansicht', 'Map view'),
         t('Zeigt die ganze Kugel als flache Weltkarte (Längen- und Breitengrade).', 'Shows the whole sphere as a flat map (longitude/latitude).'))
       .select('view', t('Feld anzeigen', 'Show field'), [['0', t('Wolken', 'Clouds')], ['1', t('Wind (Richtung)', 'Wind (direction)')], ['2', t('Wirbelstärke', 'Vorticity')], ['3', t('Druck', 'Pressure')]],
@@ -1467,7 +1481,7 @@ class App {
     set('hint', t('ziehen zum Drehen, Mausrad oder zwei Finger zum Zoomen', 'drag to rotate, scroll or pinch to zoom'));
     set('load-title', t('Atmosphäre wird eingeschwungen', 'Spinning up the atmosphere'));
     set('panel-title', t('Regler', 'Controls'));
-    set('lang', lang === 'de' ? 'EN' : 'DE');
+    initShell('gas');
     const lb = document.getElementById('lang');
     if (lb) lb.setAttribute('aria-label', t('Sprache: Englisch', 'Language: German'));
     const credits = document.getElementById('credits');
@@ -1577,7 +1591,7 @@ class App {
   private onChange(key: Key) {
     this.remember();
     switch (key) {
-      case 'preset': if (S.preset === 'Zufall') S.seed = newSeed(); this.applyPreset(); this.buildUI(); break;
+      case 'preset': if (S.preset === 'Zufall') S.seed = newSeed(); this.applyPreset(); this.sky.generate(String(S.seed) + S.preset); this.buildUI(); break;
       case 'rndFamily': case 'rndBands': case 'rndStorms': case 'rndRings':
         if (S.preset === 'Zufall') this.applyPreset();
         break;

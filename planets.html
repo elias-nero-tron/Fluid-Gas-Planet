@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Fluid Gas Planet</title>
+<title>Procedural Planets</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500&display=swap">
@@ -12,20 +12,13 @@
 <body>
 <div id="app">
   <div id="stage">
-    <canvas id="view" aria-label="Real-time gas giant simulation"></canvas>
+    <canvas id="view" aria-label="Planet view: drag to turn, scroll or pinch to zoom"></canvas>
     <div class="hud">
-      <h1>Fluid Gas Planet</h1>
-      <div id="planet-info">Jupiter</div>
+      <h1 id="t-title">Procedural Planets</h1>
       <div class="meta"><span id="fps">– fps</span> <span id="version"></span></div>
-      <div class="meta" id="hint">drag to rotate, scroll or pinch to zoom</div>
+      <div class="meta"><span id="mode-tag"></span> · <span id="t-hint"></span></div>
     </div>
-    <div id="loading" role="status" aria-live="polite">
-      <div class="load-box">
-        <p id="load-title">Spinning up the atmosphere</p>
-        <div class="load-track"><span id="load-bar"></span></div>
-        <p id="load-note"></p>
-      </div>
-    </div>
+    <div id="genbar" hidden><span id="gen-text"></span><div class="track"><div class="fill" id="gen-fill"></div></div></div>
     <div id="toolbar"></div>
     <div id="status" hidden></div>
   </div>
@@ -46,6 +39,6 @@
     });
   })();
 </script>
-<script type="module" src="/src/main.ts"></script>
+<script type="module" src="/src/rocky/main.js"></script>
 </body>
 </html>
