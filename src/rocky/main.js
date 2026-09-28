@@ -68,7 +68,7 @@ const S = {
   nebula: 1.0, stars: 1.0, flare: 0.5,
   mwWidth: 1.0, mwCore: 1.0, mwDust: 1.0, mwHii: 1.0,
   rotate: true, spin: 1.2, spinZoom: 1.0, volcanoes: 0.15, volcanoOn: true, volcanoType: 0, rivers: 3, riverAmount: 1, mesh: 0, craterFill: 1,
-  modClouds: true, modShadows: true, modAtmo: true, modRim: false, rimStr: 0.35, modBloom: true, modFlare: true, tilt: 23, fov: 36,
+  profile: 'full', modWaves: true, modClouds: true, modShadows: true, modAtmo: true, modRim: false, rimStr: 0.35, modBloom: true, modFlare: true, tilt: 23, fov: 36,
   view: 0, quality: -1, msaa: MSAA_Q,
 };
 // Wer reduzierte Bewegung eingestellt hat, bekommt einen stehenden Planeten (Drehen lässt sich einschalten)
@@ -245,6 +245,10 @@ function controls() {
         help: t('Helles Glitzern und die Sonne strahlen weich über, wie bei einer echten Linse.', 'Bright glints and the sun bleed softly, as in a real lens.') },
     ] },
     { id: 'modules', title: t('Module an/aus', 'Modules on/off'), items: [
+      { k: 'profile', type: 'select', label: t('Profil', 'Profile'), opts: [['full', t('alles wie eingestellt', 'everything as set')], ['minimal', t('Minimal: wie das Original, mit Bugfixes', 'Minimal: like the original, with bug fixes')]],
+        help: t('Minimal schaltet alle Extras ab: Wolken, Streuung, Geländeschatten, Überstrahlung, Blendenflecke, Vulkane, Flüsse, Feindetail. Bleiben: Gelände mit Kantenfix, Meer mit den Glitzer-Korrekturen, Auflösung höchstens 100 %. Zum Vergleich der Bildrate.',
+          'Minimal turns all extras off: clouds, scattering, terrain shadows, bloom, lens flare, volcanoes, rivers, fine detail. Kept: terrain with the edge fix, sea with the glint fixes, resolution at most 100 %. For comparing frame rate.') },
+      { k: 'modWaves', type: 'check', label: t('Wellen', 'Waves'), help: t('Wellen und Glitzer auf dem Meer. Aus = Wellenrechnung läuft gar nicht; so siehst du an der Bildzeit, was sie kostet.', 'Waves and glint on the sea. Off = wave code does not run at all; the frame time shows what it costs.') },
       { k: 'modClouds', type: 'check', label: t('Wolken', 'Clouds'), help: t('Ganzes Modul ein- oder ausschalten, zum Vergleichen.', 'Switch the whole module on or off, to compare.') },
       { k: 'modAtmo', mode: 'plus', type: 'check', label: t('Atmosphäre (Streuung)', 'Atmosphere (scattering)') },
       { k: 'modRim', type: 'check', label: t('Atmosphäre (Saum wie Gasriese)', 'Atmosphere (rim as gas giant)'),
@@ -1272,7 +1276,7 @@ fn earthBiome(d: vec3f, h: f32, m: f32, slope: f32, nz: f32) -> vec4f {
     var varSub = 0.0;
     var f = 700.0;
     let sAmp = 0.05 * U.W.x;
-    for (var i = 0; i < 4; i++) {
+    for (var i = 0; i < select(0, 4, U.W.x > 0.0); i++) {   // Modul Wellen: aus = Schleife läuft gar nicht
       // Wellen erst ab ~3 Pixeln Größe einzeln zeigen, kleinere gehen in die Rauigkeit (kein Pixel-Flackern)
       let fade = smoothstep(3.0, 8.0, 1.0 / (f * pix));
       if (fade > 0.0) {
@@ -2562,6 +2566,11 @@ canvas.addEventListener('wheel', (e) => {
 function changed(it) {
   const k = it.k;
   if (!device) return;
+  if (k === 'profile' && S.profile === 'minimal') {
+    Object.assign(S, { modClouds: false, modAtmo: false, modShadows: false, modBloom: false, modFlare: false, modRim: false, volcanoOn: false, rivers: 0, detail: 0, quality: -1 });
+    RS.transKey = ''; panel?.refresh(); regenerate(); return;
+  }
+  if (k === 'profile') { Object.assign(S, { modClouds: DEF.modClouds, modAtmo: DEF.modAtmo, modShadows: DEF.modShadows, modBloom: DEF.modBloom, modFlare: DEF.modFlare, volcanoOn: DEF.volcanoOn, rivers: DEF.rivers, detail: DEF.detail }); RS.transKey = ''; panel?.refresh(); regenerate(); return; }
   if (k === 'res' || k === 'erosion' || k === 'volcanoes' || k === 'volcanoOn' || k === 'volcanoType' || k === 'rivers' || k === 'riverAmount') { regenerate(); }
   else if (k === 'modAtmo') { RS.transKey = ''; }
   else if (k === 'msaa') { const u = new URL(location.href); u.searchParams.set('msaa', String(S.msaa)); u.searchParams.set('seed', S.seed); location.href = u.toString(); }
@@ -2643,7 +2652,7 @@ function fillUniforms(o) {
   u.set([...A.bO, A.bMe], 60);
   u.set([A.oz[0], A.oz[1], 0.8, coarse ? 16 : 28], 64);
   u.set([S.nscale, S.rough, S.metal, S.ambient], 68);
-  u.set([S.waves, S.clarity, S.foam, S.rivers === 2 && S.style !== 'orig' ? RS.nHydro : 0], 72);
+  u.set([S.modWaves ? S.waves : 0, S.clarity, S.foam, S.rivers === 2 && S.style !== 'orig' ? RS.nHydro : 0], 72);
   u.set([S.bump, S.gloss, S.detail, S.terrace], 76);
   u.set([S.modShadows ? S.shadows : 0, S.ambientP, S.rivers, S.volcanoType], 80);
   u.set([moistQ[0], moistQ[1], S.sunI, 0.0095], 84);
@@ -2815,7 +2824,7 @@ function step(now) {
   if (!OFFSCREEN) render(enc);          // im Testmodus nur für Fotos zeichnen
   device.queue.submit([enc.finish()]);
   fpsAcc += dt; fpsN++;
-  if (now - fpsT > 500) { $('fps').textContent = `${Math.round(fpsN / Math.max(fpsAcc, 1e-3))} fps`; fpsAcc = 0; fpsN = 0; fpsT = now; }
+  if (now - fpsT > 500) { $('fps').textContent = `${Math.round(fpsN / Math.max(fpsAcc, 1e-3))} fps · ${(1000 * fpsAcc / Math.max(fpsN, 1)).toFixed(2)} ms`; fpsAcc = 0; fpsN = 0; fpsT = now; }
   requestAnimationFrame(step);
 }
 
