@@ -60,9 +60,11 @@ Simulator öffentlich unter der Pages-Adresse dieses Repos, die Kaffee-Demo unte
   Smartphone bis zur High-End-GPU. Debug-Ansichten, Kartenansicht, **Filmstreifen-Aufnahme** (8 Bilder
   in einem PNG, für Rückmeldungen) und Kanten-Selbsttest.
 - **Darstellung:** Ellipsoid, Minnaert-Randverdunkelung, Relief, Dunstsaum, Ringe mit Schatten.
-- **Prozedurale Planeten** ([demos/planets.html](demos/planets.html)): Gesteinsplaneten nach colordodges
-  ProceduralPlanet, umschaltbar zwischen Original 1:1 und verbessert: Meeresspiegel live, erodiertes Gelände,
-  physikalisches Wasser, Luftstreuung, Wolken mit Zonalwinden und Wirbelstürmen.
+- **Gesteinsplaneten** ([planets.html](planets.html), Code in `src/rocky/`): dasselbe Menü, dieselbe Kopfzeile und
+  derselbe Himmel wie beim Gasriesen (eine App, ein Planetentyp pro Seite). Nach colordodges ProceduralPlanet,
+  umschaltbar zwischen Original 1:1 und verbessert: Meeresspiegel live, Erosion, Schichtvulkane mit Kratersee oder
+  Lava, Flüsse und Seen aus dem Gelände berechnet (Priority-Flood, Abfluss, eingegrabene Täler), physikalisches
+  Wasser, Luftstreuung, Wolken mit Zonalwinden und Wirbelstürmen.
 - **Kaffee-Demo** ([demos/coffee.html](demos/coffee.html)): Sahne gießen und umrühren. Prüfstein
   für drei Bausteine, die dem Planeten noch fehlen (Quellen, Hindernisse, scharfer Transport).
 

@@ -9,6 +9,8 @@ Werkzeug, kein Co-Autor (Hinweis dazu steht bereits in NOTICE/CREDITS.md).
 Arbeitsauftrag: **[HAEPPCHEN.md](HAEPPCHEN.md)**, das nächste offene Häppchen.
 So wie im ersten Prompt: Quelle lesen → Verfahren übernehmen → bauen → pushen → zeigen.
 
-Code: `src/main.ts` (Regler, App), `src/shaders/*.wgsl` (Simulation, Darstellung), `demos/` (eigene Seiten).
+Code: eine App, ein Planetentyp pro Seite mit gemeinsamer Hülle (`src/shell.ts`, `src/shell.css`, Menü `src/ui.ts`,
+Himmel `src/sky/`). Gasriese: `index.html`, `src/main.ts`, `src/shaders/*.wgsl`. Gesteinsplanet: `planets.html`,
+`src/rocky/main.js`. `demos/` = Nebenseiten (Kaffee).
 `npm run dev`, `npm run build` (schreibt auch `demo/` für den Klick-Link im README).
 Headless-Bilder: `node scripts/eyes.mjs --preset Jupiter --track fluid --out /tmp/x` (Software-Renderer, langsam).
