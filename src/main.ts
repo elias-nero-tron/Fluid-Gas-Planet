@@ -6,6 +6,7 @@ import { presets, randomPreset, newSeed, bandsFromImage, windTable, bandTable, h
 import { perspective, lookAt, multiply, invert, planetRotation, normalize, type Vec3 } from './math';
 import { Panel } from './ui';
 import { t, lang, setLang } from './i18n';
+import { Atmosphere, CloudLayer, eventAt, type AtmoParams, type AtmoEventKind } from './atmo/atmo';
 import { initShell } from './shell';
 import { Sky, SKY_DRAW_WGSL } from './sky/sky';
 
@@ -22,7 +23,7 @@ const S = {
   seed: 1,
   quality: isPhone ? 'phone' : 'standard',
   // Rechenmodell und Darstellung, frei kombinierbar:
-  flow: 'fluid',          // 'fluid' = Stable Fluids (mofu), 'curl' = Curl-Noise (jasper-r / Gaseous Giganticus)
+  flow: 'fluid',          // 'fluid' = Stable Fluids (mofu), 'curl' = Curl-Noise (jasper-r / Gaseous Giganticus), 'moist' = Modul Atmosphäre
   look: 'dye',            // 'dye' = Farbstoff, 'particles' = Partikel mit Bandfarben, 'pure' = reine Partikel (jasper-r)
   timeScale: 1,           // Tempo: Simulationszeit pro Sekunde Echtzeit (ändert nur die Geschwindigkeit, nicht die Form)
   retro: false,           // Drehrichtung rückläufig: spiegelt Rotation, Jets und Sturm-Drehsinn
@@ -87,9 +88,36 @@ const S = {
   spinSpeed: 0.5,
   view: 0,
   map: false,
+  // Modul „Atmosphäre“ (Rechenmodell 'moist'): feuchte Flachwasser-Atmosphäre mit Wolkenschicht
+  atmoRes: isPhone ? 96 : 192,
+  ldef: 0.03,             // Deformationsradius L_d / R (Jupiter ≈ 0,03)
+  aSpin: 1,               // Rotation relativ zur echten Rossby-Zahl des Planeten
+  aRelax: 0.03,           // 1/τ Strahlung (Newton-Abkühlung)
+  aDrag: 0.005,
+  aTheta: 0.1,            // Temperaturgefälle Äquator → Pol
+  aHumid: 0.95,           // relative Feuchte des Nachschubs
+  aHeat: 0.2,             // latente Wärme β₂
+  aMass: 0.01,            // Kondensation → Masse β₁
+  aRain: 0.25,            // 1/τ Ausregnen
+  aStorms: 3,             // Sturm-Pulse pro Sekunde (ganzer Planet)
+  aStormAmp: 0.1,         // Stärke eines Sturm-Pulses (Δη)
+  aTest: false,           // Galewsky-Test (Prüfung des Lösers)
+  clouds: true,           // Wolkenschicht zeichnen
+  cloudHeight: 0.012,
+  cloudSteps: isPhone ? 24 : 40,
+  cloudOptical: 8,
+  cloudCover: 20,
+  cloudShadow: 0.8,
+  tapAction: 'impact',
+  tapPower: 1,
 };
 type Key = keyof typeof S;
 const DEFAULTS = { ...S };
+
+// Regler des Moduls „Atmosphäre“ (nur beim Rechenmodell 'moist' sichtbar)
+const ATMO_KEYS = ['tapAction', 'tapPower', 'aStorms', 'aStormAmp', 'ldef', 'aSpin', 'aHumid', 'aHeat', 'aMass', 'aRain', 'aTheta', 'aRelax', 'aDrag', 'aTest', 'atmoRes',
+  'clouds', 'cloudHeight', 'cloudOptical', 'cloudCover', 'cloudShadow', 'cloudSteps'];
+Panel.heavy.add('atmoRes');
 
 // Geräteklassen: Startwerte und Obergrenzen der Regler. "ultra" schaltet die großen Werte frei.
 const QUALITY: Record<string, { velRes: number; dyeRes: number; curlRes: number; particles: number; dpr: number;
@@ -147,6 +175,7 @@ async function start() {
   window.gasPlanet = {
     settings: S, capture: () => app.capture(), readRow: (w, f, y) => app.readRow(w, f, y),
     filmstrip: (o) => app.filmstrip(o), selftest: () => app.selftest(), frame: () => app.frameCount(),
+    atmoDump: (w) => app.atmoDump(w), atmoTap: (x, y) => app.atmoTapAt(x, y),
   };
   document.getElementById('lang')?.addEventListener('click', () => app.toggleLang());
   window.addEventListener('keydown', (e) => {
@@ -258,6 +287,13 @@ class App {
   private cam = { yaw: -0.35, pitch: 0.12, dist: 4.3 };
   private dpr = 1.75;
   private panel!: Panel;
+  // Modul „Atmosphäre“: wird erst angelegt, wenn das Rechenmodell 'moist' gewählt ist.
+  private atmo: Atmosphere | null = null;
+  private cloudLayer: CloudLayer | null = null;
+  private atmoKey = '';
+  private atmoFresh = false;
+  private lastInv = new Float32Array(16);
+  private lastEye: Vec3 = [0, 0, 4.3];
 
   constructor(private device: GPUDevice) {
     if (!this.offscreen) this.ctx.configure({ device, format: this.format, alphaMode: 'opaque' });
@@ -408,7 +444,7 @@ class App {
   }
 
   /** Strömung und Darstellung, die die gewählte Schiene tatsächlich benutzt. */
-  private flowMode(): 'fluid' | 'curl' { return S.flow as 'fluid' | 'curl'; }
+  private flowMode(): 'fluid' | 'curl' | 'moist' { return S.flow as 'fluid' | 'curl' | 'moist'; }
   private lookMode(): 'dye' | 'particles' | 'pure' { return S.look as 'dye' | 'particles' | 'pure'; }
   private dir(): number { return S.retro ? -1 : 1; }
 
@@ -493,7 +529,8 @@ class App {
     if (prev.dyeRes !== S.dyeRes) this.allocDye();
     if (prev.particles !== S.particles) this.allocParticles();
     if (prevPreset !== JSON.stringify(snap.preset) || prev.retro !== S.retro) this.needsInit = true;
-    if (prev.flow !== S.flow || prev.look !== S.look) this.needsDye = true;
+    if (prev.flow !== S.flow || prev.look !== S.look) { this.needsDye = true; if (S.flow !== 'moist') this.atmoFresh = false; }
+    if (prev.atmoRes !== S.atmoRes) { this.atmo?.resize(S.atmoRes); this.needsInit = true; }
     if (prev.quality !== S.quality) { this.buildUI(); return; }
     canvas.classList.toggle('map', S.map);
     this.updateVisibility();
@@ -724,6 +761,7 @@ class App {
     const proj = perspective((32 * Math.PI) / 180, w / h, 0.05, 100);
     const view = lookAt(eye, [0, 0, 0], [0, 1, 0]);
     const inv = invert(multiply(proj, view));
+    this.lastInv.set(inv); this.lastEye = eye;
     // Welt -> Körper = Transponierte von (Neigung · Drehung)
     const m = planetRotation((this.preset.tilt * Math.PI) / 180, this.spin);
     const a = (S.sunAngle * Math.PI) / 180;
@@ -789,12 +827,16 @@ class App {
     this.dc = 0;
     pass.end();
     if (all) enc.clearBuffer(this.parts);
+    if (this.flowMode() === 'moist' && (all || !this.atmoFresh)) this.initAtmo(enc);
   }
 
   private step(enc: GPUCommandEncoder) {
+    if (this.flowMode() === 'moist') this.stepAtmo(enc);
     const pass = enc.beginComputePass();
     let flowSrc: CubeField;
-    if (this.flowMode() === 'fluid') {
+    if (this.flowMode() === 'moist') {
+      flowSrc = this.atmo!.velocity;
+    } else if (this.flowMode() === 'fluid') {
       // 1. Advektion  2. Wirbelstärke  3. Breitenkreis-Mittel  4. Kräfte  5. Divergenz  6. Druck  7. Projektion
       this.run2D(pass, 'advect', this.vel[this.vc], null, this.vel[1 - this.vc]); this.vc = 1 - this.vc;
       this.run2D(pass, 'curl', this.vel[this.vc], null, this.aux);
@@ -833,6 +875,123 @@ class App {
     return flowSrc;
   }
 
+  // ---------- Modul „Atmosphäre“ (Rechenmodell 'moist') ----------
+
+  private ensureAtmo(): Atmosphere {
+    if (!this.atmo) {
+      this.atmo = new Atmosphere(this.device, S.atmoRes, (m) => fail(`<b>Shader:</b> ${m}`));
+      this.atmo.build(S.seamless);
+    }
+    this.atmo.resize(S.atmoRes);
+    return this.atmo;
+  }
+
+  /**
+   * Physik-Parameter. Rotation aus der echten Rossby-Zahl des Planeten (Ro = U/(ΩR) aus Steckbrief),
+   * Schwerewellen-Geschwindigkeit aus dem Deformationsradius c = L_d·f(45°), mindestens 2,5·U (Froude ≤ 0,4).
+   */
+  private atmoParams(): AtmoParams {
+    if (S.aTest) {
+      // Galewsky et al. 2004 (Erde, u_max = 80 m/s, H = 10 km) mit Ω = 4 und R = 1:
+      // U/(ΩR) = 0,1722, gH/(ΩR)² = 0,4543.
+      return { omega: 4, c2: 0.4543 * 16, relax: 0, drag: 0, nu: 20, beta1: 0, beta2: 0, qPrecip: 1, rain: 0, evap: 0, rhSurf: 0,
+        diff: 0.005, q0: 0, ashFall: 0, nudge: 0, theta0: 0, dTheta: 0, deepJets: false, test: true };
+    }
+    const f = this.preset.facts;
+    const U = Math.max(S.jetStrength, 1e-3);
+    const Rm = (f?.diameterKm ?? 142984) * 500;
+    const Om = (2 * Math.PI) / (Math.max(this.preset.rotationHours, 1) * 3600);
+    const omega = Math.max(0.2, (U * Om * Rm) / Math.max(f?.windMs ?? 150, 1)) * S.aSpin * this.dir();
+    const c = Math.max(S.ldef * Math.SQRT2 * Math.abs(omega), 2.5 * U);
+    return {
+      omega, c2: c * c, relax: S.aRelax, drag: S.aDrag, nu: 20, beta1: S.aMass, beta2: S.aHeat, qPrecip: 0.02,
+      rain: S.aRain, evap: 0.3, rhSurf: S.aHumid, diff: 0.02, q0: 1, ashFall: 0.05, nudge: 0,
+      theta0: 0, dTheta: S.aTheta, deepJets: true, test: false,
+    };
+  }
+
+  /** Ostwind des Gleichgewichts: Jets der Vorlage bzw. Galewsky-Jet im Testmodus. */
+  private atmoWind(): (lat: number) => number {
+    if (!S.aTest) return (lat) => this.jetAt(lat);
+    const p0 = Math.PI / 7, p1 = Math.PI / 2 - p0, en = Math.exp(-4 / (p1 - p0) ** 2);
+    return (lat) => (lat > p0 && lat < p1 ? (0.1722 * 4 / en) * Math.exp(1 / ((lat - p0) * (lat - p1))) : 0);
+  }
+
+  /** Gleichgewichtstabelle nur neu rechnen, wenn sich etwas geändert hat. */
+  private atmoEquilibrium(p: AtmoParams) {
+    const key = JSON.stringify([p, S.jetStrength, S.aTest, Array.from(this.jets)]);
+    if (key === this.atmoKey) return;
+    this.atmoKey = key;
+    this.atmo!.setEquilibrium(this.atmoWind(), p);
+  }
+
+  private initAtmo(enc: GPUCommandEncoder) {
+    const a = this.ensureAtmo();
+    const p = this.atmoParams();
+    this.atmoEquilibrium(p);
+    a.init(enc, p, (S.seed + this.runSeed) % 100000);
+    this.atmoFresh = true;
+    if (p.test) return;
+    // Stürme der Vorlage als balancierte Wirbel einsetzen (Antizyklon: dickere Schicht, Zyklon: dünnere).
+    for (const st of this.preset.storms) {
+      const la = (st.lat * Math.PI) / 180, lo = (st.lon * Math.PI) / 180;
+      const r = Math.max(0.02, (st.radius * S.stormSize * Math.PI) / 180 * 0.7);
+      const f = Math.abs(2 * p.omega * Math.sin(la)) + 1e-3;
+      // Randwind ≈ Jet-Stärke: η = u·f·r / (c²·e^(−½)), begrenzt.
+      const amp = Math.min(0.4, (S.jetStrength * f * r) / (p.c2 * 0.6)) * st.strength;
+      a.addEvent({ dir: [Math.cos(la) * Math.cos(lo), Math.sin(la), Math.cos(la) * Math.sin(lo)], radius: r,
+        dEta: (st.kind === 'cyclone' ? -1 : 1) * amp, dTheta: 0, dQv: 0, dAsh: 0, balanced: 1, radial: 0 });
+    }
+  }
+
+  private stepAtmo(enc: GPUCommandEncoder) {
+    const a = this.ensureAtmo();
+    const p = this.atmoParams();
+    this.atmoEquilibrium(p);
+    const dt = this.dtStep();
+    if (!p.test) a.spawnStorms(dt, S.aStorms, S.aStormAmp, 1.4 * S.ldef, 0.3);
+    a.step(enc, dt, this.time, p, (S.seed + this.runSeed) % 100000);
+  }
+
+  private drawClouds(enc: GPUCommandEncoder) {
+    if (this.flowMode() !== 'moist' || !this.atmo || !S.clouds || S.map || S.view !== 0) return;
+    this.cloudLayer ??= new CloudLayer(this.device, this.format, isPhone ? 64 : 128);
+    const p = this.atmoParams();
+    this.cloudLayer.draw(enc, this.targetView(), this.atmo.tracers, {
+      base: this.renderData, oblateness: this.preset.oblateness, exposure: S.exposure, time: this.time,
+      theta0: p.theta0, dTheta: p.dTheta,
+    }, {
+      thickness: S.cloudHeight, steps: S.cloudSteps, optical: S.cloudOptical, coverage: S.cloudCover,
+      shapeScale: 1 / (2.5 * S.cloudHeight), detailScale: 6 / (2.5 * S.cloudHeight), shadow: S.cloudShadow,
+      ash: 3, ambient: 0.08, tower: 6, shape: 0.8,
+      cloud: hexToLinear(this.preset.cloud), ashColor: [0.09, 0.07, 0.06],
+    });
+  }
+
+  /** Antippen: Sichtstrahl mit dem Planeten schneiden und dort ein Ereignis auslösen. */
+  private tap(clientX: number, clientY: number) {
+    if (this.flowMode() !== 'moist' || S.tapAction === 'none' || S.map || !this.atmo) return;
+    const r = canvas.getBoundingClientRect();
+    const nx = ((clientX - r.left) / r.width) * 2 - 1, ny = 1 - ((clientY - r.top) / r.height) * 2;
+    const m = this.lastInv;
+    const w = [0, 1, 2, 3].map((i) => m[i] * nx + m[4 + i] * ny + m[8 + i] + m[12 + i]);
+    const wp: Vec3 = [w[0] / w[3], w[1] / w[3], w[2] / w[3]];
+    const dirW = normalize([wp[0] - this.lastEye[0], wp[1] - this.lastEye[1], wp[2] - this.lastEye[2]]);
+    const d = this.renderData;
+    const toBody = (v: Vec3): Vec3 => [0, 1, 2].map((k) => d[20 + k * 4] * v[0] + d[21 + k * 4] * v[1] + d[22 + k * 4] * v[2]) as Vec3;
+    const c = 1 - this.preset.oblateness;
+    const o = toBody(this.lastEye), dir = toBody(dirW);
+    const os: Vec3 = [o[0], o[1] / c, o[2]], ds: Vec3 = [dir[0], dir[1] / c, dir[2]];
+    const A = ds[0] ** 2 + ds[1] ** 2 + ds[2] ** 2, B = os[0] * ds[0] + os[1] * ds[1] + os[2] * ds[2];
+    const K = os[0] ** 2 + os[1] ** 2 + os[2] ** 2 - 1, disc = B * B - A * K;
+    if (disc < 0) return;
+    const tt = (-B - Math.sqrt(disc)) / A;
+    if (tt <= 0) return;
+    const q = normalize([os[0] + ds[0] * tt, os[1] + ds[1] * tt, os[2] + ds[2] * tt]);
+    const p = this.atmoParams();
+    this.atmo.addEvent(eventAt(S.tapAction as AtmoEventKind, q as [number, number, number], S.tapPower, Math.sqrt(p.c2), p.q0));
+  }
+
   // ---------- Hauptschleife ----------
 
   private last = performance.now();
@@ -840,6 +999,19 @@ class App {
   private fpsNow = 0;
 
   frameCount() { return this.frame; }
+
+  /** Nur für Tests: Felder des Moduls „Atmosphäre“ auslesen. */
+  async atmoDump(w: 'A' | 'B') {
+    if (!this.atmo) return null;
+    const r = await this.atmo.dump(w);
+    return { n: r.n, data: Array.from(r.data) };
+  }
+
+  /** Nur für Tests: Antippen an Bildschirmkoordinaten (0..1). */
+  atmoTapAt(x: number, y: number) {
+    const r = canvas.getBoundingClientRect();
+    this.tap(r.left + x * r.width, r.top + y * r.height);
+  }
 
   /** Das nächste gezeichnete Bild als Canvas (Testmodus: aus der Offscreen-Textur). */
   private grabFrame(): Promise<HTMLCanvasElement> {
@@ -1118,7 +1290,7 @@ class App {
   /** Ein Bild: Simulationsschritt(e) und Darstellung. */
   frameOnce(real: number) {
     this.initIfNeeded();
-    let flowSrc = this.flowMode() === 'fluid' ? this.vel[this.vc] : this.flow;
+    let flowSrc = this.flowMode() === 'fluid' ? this.vel[this.vc] : this.flowMode() === 'moist' && this.atmo ? this.atmo.velocity : this.flow;
     let n = 0;
     if (!S.paused) {
       // Die Simulation läuft in Echtzeit: 60 Schritte pro Sekunde mal Zeitraffer, unabhängig von
@@ -1158,6 +1330,7 @@ class App {
     rp.setBindGroup(0, rbg);
     rp.draw(3);
     rp.end();
+    this.drawClouds(enc);
     this.device.queue.submit([enc.finish()]);
   }
 
@@ -1223,9 +1396,18 @@ class App {
   private bindInput() {
     const pointers = new Map<number, { x: number; y: number }>();
     let pinch = 0;
-    canvas.addEventListener('pointerdown', (e) => { canvas.setPointerCapture(e.pointerId); pointers.set(e.pointerId, { x: e.clientX, y: e.clientY }); });
+    // Antippen (kurz, fast ohne Bewegung) löst im Modul „Atmosphäre“ ein Ereignis aus.
+    let down: { x: number; y: number; t: number; id: number } | null = null;
+    canvas.addEventListener('pointerdown', (e) => {
+      canvas.setPointerCapture(e.pointerId); pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      down = pointers.size === 1 ? { x: e.clientX, y: e.clientY, t: performance.now(), id: e.pointerId } : null;
+    });
     const end = (e: PointerEvent) => { pointers.delete(e.pointerId); pinch = 0; };
-    canvas.addEventListener('pointerup', end);
+    canvas.addEventListener('pointerup', (e) => {
+      if (down && down.id === e.pointerId && Math.hypot(e.clientX - down.x, e.clientY - down.y) < 6 && performance.now() - down.t < 450) this.tap(e.clientX, e.clientY);
+      down = null;
+      end(e);
+    });
     canvas.addEventListener('pointercancel', end);
     canvas.addEventListener('pointermove', (e) => {
       const prev = pointers.get(e.pointerId);
@@ -1296,7 +1478,7 @@ class App {
         ['btn-seed', t('🎲 Neuer Zufallsplanet', '🎲 New random planet'), () => { S.preset = 'Zufall'; S.seed = newSeed(); this.applyPreset(); this.panel.refresh(); this.remember(); }],
       ])
       .section(t('Verfahren', 'Method'), t('Rechenmodell und Darstellung sind frei kombinierbar.', 'Maths model and look can be combined freely.'), true)
-      .select('flow', t('Rechenmodell', 'Maths model'), [['fluid', t('Stable Fluids – Strömungsphysik (mofu)', 'Stable Fluids – flow physics (mofu)')], ['curl', t('Curl-Noise – Rezept (jasper-r / Gaseous Giganticus)', 'Curl noise – recipe (jasper-r / Gaseous Giganticus)')]],
+      .select('flow', t('Rechenmodell', 'Maths model'), [['fluid', t('Stable Fluids – Strömungsphysik (mofu)', 'Stable Fluids – flow physics (mofu)')], ['curl', t('Curl-Noise – Rezept (jasper-r / Gaseous Giganticus)', 'Curl noise – recipe (jasper-r / Gaseous Giganticus)')], ['moist', t('Feuchte Atmosphäre mit Wolken (Modul, Zerroukat & Allen / Gusto)', 'Moist atmosphere with clouds (module, Zerroukat & Allen / Gusto)')]],
         t('Woher der Wind kommt. Stable Fluids löst die Strömungsgleichung mit Druck, Coriolis und Wirbeln. Curl-Noise ist ein verwirbeltes Rauschfeld plus Jets und Wirbel, schnell und ohne Physik.',
           'Where the wind comes from. Stable Fluids solves the flow equation with pressure, Coriolis and vortices. Curl noise is a swirling noise field plus jets and vortices, fast and without physics.'))
       .select('look', t('Darstellung', 'Look'), [['dye', t('Flüssigkeit (Farbstoff)', 'Liquid (dye)')], ['particles', t('Partikel', 'Particles')], ['pure', t('Partikel rein (wie jasper-r)', 'Pure particles (as jasper-r)')]],
@@ -1374,6 +1556,45 @@ class App {
         t('Eingestreute Wirbel (Gaseous Giganticus). Nur wo die Jets schwach sind, und nur mit dem Drehsinn der lokalen Scherung, sonst würden sie zerrissen.',
           'Seeded vortices (Gaseous Giganticus). Only where jets are weak, and only with the spin of the local shear, otherwise they would be torn apart.') + fx(t('ω(d) = ω₀·sin(π·d/r),  Drehsinn = sign(−∂U/∂φ)', 'ω(d) = ω₀·sin(π·d/r),  spin = sign(−∂U/∂φ)')))
       .range('vortexStrength', t('Wirbel-Stärke', 'Vortex strength'), 0, 10, 0.05, t('Drehgeschwindigkeit ω₀ der eingestreuten Wirbel relativ zur Jet-Stärke.', 'Spin ω₀ of the seeded vortices relative to jet strength.'), f2)
+      .section(t('Atmosphäre (Modul)', 'Atmosphere (module)'), t('Rechenmodell „Feuchte Atmosphäre“: feuchte, thermische Flachwassergleichungen auf der Kugel. Wolken, Stürme, Schwerewellen, Einschläge und Vulkane kommen alle aus denselben Gleichungen. Tippe auf den Planeten, um ein Ereignis auszulösen.', 'Maths model “moist atmosphere”: moist thermal shallow-water equations on the sphere. Clouds, storms, gravity waves, impacts and volcanoes all come from the same equations. Tap the planet to trigger an event.'), true)
+      .custom(this.formulaNote('∂u/∂t + (u·∇)u + f k̂×u = −b∇(D+B) − ½D∇b,  ∂D/∂t + ∇·(Du) = −β₁C,  ∂θ/∂t + u·∇θ = β₂C,  q<sub>sat</sub> = q₀·e<sup>νθ</sup>/D'))
+      .select('tapAction', t('Tippen löst aus', 'Tap triggers'), [['none', t('nichts', 'nothing')], ['impact', t('Einschlag (wie Shoemaker-Levy 9)', 'Impact (like Shoemaker-Levy 9)')], ['explosion', t('Explosion mit Druckwelle', 'Explosion with blast wave')], ['volcano', t('Vulkan (10 s Ausbruch)', 'Volcano (10 s eruption)')], ['anticyclone', t('Sturm: Antizyklon (Hoch)', 'Storm: anticyclone (high)')], ['cyclone', t('Sturm: Zyklon (Tief)', 'Storm: cyclone (low)')]],
+        t('Was ein kurzer Tipp auf den Planeten auslöst. Alles sind Quellterme in denselben Gleichungen: Masse (η), Wärme (θ), Dampf (q) und Asche als Gauß-Puls, dazu Wind. Einschlag und Explosion bringen Masse ohne Gleichgewicht ein, daraus läuft ein Schwerewellen-Ring nach außen, wie 1994 bei Shoemaker-Levy 9 auf Jupiter beobachtet (Ingersoll & Kanamori 1995). Stürme kommen balanciert (geostrophisch) wie in canoe/exo3.',
+          'What a short tap on the planet triggers. All are source terms in the same equations: mass (η), heat (θ), vapour (q) and ash as a Gaussian pulse, plus wind. Impact and explosion add mass out of balance, so a gravity-wave ring runs outwards, as observed on Jupiter after Shoemaker-Levy 9 in 1994 (Ingersoll & Kanamori 1995). Storms arrive balanced (geostrophic) as in canoe/exo3.') + fx('Δη, Δθ, Δq, ΔAsche · exp(−½ d²/r²)'))
+      .range('tapPower', t('Stärke beim Tippen', 'Tap strength'), 0.1, 5, 0.05, t('Skaliert alle Quellterme eines Tipps.', 'Scales all source terms of a tap.'), (v) => `${v.toFixed(2)}×`)
+      .range('aStorms', t('Sturm-Pulse', 'Storm pulses'), 0, 20, 0.1,
+        t('Feuchte Konvektion als zufällige Massenpulse (Showman 2007, Formel wie canoe/exo3 von Li & Chen): pro Sekunde so viele auf dem ganzen Planeten, Hälfte Hochs, Hälfte Tiefs, geostrophisch balanciert. Daraus wachsen, wandern und verschmelzen Wirbel.',
+          'Moist convection as random mass pulses (Showman 2007, formula as in canoe/exo3 by Li & Chen): this many per second over the whole planet, half highs, half lows, geostrophically balanced. Vortices grow, drift and merge from them.') + fx('η += ±A·exp(−½d²/r²),  u = c²/f · k̂×∇η'), (v) => `${v.toFixed(1)}/s`)
+      .range('aStormAmp', t('Sturm-Stärke', 'Storm strength'), 0, 0.4, 0.005, t('Amplitude A eines Pulses (Anteil der Schichtdicke). canoe/exo3: 0,1.', 'Amplitude A of a pulse (fraction of layer depth). canoe/exo3: 0.1.'), f3)
+      .range('ldef', t('Deformationsradius', 'Deformation radius'), 0.01, 0.2, 0.001,
+        t('Rossby-Deformationsradius L_d in Planetenradien: die natürliche Größe der Wirbel. Jupiter ≈ 0,03 (2000 km), Eisriesen größer. Bestimmt die Schwerewellen-Geschwindigkeit.',
+          'Rossby deformation radius L_d in planet radii: the natural size of vortices. Jupiter ≈ 0.03 (2000 km), ice giants larger. Sets the gravity-wave speed.') + fx('c = L<sub>d</sub>·f(45°),  c ≥ 2,5·U'), f3)
+      .range('aSpin', t('Rotation', 'Rotation'), 0.2, 5, 0.05,
+        t('Ω kommt aus der echten Rossby-Zahl des Planeten (Wind, Radius, Tageslänge aus dem Steckbrief). 1 = wie der echte Planet.',
+          'Ω comes from the planet’s real Rossby number (wind, radius and day length from the fact sheet). 1 = like the real planet.') + fx('Ω = U<sub>sim</sub>·Ω<sub>echt</sub>R / U<sub>echt</sub>'), (v) => `${v.toFixed(2)}×`)
+      .range('aHumid', t('Feuchte', 'Humidity'), 0, 1.2, 0.01,
+        t('Relative Feuchte, auf die der Dampf aus der Tiefe nachgefüllt wird. Nahe 1: fast gesättigt, schon kleine Hebung macht Wolken.',
+          'Relative humidity that vapour from below is refilled to. Near 1: almost saturated, small lifting already makes clouds.') + fx('q<sub>v</sub> += max(RH·q<sub>sat</sub> − q<sub>v</sub>, 0)·(1 − e<sup>−Δt/τ</sup>)'), pct)
+      .range('aHeat', t('Latente Wärme', 'Latent heat'), 0, 1, 0.01,
+        t('Wie stark Kondensation die Luft erwärmt (β₂). Warme Luft steigt: Wolkentürme wachsen höher, Stürme verstärken sich selbst.',
+          'How strongly condensation warms the air (β₂). Warm air rises: cloud towers grow taller, storms feed themselves.') + fx('θ += β₂·C,  γ<sub>v</sub> = 1/(1 + ν·β₂·q<sub>sat</sub>)'), f2)
+      .range('aMass', t('Konvektion → Masse', 'Convection → mass'), 0, 0.1, 0.001, t('Kondensation entzieht der Schicht Masse (β₁, mcRSW nach Bouchut et al. 2009): es entsteht ein Tief, das Luft ansaugt.', 'Condensation removes mass from the layer (β₁, mcRSW after Bouchut et al. 2009): a low forms that draws air in.') + fx('D −= β₁·C'), f3)
+      .range('aRain', t('Ausregnen', 'Rain-out'), 0, 2, 0.01, t('Wie schnell Wolkenwasser über der Schwelle ausregnet (1/τ). Klein: Wolken bleiben lange.', 'How fast cloud water above the threshold rains out (1/τ). Small: clouds last long.') + fx('q<sub>c</sub> −= max(q<sub>c</sub> − q<sub>p</sub>, 0)·(1 − e<sup>−Δt/τ</sup>)'), f2)
+      .range('aTheta', t('Temperaturgefälle', 'Temperature contrast'), 0, 0.3, 0.005, t('Unterschied Äquator zu Pol. Die Sättigung hängt exponentiell davon ab (Clausius–Clapeyron): kalte Pole halten weniger Dampf.', 'Difference equator to pole. Saturation depends on it exponentially (Clausius–Clapeyron): cold poles hold less vapour.') + fx('θ<sub>eq</sub> = −Δθ·sin²φ'), f3)
+      .range('aRelax', t('Strahlung', 'Radiation'), 0, 0.5, 0.005, t('Newton-Abkühlung (Held & Suarez 1994): Schichtdicke und Temperatur kehren mit 1/τ zum Gleichgewicht zurück.', 'Newtonian cooling (Held & Suarez 1994): layer depth and temperature return to equilibrium at rate 1/τ.') + fx('θ += (θ<sub>eq</sub> − θ)·(1 − e<sup>−Δt/τ</sup>)'), f3)
+      .range('aDrag', t('Reibung', 'Friction'), 0, 0.2, 0.001, t('Schwache Reibung des Winds.', 'Weak friction on the wind.'), f3)
+      .toggle('aTest', t('Löser-Test (Galewsky)', 'Solver test (Galewsky)'),
+        t('Standardtest für Flachwasser auf der Kugel (Galewsky, Scott & Polvani 2004): ein balancierter Jet bei 45° N mit kleiner Beule rollt sich nach etwa 5 Tagen zu Wirbeln auf. So prüft man, ob der Löser richtig rechnet. Ansicht „Wind“ zeigt es am besten.',
+          'Standard test for shallow water on the sphere (Galewsky, Scott & Polvani 2004): a balanced jet at 45° N with a small bump rolls up into vortices after about 5 days. This checks the solver computes correctly. The “Wind” view shows it best.'))
+      .range('atmoRes', t('Gitter Atmosphäre', 'Atmosphere grid'), 32, 1024, 16, t('Auflösung je Würfelseite. Kostet Rechenzeit, ändert nicht die Physik.', 'Resolution per cube face. Costs GPU time, does not change the physics.'), (v) => `${v}²`)
+      .toggle('clouds', t('Wolkenschicht zeigen', 'Show cloud layer'),
+        t('Zeichnet das Wolkenwasser als Volumenschale über dem Planeten, wie takram three-clouds (Nubis-Verfahren): Bedeckung aus der Simulation, Form aus Perlin-Worley-Rauschen, Licht mit Mehrfachstreuung und Schatten auf dem Planeten. Durchsichtig, wo keine Wolke ist.',
+          'Draws cloud water as a volume shell above the planet, like takram three-clouds (Nubis method): coverage from the simulation, shape from Perlin–Worley noise, light with multiple scattering and shadows on the planet. Transparent where there is no cloud.') + fx('T = e<sup>−∫σ ds</sup>,  L = Σ aⁱ·e<sup>−bⁱτ</sup>·p(cⁱ·cosθ)'))
+      .range('cloudHeight', t('Wolkenhöhe', 'Cloud height'), 0.002, 0.05, 0.001, t('Dicke der Wolkenschale in Planetenradien (überhöht, damit Türme sichtbar sind).', 'Thickness of the cloud shell in planet radii (exaggerated so towers show).'), f3)
+      .range('cloudOptical', t('Wolkendichte', 'Cloud density'), 0.5, 40, 0.5, t('Optische Dicke einer vollen Wolke.', 'Optical depth of a full cloud.'), f2)
+      .range('cloudCover', t('Bedeckung', 'Coverage'), 0.5, 40, 0.5, t('Wie viel Wolkenwasser eine volle Bedeckung ergibt.', 'How much cloud water gives full coverage.') + fx('w = 1 − e<sup>−k·q<sub>c</sub></sup>'), f2)
+      .range('cloudShadow', t('Wolkenschatten', 'Cloud shadows'), 0, 1, 0.01, t('Schatten der Wolken auf dem Planeten.', 'Shadows the clouds cast on the planet.'), pct)
+      .range('cloudSteps', t('Wolken-Schritte', 'Cloud steps'), 8, 128, 1, t('Abtastschritte pro Pixel durch die Wolkenschale. Kostet Rechenzeit.', 'Samples per pixel through the cloud shell. Costs GPU time.'))
       .section(t('Partikel', 'Particles'), t('Darstellung Partikel. Jeder Partikel bewegt sich mit dem Wind und mischt seine Farbe in die Textur:', 'Particle looks. Each particle moves with the wind and blends its colour into the texture:'), true)
       .custom(this.formulaNote(t('p ← normalize(p + v(p + v·Δt/2)·Δt),   c<sub>Texel</sub> ← mix(c<sub>Texel</sub>, c<sub>Partikel</sub>, α·sin(π·Alter/Lebensdauer))', 'p ← normalize(p + v(p + v·Δt/2)·Δt),   c<sub>texel</sub> ← mix(c<sub>texel</sub>, c<sub>particle</sub>, α·sin(π·age/lifetime))')))
       .range('lifetime', t('Lebensdauer', 'Lifetime'), 0.5, 60, 0.5,
@@ -1522,9 +1743,10 @@ class App {
   }
 
   private updateVisibility() {
-    const fluid = this.flowMode() === 'fluid', look = this.lookMode();
+    const fluid = this.flowMode() === 'fluid', curl = this.flowMode() === 'curl', moist = this.flowMode() === 'moist', look = this.lookMode();
     for (const k of ['jetRelax', 'omega', 'turbulence', 'turbScale', 'confinement', 'drag', 'iterations', 'velRes', 'bfecc', 'stormSpawn', 'kickLife', 'stormHold']) this.panel.visible(k, fluid);
-    for (const k of ['curlStrength', 'curlFreq', 'curlSpeed', 'curlOctaves', 'vortexCount', 'vortexStrength', 'curlRes']) this.panel.visible(k, !fluid);
+    for (const k of ['curlStrength', 'curlFreq', 'curlSpeed', 'curlOctaves', 'vortexCount', 'vortexStrength', 'curlRes']) this.panel.visible(k, curl);
+    for (const k of ATMO_KEYS) this.panel.visible(k, moist);
     for (const k of ['particles', 'lifetime', 'opacity', 'blur', 'viewFocus']) this.panel.visible(k, look !== 'dye');
     this.panel.visible('fade', look === 'pure');
     for (const k of ['bandRelax', 'fineStripes', 'convection', 'stormTint']) this.panel.visible(k, look !== 'pure');
@@ -1607,9 +1829,11 @@ class App {
       case 'velRes': case 'curlRes': this.allocVel(); break;
       case 'dyeRes': this.allocDye(); break;
       case 'particles': this.allocParticles(); break;
-      case 'flow': case 'look': this.updateVisibility(); this.needsDye = true; break;
+      case 'flow': case 'look': this.updateVisibility(); this.needsDye = true; if (S.flow !== 'moist') this.atmoFresh = false; break;
       case 'retro': this.usePreset(this.preset); this.needsInit = true; break;
-      case 'seamless': this.buildPipes(S.seamless); break;
+      case 'seamless': this.buildPipes(S.seamless); this.atmo?.build(S.seamless); break;
+      case 'atmoRes': this.atmo?.resize(S.atmoRes); this.atmoFresh = false; this.needsInit = true; break;
+      case 'aTest': case 'ldef': case 'aSpin': this.needsInit = true; break;
       case 'map': canvas.classList.toggle('map', S.map); break;
       case 'autoQuality': this.renderScale = 1; break;
       case 'pixelDensity': this.dpr = S.pixelDensity; break;
@@ -1627,6 +1851,8 @@ declare global {
       filmstrip: (o?: FilmOptions) => Promise<Filmstrip>;
       selftest: () => Promise<{ edge: number; interior: number; seamless: boolean }>;
       frame: () => number;
+      atmoDump: (w: 'A' | 'B') => Promise<{ n: number; data: number[] } | null>;
+      atmoTap: (x: number, y: number) => void;
     };
   }
 }

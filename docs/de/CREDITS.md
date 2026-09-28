@@ -51,6 +51,22 @@ Die Implementierung ist eigenständig. Wir danken den Autorinnen und Autoren:
 | Dowling et al. 1998, EPIC-Modell ([NASA-Planetary-Science/EPIC_Atmospheric_Model](https://github.com/NASA-Planetary-Science/EPIC_Atmospheric_Model)) | Referenz für geschichtete Gasplaneten-Atmosphären |
 | NASA/JPL Juno, Bolton et al. 2021 | Tiefe des Großen Roten Flecks (Pfannkuchen-Wirbel) |
 
+### Modul „Atmosphäre“ (`src/atmo/`, Rechenmodell „Feuchte Atmosphäre“)
+Gleichungen, Verfahren und Zahlenwerte übernommen, der WGSL-Code ist neu geschrieben. Einzelheiten:
+[ATMOSPHAERE.md](ATMOSPHAERE.md).
+| Quelle | Verwendung |
+|---|---|
+| Zerroukat & Allen 2015, umgesetzt in [Gusto](https://github.com/firedrakeproject/gusto) (UK Met Office, MIT) | feuchte thermische Flachwassergleichungen, Sättigung, Sättigungsausgleich, Regen, Parameter |
+| Bouchut, Lambaerts, Lapeyre & Zeitlin 2009 (mcRSW) | Kondensation → Masse (β₁) |
+| Showman 2007; [canoe](https://github.com/chengcli/canoe) `test_injection.cpp` (Cheng Li u. a., MIT) | Stürme als Massenpulse mit geostrophischem Wind, Jupiter-Parameter |
+| Dowling & Ingersoll 1989 | tiefe Jets als Bodenhöhe der Wetterschicht |
+| Held & Suarez 1994 | Newton-Abkühlung |
+| Galewsky, Scott & Polvani 2004 (Zahlen wie im [Dedalus](https://github.com/DedalusProject/dedalus)-Beispiel) | Löser-Test |
+| [takram three-clouds](https://github.com/takram-design-engineering/three-geospatial) (Shota Matsuda, MIT) nach Nubis (A. Schneider, Guerrilla Games) | Wolkenschicht: Wetterkarte → Dichte, Höhenprofil, Form-Erosion, Phase, Pulver, Parameter |
+| S. Hillaire, [TileableVolumeNoise](https://github.com/sebh/TileableVolumeNoise) (MIT); Hillaire 2016 (Frostbite) | kachelbares Perlin-Worley-Rauschen; energieerhaltende Streu-Integration |
+| Wrenninge et al. 2013 | Mehrfachstreuung in Oktaven |
+| Ingersoll & Kanamori 1995 | Ringe nach Shoemaker-Levy 9 als Schwerewellen |
+
 Bilder von NASA, Juno, Hubble und aus dem Web wurden nur im Gespräch als Vergleich benutzt
 und sind **nicht** Teil des Repos.
 

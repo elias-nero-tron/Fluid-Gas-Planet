@@ -61,6 +61,22 @@ implementation is original. Thanks to the authors:
 | Dowling et al. 1998, EPIC model ([NASA-Planetary-Science/EPIC_Atmospheric_Model](https://github.com/NASA-Planetary-Science/EPIC_Atmospheric_Model)) | reference for layered gas-giant atmospheres |
 | NASA/JPL Juno, Bolton et al. 2021 | depth of the Great Red Spot (pancake vortex) |
 
+### Atmosphere module (`src/atmo/`, maths model “moist atmosphere”)
+Equations, methods and parameter values taken over; the WGSL code is written anew. Details:
+[docs/ATMOSPHERE.md](docs/ATMOSPHERE.md).
+| Source | Used for |
+|---|---|
+| Zerroukat & Allen 2015 (J. Comput. Phys. 290) as implemented in [Gusto](https://github.com/firedrakeproject/gusto) (UK Met Office, MIT) | moist thermal shallow-water equations, saturation curve, saturation adjustment, rain, parameter values |
+| Bouchut, Lambaerts, Lapeyre & Zeitlin 2009 (mcRSW) | condensation → mass feedback β₁ |
+| Showman 2007 (J. Atmos. Sci. 64); [canoe](https://github.com/chengcli/canoe) `test_injection.cpp` by Cheng Li et al. (MIT) | storms as random mass pulses with geostrophically balanced wind, Jupiter parameters |
+| Dowling & Ingersoll 1989 | deep jets act as bottom topography of the weather layer |
+| Held & Suarez 1994 | Newtonian cooling |
+| Galewsky, Scott & Polvani 2004 (numbers as in the [Dedalus](https://github.com/DedalusProject/dedalus) example) | solver test |
+| [takram three-clouds](https://github.com/takram-design-engineering/three-geospatial) (Shota Matsuda, MIT), after Nubis (A. Schneider, Guerrilla Games) | cloud layer: weather map → density, height profile, shape erosion, dual-lobe phase, powder, parameter values |
+| S. Hillaire, [TileableVolumeNoise](https://github.com/sebh/TileableVolumeNoise) (MIT); Hillaire 2016 (Frostbite) | tileable Perlin–Worley noise; energy-conserving scattering integration |
+| Wrenninge et al. 2013, *Oz: The Great and Volumetric* | multiple scattering in octaves |
+| Ingersoll & Kanamori 1995 (Nature 374) | Shoemaker-Levy 9 impact rings as gravity waves (why impacts are mass pulses out of balance) |
+
 The recording in `docs/media/` was made by elias-nero-tron on real hardware.
 Images from NASA, Juno, Hubble, games and the web were only used as references during development
 and are **not** part of the repository. Screenshots in `docs/images/` are renders of this project.

@@ -53,6 +53,14 @@ Also bei jedem Häppchen: Quelle lesen, Verfahren übernehmen (Lizenz beachten),
    Partikel optimieren, dass es besser aussieht als die Vorlage.“ Quelle: [jasper-r](https://jasper-r.github.io/gas-giant):
    gleichmäßig verteilte Neugeburt in Blöcken, Flussfeld Oktave für Oktave aufbauen und bewegen, weiche
    Kante am Planetenrand. Dazu mehr Partikel (bis 32 Mio.) und dünnere, längere Schlieren.
+   **Befund (Code gegen Originalartikel und -videos verglichen):** (a) im Curl-Modus kommen Jets, 32 Wirbel und
+   Stürme ins Flussfeld (`flowField`), jasper-r hat nur Curl-Noise; (b) `curlOnSphere` gibt jeder Oktave gleich
+   viel Geschwindigkeit (flaches Spektrum = Tinte/LSD), besser Geschwindigkeit ∝ 0,5ᵒ (E(k) ∝ k⁻³, Kraichnan);
+   (c) Weg pro Lebenszeit viel größer als eine Bandbreite; (d) Deckkraft 0,35 bei ~8 Partikeln/Texel ergibt
+   1 − 0,65⁸ ≈ 97 % pro Bild, also kein Gedächtnis und keine Schlieren (Ziel ≈ 0,05–0,1 pro Texel und Bild);
+   (e) Relief aus der Helligkeit macht aus Partikelrauschen „zerknülltes Papier“ (jasper-r: kein Relief);
+   (f) Palette zu kontrastreich (Original: 5 gedämpfte Töne). Besser als das Original: bilinear per Atomics
+   einschreiben, Partikel mit 8 statt 32 Byte, Rauschen nur an Bandrändern.
 8. **Curl-Noise soll nicht wie Tinte / LSD aussehen.** „Sieht aus wie Tinte, die auf einem Teller verläuft.“
    Quelle: [Gaseous Giganticus](https://github.com/smcameron/gaseous-giganticus) (nur Ideen, GPL): Bänder
    stärker als Rauschen, Rauschen nur an Bandgrenzen, Wirbel nur in schwacher Scherung, Partikel ewig leben lassen.
@@ -113,6 +121,14 @@ Also bei jedem Häppchen: Quelle lesen, Verfahren übernehmen (Lizenz beachten),
 ---
 
 ## Erledigt (damit nichts verloren geht)
+
+- **Modul „Atmosphäre“** (Rechenmodell „Feuchte Atmosphäre mit Wolken“, `src/atmo/`, läuft neben Stable Fluids
+  und Curl-Noise): feuchte thermische Flachwassergleichungen (Zerroukat & Allen 2015 wie in Gusto, MIT),
+  Stürme als Massenpulse (Showman 2007, canoe/exo3), tiefe Jets als Bodenhöhe (Dowling & Ingersoll),
+  Wolkenschicht als Volumenschale nach takram three-clouds/Nubis (MIT), durchsichtig wo keine Wolke ist.
+  Tippen löst Einschlag, Explosion, Vulkan oder Sturm aus, alles Quellterme derselben Gleichungen.
+  Teile von Häppchen 16 (Wolken aus Feuchte, Gasriesen-Seite), 19 (Stürme aus der Mathematik) und 20
+  (Wolkentürme mit Silhouette und Schatten). Doku: `docs/de/ATMOSPHAERE.md`.
 
 - Panel neu sortiert: Planet, Zufallsplanet, Verfahren, Zeit und Drehung, Wind, Stürme, Wolkenfarbe, Curl noise, Partikel, Licht, **Grafikkarte und Feinheit** (alles, was nur GPU kostet, getrennt von der Physik)
 - Rechenmodell (Stable Fluids / Curl-Noise) und Darstellung (Flüssigkeit / Partikel / Partikel rein) wieder frei kombinierbar
