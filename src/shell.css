@@ -207,3 +207,10 @@ details.inactive > summary { color: var(--muted); }
 .seg .soon { flex: 1; display: grid; place-items: center; background: #101116; color: #4a4c55; font-family: var(--display); font-weight: 600; letter-spacing: 0.02em; text-transform: uppercase; white-space: nowrap; cursor: help; }
 .panel-head .seg { flex-wrap: wrap; min-width: 0; }
 .seg a, .seg .soon { flex: 1 1 auto; }
+/* Reglersuche */
+.panel-search { width: 100%; margin: 4px 0 10px; padding: 7px 10px; border: 1px solid var(--line); border-radius: 6px; background: #16171d; color: inherit; font: inherit; }
+.search-hide { display: none !important; }
+/* Steckbrief: kurz, aufklappbar */
+.facts-more { margin-left: 6px; padding: 1px 7px; border: 1px solid var(--line); border-radius: 5px; background: rgba(22,23,29,0.7); color: var(--muted); font: 11px var(--mono); cursor: pointer; pointer-events: auto; }
+.facts.short { padding: 4px 10px; }
+@media (max-width: 760px) { .facts.short { display: grid; } }
