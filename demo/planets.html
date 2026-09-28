@@ -86,7 +86,7 @@
   <div id="stage">
     <canvas id="view" aria-label="Planet view: drag to turn, scroll or pinch to zoom"></canvas>
     <div class="hud">
-      <h1 id="t-title">Procedural Planets</h1>
+      <h1 id="t-title">Procedural Planets</h1><span id="ver" style="font:11px var(--mono);opacity:.6">Stand 2026-09-28 · v23</span>
       <p><span id="fps">– fps</span> · <span id="mode-tag"></span> · <span id="t-hint"></span></p>
     </div>
     <div id="genbar" hidden><span id="gen-text"></span><div class="track"><div class="fill" id="gen-fill"></div></div></div>
@@ -177,7 +177,7 @@ const S = {
   sunAz: -58, sunEl: 12, cover: 0.5,
   nebula: 1.0, stars: 1.0, flare: 0.5,
   mwWidth: 1.0, mwCore: 1.0, mwDust: 1.0, mwHii: 1.0,
-  rotate: true, spin: 1.2, tilt: 23, fov: 36,
+  rotate: true, spin: 1.2, spinZoom: 1.0, volcanoes: 0.5, rivers: 1, tilt: 23, fov: 36,
   view: 0, quality: 0,
 };
 // Wer reduzierte Bewegung eingestellt hat, bekommt einen stehenden Planeten (Drehen lässt sich einschalten)
@@ -266,6 +266,11 @@ function controls() {
       { k: 'relief', mode: 'plus', min: 0, max: 0.08, step: 0.001, label: t('Relief-Höhe', 'Relief height'),
         help: t('Echte Verschiebung der Oberfläche. Berge ragen am Rand über die Kugel hinaus und werfen Schatten.', 'Real displacement of the surface. Mountains rise above the limb and cast shadows.'),
         fx: 'r = 1 + k_r·max(h − s, 0)' },
+      { k: 'volcanoes', mode: 'plus', min: 0, max: 1, step: 0.01, label: t('Vulkane', 'Volcanoes'), regen: true,
+        help: t('Kegelberge mit Gipfelkrater (Schichtvulkane), zufällig auf dem Land verteilt. 0 = keine.', 'Cone mountains with a summit crater (stratovolcanoes), scattered over land. 0 = none.'),
+        fx: 'h += H·((1−r/R)^1.8 − 0.55·(1 − (r/r_c)²)₊)' },
+      { k: 'rivers', mode: 'plus', type: 'select', label: t('Flüsse', 'Rivers'), opts: [[1, t('an (berechneter Verlauf)', 'on (computed course)')], [0, t('aus', 'off')]], regen: 'rivers',
+        help: t('Flüsse laufen wirklich bergab: Senken werden aufgefüllt (Priority-Flood, Barnes 2014), dann sammelt jeder Punkt das Regenwasser seiner Oberlieger (Abflussakkumulation, O’Callaghan & Mark 1984). Wo genug zusammenkommt, entsteht ein Fluss, breiter mit mehr Wasser. Echte Strömung im Flussbett (Flachwasser) folgt später als zweite Stufe.', 'Rivers truly run downhill: sinks are filled (priority-flood, Barnes 2014), then every point collects the rain of the cells above it (flow accumulation, O’Callaghan & Mark 1984). Where enough gathers a river forms, wider with more water. Real flow in the river bed (shallow water) comes later as a second stage.') },
       { k: 'erosion', mode: 'plus', min: 0, max: 3, step: 0.01, label: t('Erosion', 'Erosion'), regen: true,
         help: t('Rinnen und Grate, die hangabwärts laufen und sich verzweigen, wie von Regen ausgewaschen. Formel von Clay John / Fewes (2D), hier auf die Kugel übertragen.', 'Gullies and ridges that run downhill and branch, as if washed out by rain. Formula by Clay John / Fewes (2D), carried over to the sphere here.'),
         fx: 'Δh = −½D·Σᵢ aᵢ(1 − Σ_c w_c cos 2π(q−c)·(r̂×∇h)),  aᵢ = 2⁻ⁱ' },
@@ -340,6 +345,9 @@ function controls() {
     ] },
     { id: 'motion', title: t('Drehung & Kamera', 'Spin & camera'), items: [
       { k: 'rotate', type: 'check', label: t('Drehen', 'Rotate') },
+      { k: 'spinZoom', min: 0, max: 3, step: 0.05, label: t('Drehung beim Zoomen bremsen', 'Slow spin when zoomed'), fmt: (v) => v.toFixed(2),
+        help: t('Je näher du am Boden bist, desto langsamer dreht sich der Planet. 0 = immer gleich schnell, 1 = proportional zur Höhe, höher = stärker gebremst.', 'The closer you are to the ground, the slower the planet turns. 0 = always the same speed, 1 = proportional to altitude, higher = braked harder.'),
+        fx: 'ω = ω₀ · clamp((d − 1)/1.2, 0, 1)^k' },
       { k: 'spin', min: 0, max: 12, step: 0.1, label: t('Drehgeschwindigkeit', 'Spin speed'), fmt: (v) => `${v.toFixed(1)}°/s`,
         help: t('Ruhig und mächtig: 1,5°/s ist eine Umdrehung in 4 Minuten. Nebel und Sterne drehen nicht mit.', 'Calm and majestic: 1.5°/s is one turn in 4 minutes. Nebula and stars do not turn with it.'),
         fx: 'T = 360° / ω' },
@@ -419,6 +427,8 @@ function buildUI() {
   $('to-gas').textContent = t('Gasriesen', 'Gas giants');
   // in demo/ liegen beide Seiten nebeneinander
   if (/\/demo\/[^/]*$/.test(location.pathname)) $('to-gas').href = 'index.html';
+  // Einzeln gespeicherte Datei (file://, z. B. aus dem Download-Ordner): Nachbarseite liegt nicht daneben -> Online-Fassung
+  if (location.protocol === 'file:' && !/Fluid-Gas-Planet\/(demo|demos)\//.test(location.pathname)) $('to-gas').href = 'https://raw.githack.com/elias-nero-tron/Fluid-Gas-Planet/main/demo/index.html';
   $('lang').textContent = lang === 'de' ? 'EN' : 'DE';
   $('st-plus').textContent = t('+20 % besser', '+20 % better');
   $('st-orig').textContent = 'Original 1:1';
@@ -659,6 +669,31 @@ fn ridgedMF(p: vec3f, f0: f32, seed: f32) -> vec4f {
   }
   return vec4f(r, g) / max(norm, 1e-3);
 }
+// Schichtvulkane: Kegel mit Gipfelkrater, je Zelle eines 3D-Gitters höchstens einer (Worley-artige Verteilung)
+fn volcanoes(d: vec3f, dens: f32, seed: f32) -> vec4f {
+  let p = d * 7.0;
+  let ip = floor(p);
+  var o = vec4f(0.0);
+  for (var z = -1; z <= 1; z++) { for (var y = -1; y <= 1; y++) { for (var x = -1; x <= 1; x++) {
+    let c = ip + vec3f(f32(x), f32(y), f32(z));
+    let hq = hash33(c * 1.31 + vec3f(1.7, seed * 0.0071, 9.2));
+    if (hq.x > dens * 0.35) { continue; }
+    let hp = hash33(c + vec3f(seed * 0.0131, 7.1, 3.3));
+    let cc = normalize(c + 0.15 + 0.7 * hp);
+    let R = 0.035 + 0.05 * hq.y;
+    let H = 0.035 + 0.05 * hq.z;
+    let dv = d - cc;
+    let r = length(dv);
+    if (r >= R) { continue; }
+    let t = r / R;
+    var v = pow(1.0 - t, 1.8);
+    var dv_dt = -1.8 * pow(1.0 - t, 0.8);
+    let tc = 0.16 + 0.08 * hq.y;
+    if (t < tc) { let s = t / tc; v -= 0.55 * (1.0 - s * s); dv_dt += 1.1 * s / tc; }
+    o += vec4f(H * v, (H * dv_dt / R) * dv / max(r, 1e-5));
+  } } }
+  return o;
+}
 @compute @workgroup_size(8, 8)
 fn main(@builtin(global_invocation_id) gid: vec3u) {
   let px = vec2f(gid.xy) + J.h.xy;
@@ -729,6 +764,12 @@ fn main(@builtin(global_invocation_id) gid: vec3u) {
     h += (acc.x - sumA) * 0.5 * depth;
     let ge = acc.yzw * 0.5 * depth;
     gh += ge - d * dot(ge, d);
+  }
+  if (mode > 0.5 && J.f.w > 0.0) {
+    let Vc = volcanoes(d, J.f.w, J.b.y);
+    let lw = smoothstep(sea - 0.02, sea + 0.05, h);
+    h += Vc.x * lw;
+    gh += (Vc.yzw - d * dot(Vc.yzw, d)) * lw;
   }
   // Gradient in Seitenkoordinaten (∂h/∂u, ∂h/∂v) speichern
   let dPu = (B.ex - d * dot(d, B.ex)) * il * (2.0 * QPI * (1.0 + st.x * st.x));
@@ -901,6 +942,7 @@ struct Uf {
 @group(0) @binding(4) var tCloud: texture_2d_array<f32>;
 @group(0) @binding(5) var tNeb: texture_2d_array<f32>;
 @group(0) @binding(6) var tTrans: texture_2d<f32>;
+@group(0) @binding(7) var tRiver: texture_2d_array<f32>;
 fn modelM() -> mat3x3f { return mat3x3f(U.m0.xyz, U.m1.xyz, U.m2.xyz); }
 struct VO { @builtin(position) pos: vec4f, @location(0) uv: vec2f }
 // Bildschirmfüllendes Dreieck; uv wie in GL (y nach oben), Texturen werden mit (u, 1 − v) gelesen
@@ -1369,6 +1411,15 @@ fn earthBiome(d: vec3f, h: f32, m: f32, slope: f32, nz: f32) -> vec4f {
       alb = eb.rgb;
       rough = eb.a;
     }
+    // Flüsse: Maske aus der Abflussakkumulation; Wasser dunkel und glatt, spiegelt die Sonne
+    if (U.W.w > 0.0) {
+      let NR = U.W.w;
+      let rv = smoothstep(0.3, 0.7, texDirLod(tRiver, d, NR, log2(max(pix * NR / 1.5708, 1.0))).x);
+      if (rv > 0.0) {
+        alb = mix(alb, vec3f(0.012, 0.03, 0.04), rv);
+        rough = mix(rough, 0.07, rv);
+      }
+    }
     // Kavität: Täler dunkler, Grate heller (Differenz zu einer gröberen Mipmap)
     let hb = texFaceLod(tHm, F, N, lod + 3.0).x;
     let cav = clamp((T.x - hb) * 30.0, -1.0, 1.0);
@@ -1657,7 +1708,7 @@ function makeLayouts() {
   L = {
     main: device.createBindGroupLayout({ entries: [
       { binding: 0, visibility: VF, buffer: {} }, { binding: 1, visibility: VF, sampler: {} },
-      tex(2, '2d-array'), tex(3), tex(4, '2d-array'), tex(5, '2d-array'), tex(6),
+      tex(2, '2d-array'), tex(3), tex(4, '2d-array'), tex(5, '2d-array'), tex(6), tex(7, '2d-array'),
     ] }),
     draw: device.createBindGroupLayout({ entries: [{ binding: 0, visibility: VF, buffer: {} }] }),
     post: device.createBindGroupLayout({ entries: [{ binding: 0, visibility: VF, buffer: {} }, tex(1), tex(2)] }),
@@ -1824,16 +1875,20 @@ function initResources() {
   RS.views = { cloud: arrView(RS.cloud), neb: arrView(RS.neb), trans: RS.trans.createView(), biome: RS.biome.createView() };
   RS.shown = RS.hmPrev; RS.nShown = RS.nPrev;
   meshPlanet = patchGrid(PATCH_G);
+  RS.river = tagged(device.createTexture({ size: [1, 1, 6], format: 'r8unorm', usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST }));
+  RS.nRiver = 0;
   meshCloud = cubeSphere(coarse ? 48 : 72);
 }
 // Bindungen der Szene; neu, sobald die gezeigte Höhenkarte wechselt (Vorschau -> volle Auflösung)
 function mainGroup() {
-  if (RS.mainKey === RS.shown.fgpId) return RS.mainBG;
-  RS.mainKey = RS.shown.fgpId;
+  const key = RS.shown.fgpId + ':' + RS.river.fgpId;
+  if (RS.mainKey === key) return RS.mainBG;
+  RS.mainKey = key;
   RS.mainBG = device.createBindGroup({ layout: L.main, entries: [
     { binding: 0, resource: { buffer: uBuf } }, { binding: 1, resource: samp },
     { binding: 2, resource: arrView(RS.shown) }, { binding: 3, resource: RS.views.biome },
     { binding: 4, resource: RS.views.cloud }, { binding: 5, resource: RS.views.neb }, { binding: 6, resource: RS.views.trans },
+    { binding: 7, resource: arrView(RS.river) },
   ] });
   return RS.mainBG;
 }
@@ -1949,7 +2004,7 @@ function genParams(mode, N, erosion) {
     m.res1 * PP.moistM, m.res2, m.resMix, m.mixScale,
     erosion, 34.0, 0.9, 1.0,
     PP.mountains, PP.beltFreq, 7.0, 0.35,
-    mode, eroOct(N), seaH, 0,
+    mode, eroOct(N), seaH, S.volcanoes,
     0, 0, 0, 0, 0, 0, 0, N,
   ]);
 }
@@ -2003,6 +2058,149 @@ function queueSky() {
   queueTiles(nebRes, 256, () => prm.slice(), () => P.nebGen, () => RS.bgNebGen, () => { RS.nebReady = true; });
 }
 
+// ------------------------------------------------------------------ Flüsse
+// Höhenkarte in mittlerer Auflösung lesen, Senken füllen (Priority-Flood, Barnes et al. 2014),
+// Abfluss sammeln (O'Callaghan & Mark 1984) und Flussläufe als weiche Kurven in eine Maske zeichnen.
+let riverT = 0, riverToken = 0;
+const QP = Math.PI / 4;
+function toFaceJS(d) {
+  let best = 0, bv = -2;
+  for (let f = 0; f < 6; f++) { const em = BASIS[f][2]; const v = em[0] * d[0] + em[1] * d[1] + em[2] * d[2]; if (v > bv) { bv = v; best = f; } }
+  return [best, ...faceUvJS(best, d)];
+}
+function faceUvJS(f, d) {
+  const [ex, ey, em] = BASIS[f];
+  const z = em[0] * d[0] + em[1] * d[1] + em[2] * d[2];
+  const x = ex[0] * d[0] + ex[1] * d[1] + ex[2] * d[2], y = ey[0] * d[0] + ey[1] * d[1] + ey[2] * d[2];
+  return [(Math.atan2(x, z) / QP + 1) / 2, (Math.atan2(y, z) / QP + 1) / 2];
+}
+async function buildRivers() {
+  if (!device || !RS.river || S.style === 'orig') return;
+  const token = ++riverToken;
+  if (!S.rivers) { RS.nRiver = 0; return; }
+  const n = coarse ? 256 : 512, NR = coarse ? 1024 : 2048;
+  const mode = 1, ero = S.erosion;
+  // 1) Höhen auf der GPU erzeugen und zurücklesen
+  const tx = device.createTexture({ size: [n, n, 6], format: 'rgba16float', usage: GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.COPY_SRC });
+  const bg = device.createBindGroup({ layout: L.gen16, entries: [{ binding: 0, resource: { buffer: jBuf, size: 128 } }, { binding: 1, resource: tx.createView({ dimension: '2d-array' }) }] });
+  const enc = device.createCommandEncoder();
+  const ctx = makeCtx(enc);
+  for (let f = 0; f < 6; f++) dispatch(ctx, P.gen, bg, tileParams(genParams(mode, n, ero), f, 0, 0, n, n, n), n / 8, n / 8);
+  const rb = device.createBuffer({ size: n * 8 * n * 6, usage: GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST });
+  enc.copyTextureToBuffer({ texture: tx }, { buffer: rb, bytesPerRow: n * 8, rowsPerImage: n }, [n, n, 6]);
+  device.queue.submit([enc.finish()]);
+  await rb.mapAsync(GPUMapMode.READ);
+  const hb = new Uint16Array(rb.getMappedRange().slice(0));
+  rb.unmap(); rb.destroy(); tx.destroy();
+  if (token !== riverToken) return;
+  const C = 6 * n * n, sea = seaH;
+  const H = new Float32Array(C), rain = new Float32Array(C);
+  for (let i = 0; i < C; i++) { H[i] = half(hb[i * 4]); rain[i] = 0.4 + clamp((half(hb[i * 4 + 1]) - moistQ[0]) / (moistQ[1] - moistQ[0] + 1e-6), 0, 1.2); }
+  const n1 = n - 1;
+  const idx = (f, i, j) => (f * n + j) * n + i;
+  // Nachbar über Seitenkanten hinweg: Richtung bilden, zur passenden Seite zurückrechnen
+  const nb = (f, i, j, di, dj) => {
+    const a = i + di, b = j + dj;
+    if (a >= 0 && a <= n1 && b >= 0 && b <= n1) return idx(f, a, b);
+    const [g, u, v] = toFaceJS(faceDirJS(f, a / n1, b / n1));
+    return idx(g, clamp(Math.round(u * n1), 0, n1), clamp(Math.round(v * n1), 0, n1));
+  };
+  // 2) Priority-Flood mit Binärheap; jede Zelle fließt zu der Zelle, von der aus sie erreicht wurde
+  const hk = new Float32Array(C + 8), hv = new Int32Array(C + 8);
+  let hn = 0;
+  const push = (k, v) => { let i = hn++; while (i > 0) { const p = (i - 1) >> 1; if (hk[p] <= k) break; hk[i] = hk[p]; hv[i] = hv[p]; i = p; } hk[i] = k; hv[i] = v; };
+  const pop = () => { const v = hv[0], k = hk[--hn], x = hv[hn]; let i = 0; for (;;) { let c = 2 * i + 1; if (c >= hn) break; if (c + 1 < hn && hk[c + 1] < hk[c]) c++; if (hk[c] >= k) break; hk[i] = hk[c]; hv[i] = hv[c]; i = c; } hk[i] = k; hv[i] = x; return v; };
+  const down = new Int32Array(C).fill(-2), fill = new Float32Array(C), order = new Int32Array(C);
+  let seeds = 0;
+  for (let c = 0; c < C; c++) if (H[c] < sea) { down[c] = -1; fill[c] = H[c]; push(H[c], c); seeds++; }
+  if (!seeds) { let m = 0; for (let c = 1; c < C; c++) if (H[c] < H[m]) m = c; down[m] = -1; fill[m] = H[m]; push(H[m], m); }
+  let on = 0;
+  const DI = [1, -1, 0, 0, 1, 1, -1, -1], DJ = [0, 0, 1, -1, 1, -1, 1, -1];
+  while (hn) {
+    const c = pop();
+    order[on++] = c;
+    const f = (c / (n * n)) | 0, r = c - f * n * n, j = (r / n) | 0, i = r - j * n;
+    for (let k = 0; k < 8; k++) {
+      const q = nb(f, i, j, DI[k], DJ[k]);
+      if (down[q] !== -2) continue;
+      down[q] = c;
+      fill[q] = Math.max(H[q], fill[c] + 1e-7);
+      push(fill[q], q);
+    }
+  }
+  // 3) Abfluss sammeln (von oben nach unten), Hauptzufluss merken
+  const acc = new Float32Array(C), up = new Int32Array(C).fill(-1);
+  for (let c = 0; c < C; c++) if (H[c] >= sea) acc[c] = rain[c];
+  for (let k = on - 1; k >= 0; k--) {
+    const c = order[k], d = down[c];
+    if (d < 0 || H[c] < sea) continue;
+    acc[d] += acc[c];
+    if (up[d] < 0 || acc[c] > acc[up[d]]) up[d] = c;
+  }
+  if (token !== riverToken) return;
+  // 4) Maske zeichnen: quadratische Bézier-Kurven durch die Kantenmitten, Breite ~ √Abfluss
+  const T = C * 0.00015, sc = (NR - 1) / n1;
+  const mask = new Uint8Array(6 * NR * NR);
+  const jit = (c) => { const x = Math.sin(c * 12.9898) * 43758.5453, y = Math.sin(c * 78.233) * 12345.6789; return [(x - Math.floor(x) - 0.5) * 0.7, (y - Math.floor(y) - 0.5) * 0.7]; };
+  const posOn = (f, c) => {
+    const g = (c / (n * n)) | 0, r = c - g * n * n, j = (r / n) | 0, i = r - j * n;
+    const J = jit(c);
+    if (g === f) return [(i + J[0]) * sc, (j + J[1]) * sc];
+    const [u, v] = faceUvJS(f, faceDirJS(g, i / n1, j / n1));
+    return [u * n1 * sc, v * n1 * sc];
+  };
+  const stamp = (f, x, y, w) => {
+    const R = Math.ceil(w + 1.5), base = f * NR * NR;
+    const x0 = Math.max(0, Math.floor(x - R)), x1 = Math.min(NR - 1, Math.ceil(x + R));
+    const y0 = Math.max(0, Math.floor(y - R)), y1 = Math.min(NR - 1, Math.ceil(y + R));
+    for (let py = y0; py <= y1; py++) for (let px = x0; px <= x1; px++) {
+      const v = clamp(w + 0.5 - Math.hypot(px - x, py - y), 0, 1) * 255;
+      const o = base + py * NR + px;
+      if (v > mask[o]) mask[o] = v;
+    }
+  };
+  const wK = NR / 2048;
+  for (let c = 0; c < C; c++) {
+    if (H[c] < sea || acc[c] < T || down[c] < 0) continue;
+    const f = (c / (n * n)) | 0;
+    const Pc = posOn(f, c), Pd = posOn(f, down[c]);
+    const u = up[c];
+    const Pa = u >= 0 && acc[u] >= T ? posOn(f, u) : Pc;
+    const A = [(Pa[0] + Pc[0]) / 2, (Pa[1] + Pc[1]) / 2], B = [(Pc[0] + Pd[0]) / 2, (Pc[1] + Pd[1]) / 2];
+    const w0 = clamp(0.55 * Math.sqrt(acc[c] / T), 0.7, 5) * wK;
+    const w1 = clamp(0.55 * Math.sqrt(acc[down[c]] / T), 0.7, 5) * wK;
+    const len = Math.hypot(A[0] - Pc[0], A[1] - Pc[1]) + Math.hypot(B[0] - Pc[0], B[1] - Pc[1]);
+    const steps = Math.max(2, Math.ceil(len / 0.7));
+    for (let s = 0; s <= steps; s++) {
+      const t = s / steps, a = (1 - t) * (1 - t), b = 2 * t * (1 - t), e = t * t;
+      stamp(f, a * A[0] + b * Pc[0] + e * B[0], a * A[1] + b * Pc[1] + e * B[1], w0 + (w1 - w0) * t * 0.5);
+    }
+  }
+  if (token !== riverToken) return;
+  // 5) Hochladen mit Mipmaps (2×2-Mittel auf der CPU)
+  const levels = mipLevels(NR);
+  const tex = tagged(device.createTexture({ size: [NR, NR, 6], format: 'r8unorm', mipLevelCount: levels, usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST }));
+  let cur = mask, m = NR;
+  for (let l = 0; l < levels; l++) {
+    const bpr = Math.max(256, m);
+    for (let f = 0; f < 6; f++) {
+      let data = cur.subarray(f * m * m, (f + 1) * m * m);
+      if (bpr !== m) { const pad = new Uint8Array(bpr * m); for (let y = 0; y < m; y++) pad.set(data.subarray(y * m, y * m + m), y * bpr); data = pad; }
+      device.queue.writeTexture({ texture: tex, mipLevel: l, origin: [0, 0, f] }, data, { bytesPerRow: bpr, rowsPerImage: m }, [m, m, 1]);
+    }
+    if (m === 1) break;
+    const h2 = m >> 1, nx = new Uint8Array(6 * h2 * h2);
+    for (let f = 0; f < 6; f++) for (let y = 0; y < h2; y++) for (let x = 0; x < h2; x++) {
+      const o = f * m * m + 2 * y * m + 2 * x;
+      nx[f * h2 * h2 + y * h2 + x] = (cur[o] + cur[o + 1] + cur[o + m] + cur[o + m + 1] + 2) >> 2;
+    }
+    cur = nx; m = h2;
+  }
+  const old = RS.river;
+  RS.river = tex; RS.nRiver = NR;
+  if (old) setTimeout(() => old.destroy(), 500);
+}
+
 async function regenerate(full) {
   const token = ++genToken;
   jobs = []; jobTotal = 0; jobDone = 0;
@@ -2032,6 +2230,7 @@ async function regenerate(full) {
     if (S.sea < 0) S.sea = PP.water;
     seaH = seaFromFraction(S.sea);
     drawBiome(S.seed, clamp(seaH, 0, 1));
+    buildRivers();
     // 2) volle Auflösung
     if (full !== false) {
       let N = S.res;
@@ -2216,9 +2415,10 @@ canvas.addEventListener('wheel', (e) => {
 function changed(it) {
   const k = it.k;
   if (!device) return;
-  if (k === 'res' || k === 'erosion') { regenerate(); }
+  if (k === 'res' || k === 'erosion' || k === 'volcanoes') { regenerate(); }
+  else if (it.regen === 'rivers') { buildRivers(); }
   else if (it.regen === 'sky') queueSky();
-  else if (k === 'sea') { seaH = seaFromFraction(S.sea); lutDirty = true; }
+  else if (k === 'sea') { seaH = seaFromFraction(S.sea); lutDirty = true; clearTimeout(riverT); riverT = setTimeout(buildRivers, 400); }
   else if (k === 'lang') buildUI();
 }
 function setStyle(st) {
@@ -2299,7 +2499,7 @@ function fillUniforms(o) {
   u.set([...A.bO, A.bMe], 60);
   u.set([A.oz[0], A.oz[1], 0.8, coarse ? 16 : 28], 64);
   u.set([S.nscale, S.rough, S.metal, S.ambient], 68);
-  u.set([S.waves, S.clarity, S.foam, 0], 72);
+  u.set([S.waves, S.clarity, S.foam, S.rivers && RS.nRiver && S.style !== 'orig' ? RS.nRiver : 0], 72);
   u.set([S.bump, S.gloss, S.detail, S.terrace], 76);
   u.set([S.shadows, S.ambientP, 0, 0], 80);
   u.set([moistQ[0], moistQ[1], S.sunI, 0.0095], 84);
@@ -2448,7 +2648,7 @@ function step(now) {
     cam.yaw += cam.vYaw; cam.pitch = clamp(cam.pitch + cam.vPitch, -1.45, 1.45);
     cam.vYaw *= 0.92; cam.vPitch *= 0.92;
   }
-  if (S.rotate) spin += S.spin * Math.PI / 180 * dt;
+  if (S.rotate) spin += S.spin * Math.PI / 180 * dt * Math.pow(clamp((cam.dist - 1) / 1.2, 0, 1), S.spinZoom);
   simTime += dt;
   const enc = device.createCommandEncoder();
   // Erzeugung im Zeitbudget
