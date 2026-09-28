@@ -210,18 +210,28 @@ fn fs(vin: VOut) -> @location(0) vec4f {
         let qi = normalize(q0 + dirT * rd);
         if (rd >= H * (1.0 - pomHeight(qi))) { q = qi; break; }
       }
-      // Eigenschatten: vom Treffer zur Sonne, steht die Höhenkarte über dem Strahl, liegt der Punkt im Schatten
+      // Eigenschatten: vom Treffer Richtung Sonne laufen. Der Strahl steigt mit der Sonnenhöhe (tan) UND die Kugel
+      // krümmt sich unter ihm weg (t²/2 bei Radius 1). Ohne Krümmung würde nahe der Tag-Nacht-Grenze alles
+      // abgeschattet (flache Scheibe statt Kugel) – das war die harte Linie. Schattenlänge höchstens H/tan.
       let nl = dot(sun, n);
       if (U.p6.z > 0.0 && nl > 0.0) {
-        let sT = (sun - n * nl) / max(nl, 0.1);
-        let h0 = pomHeight(q);
-        var occ = 0.0;
-        for (var j = 1; j <= 10; j++) {
-          let t = H * f32(j) / 10.0;
-          let hs = h0 + f32(j) / 10.0 * max(nl, 0.1) * 2.0;
-          occ = max(occ, clamp((pomHeight(normalize(q + sT * t)) - hs) * 8.0, 0.0, 1.0));
+        let sd = sun - n * nl;
+        let sl = length(sd);
+        if (sl > 1e-4) {
+          let sT = sd / sl;
+          let tanE = nl / max(sl, 1e-3);
+          let maxT = min(H / max(tanE, 0.02), 0.03);
+          let h0 = pomHeight(q) * H;
+          var occ = 0.0;
+          for (var j = 1; j <= 12; j++) {
+            let t = maxT * f32(j) / 12.0;
+            let ray = h0 + t * tanE + 0.5 * t * t;
+            let hs = pomHeight(normalize(q + sT * t)) * H;
+            // weicher Halbschatten: je tiefer der Strahl unter dem Gelände, desto dunkler
+            occ = max(occ, clamp((hs - ray) / (0.25 * H), 0.0, 1.0));
+          }
+          pomShadow = 1.0 - 0.7 * clamp(occ * U.p6.z, 0.0, 1.0);
         }
-        pomShadow = 1.0 - clamp(occ * U.p6.z, 0.0, 1.0);
       }
     }
     var albedo = surface(q, mode);
