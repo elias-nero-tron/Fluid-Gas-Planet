@@ -15,6 +15,7 @@ struct R {
   p4: vec4f,        // x Sterne, y Mehrstufig: Grobanteil (0 = aus), z Feinanteil, w Pixel-Anpassung
   p5: vec4f,        // x Tiefe aus Physik an/aus, y Stärke, z Quelle (0 Druck, 1 Wirbelstärke), w Gitter
   p6: vec4f,        // x Parallaxe an/aus, y Höhe, z Eigenschatten, w Größe (Mehrstufig)
+  p7: vec4f,        // x Dämmerung (0 wie v0.4, 1 aus, 2 weich), y Randschimmer (0 wie v0.4, 1 weich, 2 aus)
 };
 
 @group(0) @binding(0) var<uniform> U: R;
@@ -267,8 +268,10 @@ fn fs(vin: VOut) -> @location(0) vec4f {
       // Minnaert-Randverdunkelung, k = 1 ist Lambert.
       var light = pow(max(ndl, 0.0), k) * pow(ndv, k - 1.0);
       light *= pomShadow;
-      // Dämmerungssaum
-      light += smoothstep(0.12, -0.05, ndl) * smoothstep(-0.25, 0.0, ndl) * 0.05;
+      // Dämmerungssaum (Modul „Dämmerung“; 0 = wie v0.4)
+      if (U.p7.x < 0.5) { light += smoothstep(0.12, -0.05, ndl) * smoothstep(-0.25, 0.0, ndl) * 0.05; }
+      // weich: fällt nur ab, ohne Buckel (Maximum zweier steigender Kurven), Stärke nach Atmosphäre
+      else if (U.p7.x > 1.5) { light = max(light, smoothstep(-0.25, 0.12, ndl) * 0.05 * U.atmo.w / 0.35); }
       // Schatten der Ringe auf dem Planeten
       if (U.p1.w > 0.0 && abs(sun.y) > 1e-4) {
         let tr = -hp.y / sun.y;
@@ -277,7 +280,10 @@ fn fs(vin: VOut) -> @location(0) vec4f {
           light *= 1.0 - 0.85 * ringDensity(length(rp.xz), 0.02);
         }
       }
-      let rim = pow(1.0 - ndv, 3.0) * U.atmo.w * smoothstep(-0.2, 0.3, ndl);
+      var rim = pow(1.0 - ndv, 3.0) * U.atmo.w * smoothstep(-0.2, 0.3, ndl);
+      // Modul „Randschimmer“: weich = schmaler, folgt dem Sonnenlicht stetig; aus = kein Schimmer
+      if (U.p7.y > 1.5) { rim = 0.0; }
+      else if (U.p7.y > 0.5) { rim = pow(1.0 - ndv, 5.0) * U.atmo.w * sqrt(clamp(ndl + 0.1, 0.0, 1.0)); }
       col = albedo * light * U.sun.w + U.atmo.rgb * rim * U.sun.w;
     } else {
       col = albedo;

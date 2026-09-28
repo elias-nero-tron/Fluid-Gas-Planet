@@ -68,8 +68,8 @@ const S = {
   nebula: 1.0, stars: 1.0, flare: 0.5,
   mwWidth: 1.0, mwCore: 1.0, mwDust: 1.0, mwHii: 1.0,
   rotate: true, spin: 1.2, spinZoom: 1.0, volcanoes: 0.15, volcanoOn: true, volcanoType: 0, rivers: 3, riverAmount: 1, mesh: 0, craterFill: 1,
-  modClouds: true, modShadows: true, modAtmo: true, modBloom: true, modFlare: true, tilt: 23, fov: 36,
-  view: 0, quality: 0, msaa: MSAA_Q,
+  modClouds: true, modShadows: true, modAtmo: true, modRim: false, rimStr: 0.35, modBloom: true, modFlare: true, tilt: 23, fov: 36,
+  view: 0, quality: -1, msaa: MSAA_Q,
 };
 // Wer reduzierte Bewegung eingestellt hat, bekommt einen stehenden Planeten (Drehen lässt sich einschalten)
 if (matchMedia('(prefers-reduced-motion: reduce)').matches) S.rotate = false;
@@ -247,6 +247,9 @@ function controls() {
     { id: 'modules', title: t('Module an/aus', 'Modules on/off'), items: [
       { k: 'modClouds', type: 'check', label: t('Wolken', 'Clouds'), help: t('Ganzes Modul ein- oder ausschalten, zum Vergleichen.', 'Switch the whole module on or off, to compare.') },
       { k: 'modAtmo', mode: 'plus', type: 'check', label: t('Atmosphäre (Streuung)', 'Atmosphere (scattering)') },
+      { k: 'modRim', type: 'check', label: t('Atmosphäre (Saum wie Gasriese)', 'Atmosphere (rim as gas giant)'),
+        help: t('Der Leuchtsaum des Gasriesen, 1:1 übernommen: Saum außerhalb der Scheibe und Schimmer am Rand. Geht allein oder zusätzlich zur Streuung.', 'The gas giant’s glow rim, taken over 1:1: halo outside the disc and shimmer at the edge. Works alone or on top of scattering.') },
+      { k: 'rimStr', min: 0, max: 2, step: 0.01, label: t('Saum-Stärke', 'Rim strength') },
       { k: 'modShadows', mode: 'plus', type: 'check', label: t('Geländeschatten', 'Terrain shadows') },
       { k: 'modBloom', mode: 'plus', type: 'check', label: t('Überstrahlung', 'Bloom') },
       { k: 'modFlare', type: 'check', label: t('Blendenflecke', 'Lens flare') },
@@ -263,7 +266,7 @@ function controls() {
       { k: 'fov', min: 15, max: 75, step: 1, label: t('Blickwinkel', 'Field of view'), fmt: (v) => `${Math.round(v)}°` },
       { k: 'msaa', type: 'select', label: t('Kantenglättung (MSAA)', 'Anti-aliasing (MSAA)'), opts: [[1, t('aus (wie v23, schneller)', 'off (as in v23, faster)')], [4, t('4× (v24, glatter, kostet FPS)', '4× (v24, smoother, costs fps)')]],
         help: t('Glättet Planetenrand und Bergsilhouetten. Kostet viel Leistung, besonders mit hoher Bildauflösung. Umschalten lädt die Seite neu.', 'Smooths the planet limb and mountain silhouettes. Costs a lot of performance, especially at high render resolution. Switching reloads the page.') },
-      { k: 'quality', type: 'select', label: t('Bildauflösung', 'Render resolution'), opts: [[0, t('Automatisch (so scharf wie flüssig geht)', 'Automatic (as sharp as stays smooth)')], [2, t('200 % (Supersampling)', '200 % (supersampling)')], [1.5, '150 %'], [1, '100 %'], [0.75, '75 %'], [0.5, '50 %']],
+      { k: 'quality', type: 'select', label: t('Bildauflösung', 'Render resolution'), opts: [[-1, t('Automatisch wie v21 (höchstens 100 %)', 'Automatic as v21 (at most 100 %)')], [0, t('Automatisch v22+ (bis 200 %, frisst die GPU bis ~60 fps)', 'Automatic v22+ (up to 200 %, fills the GPU down to ~60 fps)')], [2, t('200 % (Supersampling)', '200 % (supersampling)')], [1.5, '150 %'], [1, '100 %'], [0.75, '75 %'], [0.5, '50 %']],
         help: t('Automatisch senkt die Bildauflösung, wenn die Grafikkarte nicht hinterherkommt, und hebt sie wieder, sobald Luft ist.', 'Automatic lowers the render resolution when the GPU cannot keep up and raises it again when there is headroom.') },
     ] },
     { id: 'debug', title: 'Debug', items: [
@@ -853,6 +856,7 @@ struct Uf {
   Fl: vec4f,     // Sonne auf dem Bild (uv), Stärke, Seitenverhältnis
   cyc: array<vec4f, 6>,   // Wirbel: Mittelpunkt, Drehwinkel im Zentrum (Vorzeichen = Drehsinn)
   cycB: array<vec4f, 6>,  // Radius, Lebensphase 0..1, Auge (tropischer Wirbelsturm), -
+  Gr: vec4f,     // Modul Saum wie Gasriese: Farbe, Stärke (0 = aus)
 }
 @group(0) @binding(0) var<uniform> U: Uf;
 @group(0) @binding(1) var samp: sampler;
@@ -1480,6 +1484,22 @@ fn ign(p: vec2f) -> f32 { return fract(52.9829189 * fract(dot(p, vec2f(0.0671105
   let dir = normalize(w.xyz / w.w - cam);
   let b = dot(cam, dir);
   let c2 = dot(cam, cam);
+  // Modul „Saum wie Gasriese“ (aus src/shaders/render.wgsl übernommen): Saum außerhalb, Schimmer am Rand
+  if (U.Gr.w > 0.0) {
+    let dg0 = b * b - (c2 - 1.0);
+    if (dg0 <= 0.0 || -b - sqrt(max(dg0, 0.0)) < 0.0) {
+      let tc = max(-b, 0.0);
+      let cp = cam + dir * tc;
+      let hh = length(cp) - 1.0;
+      let lit = smoothstep(-0.3, 0.4, dot(normalize(cp), sun));
+      col += U.Gr.rgb * exp(-max(hh, 0.0) / 0.025) * U.Gr.w * lit * 1.7;
+    } else {
+      let nn = normalize(cam + dir * (-b - sqrt(dg0)));
+      let ndv = max(dot(nn, -dir), 1e-3);
+      let rim = pow(1.0 - ndv, 3.0) * U.Gr.w * smoothstep(-0.2, 0.3, dot(nn, sun));
+      col += U.Gr.rgb * rim * 1.7;
+    }
+  }
   if (U.Md.x < 0.5) {
     // Original: Leuchtsaum wie der three.js-glow-Shader, I = (c − n·v)^p
     if (b < 0.0 && U.Glow.w > 0.0) {
@@ -1624,7 +1644,7 @@ const VF = 3;          // GPUShaderStage.VERTEX | FRAGMENT
 const mipLevels = (n) => Math.floor(Math.log2(n)) + 1;
 const J_SLOTS = 1024, J_STRIDE = 256;
 let jBuf, jSlot = 0;
-let uBuf, uData = new Float32Array(172), dPlanet, dCloud, ppDummy, samp;
+let uBuf, uData = new Float32Array(176), dPlanet, dCloud, ppDummy, samp;
 
 async function initGPU() {
   if (!navigator.gpu) fail(t('Dieser Browser kann kein WebGPU. Bitte Chrome oder Edge ab 113, Safari ab 26 oder Firefox ab 141 nehmen.', 'This browser has no WebGPU. Please use Chrome or Edge 113+, Safari 26+ or Firefox 141+.'));
@@ -2636,6 +2656,7 @@ function fillUniforms(o) {
   u.set([o.orig ? 1 : S.exposure * 1.25, o.bloomOn ? S.bloom * 0.12 : 0, o.orig ? 0 : 1, (S.rivers === 1 || S.rivers === 3) && !o.orig ? RS.nRiver : 0], 116);
   u.set(o.fl, 120);
   u.set(cycA, 124); u.set(cycB, 148);
+  u.set([0.35, 0.55, 1.0, S.modRim ? S.rimStr : 0], 172);
   device.queue.writeBuffer(uBuf, 0, u);
 }
 function render(enc) {
@@ -2759,6 +2780,11 @@ function adaptScale(dt, now) {
   const ms = 1000 * perfAcc / Math.max(perfN, 1);
   perfAcc = 0; perfN = 0; perfT = now;
   // Starke Grafikkarten: über 100 % hinaus (Supersampling), bis die Bildrate gegen 60 fällt
+  if (S.quality === -1) {  // wie v21: nie über 100 %, erst unter ~40 fps herunter
+    if (ms > 24 && dynScale > 0.45) dynScale = Math.max(0.45, dynScale * 0.85);
+    else if (ms < 14 && dynScale < 1) dynScale = Math.min(1, dynScale * 1.1);
+    return;
+  }
   const top = coarse ? 1 : 2;
   if (ms > (coarse ? 24 : 17.5) && dynScale > 0.45) dynScale = Math.max(0.45, dynScale * 0.85);
   else if (ms < (coarse ? 14 : 11) && dynScale < top) dynScale = Math.min(top, dynScale * 1.08);
