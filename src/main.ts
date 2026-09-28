@@ -91,12 +91,13 @@ const S = {
   depthOn: false,         // Tiefe aus der Physik
   depthStrength: 1,
   depthSource: 'pressure',// 'pressure' (nur Stable Fluids) | 'vorticity' (beide Modelle)
-  twilight: 'v04',        // Dämmerung: 'v04' | 'off' | 'soft'
+  twilight: 'off',       // Vorgabe des Urhebers (v0.4-Streifen sah wie eine Kraterlinie aus)
+        // Dämmerung: 'v04' | 'off' | 'soft'
   rimGlow: 'v04',         // Randschimmer: 'v04' | 'soft' | 'off'
   pomOn: false,           // Parallaxe mit Eigenschatten
   pomHeight: 1,
   pomShadow: 1,
-  relief: 0.35,
+  relief: 1,              // Flüssigkeit 1,0 (Vorgabe des Urhebers), Partikel 0,35 – siehe RELIEF_BY_LOOK
   limb: 1.15,
   atmosphere: 1,
   exposure: 0.95,
@@ -109,6 +110,7 @@ const S = {
 // „Zustand merken“ bleibt über das Neuladen hinweg an (sonst wäre es nach jedem Laden wieder aus)
 try { S.remember = localStorage.getItem('fgp-remember') === '1'; } catch { /* Speicher gesperrt */ }
 type Key = keyof typeof S;
+const RELIEF_BY_LOOK: Record<string, number> = { dye: 1, particles: 0.35, pure: 0.35 };  // Flüssigkeit 1,0 (Vorgabe des Urhebers)
 const EDDY_BY_LOOK: Record<string, number> = { dye: 1.5, particles: 1, pure: 1 };
 const DEFAULTS = { ...S };
 
@@ -1502,9 +1504,7 @@ class App {
       .range('viewFocus', t('Sichtfeld-Anteil', 'View focus'), 0, 0.95, 0.05,
         t('Anteil der Partikel, die auf der sichtbaren Seite geboren werden. Bei 0,8 landen 80 % der Rechenarbeit dort, wo du hinschaust: schärfer beim Heranzoomen, gleiche Kosten. Die Rückseite verblasst dann langsamer als sie bemalt wird; zu hoch gewählt wirkt sie beim Drehen blasser.',
           'Share of particles born on the visible side. At 0.8, 80 % of the work lands where you look: sharper when zooming in, same cost. The far side then gets painted less; set too high it looks paler when it turns into view.'), pct)
-      .section(t('Licht und Ansicht', 'Light and view'), undefined, true)
-      .range('sunAngle', t('Sonnenstand', 'Sun angle'), -180, 180, 1,
-        t('Richtung der Sonne. 0° = Sonne hinter der Kamera (voller Planet), 90° = Halbphase.', 'Sun direction. 0° = sun behind the camera (full disc), 90° = half phase.'), (v) => `${v}°`)
+      .section('Relief', t('Relief und die Relief-Module. Alle Module sind einzeln schaltbar, aus = wie v0.4.', 'Relief and the relief modules. Each module is a switch; off = as v0.4.'), true)
       .range('relief', 'Relief', 0, 5, 0.01,
         t('Neigt die Flächennormale nach der Helligkeit: helle Wolken wirken höher und werfen weiche Schatten. Das ist eine Beleuchtungs-Täuschung, keine echte Höhe (keine Parallaxe, keine Silhouette).',
           'Tilts the surface normal by brightness: bright clouds look higher and cast soft shading. This is a lighting trick, not real height (no parallax, no silhouette).') + fx(t('n′ = normalize(n − ∇Helligkeit · Relief · 3)', 'n′ = normalize(n − ∇brightness · relief · 3)')), f2)
@@ -1527,6 +1527,9 @@ class App {
           'Module, on top. Traces the view ray into the height map (brightness plus depth from physics, if on): high parts hide low ones, vortex rims cast shadows into the funnel. Costs more GPU.') + fx('Parallax Occlusion Mapping (Tatarchuk 2006)'))
       .range('pomHeight', t('Parallaxe-Höhe', 'Parallax height'), 0, 10, 0.05, t('Wie hoch die Höhenkarte für die Parallaxe ist.', 'How tall the height map is for parallax.'), f2)
       .range('pomShadow', t('Eigenschatten', 'Self-shadow'), 0, 2, 0.05, t('Wie dunkel die Schatten in den Senken werden.', 'How dark shadows in the dips get.'), f2)
+      .section(t('Licht und Ansicht', 'Light and view'), undefined, true)
+      .range('sunAngle', t('Sonnenstand', 'Sun angle'), -180, 180, 1,
+        t('Richtung der Sonne. 0° = Sonne hinter der Kamera (voller Planet), 90° = Halbphase.', 'Sun direction. 0° = sun behind the camera (full disc), 90° = half phase.'), (v) => `${v}°`)
       .select('twilight', t('Dämmerung', 'Twilight'), [['v04', t('wie v0.4 (Streifen)', 'as v0.4 (stripe)')], ['soft', t('weich, nach Atmosphäre', 'soft, by atmosphere')], ['off', t('aus', 'off')]],
         t('Aufhellung hinter der Tag-Nacht-Grenze. v0.4: fester Buckel, sieht wie eine Kraterlinie aus. Weich: fällt nur ab, ohne Stufe, so stark wie die Atmosphäre. Aus: nur Sonnenlicht.',
           'Brightening past the day–night line. v0.4: fixed bump that looks like a crater line. Soft: only falls off, no step, as strong as the atmosphere. Off: sunlight only.'))
@@ -1634,6 +1637,7 @@ class App {
   }
 
   /** Steckbrief oben links: bekannte Werte des Planeten (bei Zufallsplaneten plausibel geschätzt). */
+  static factsOpen = false;
   private updateInfo() {
     const info = document.getElementById('planet-info');
     if (!info) return;
@@ -1659,8 +1663,13 @@ class App {
     rows.push([t('Abplattung', 'Oblateness'), nf(p.oblateness, 3)]);
     rows.push([t('Stürme', 'Storms'), String(p.storms.length)]);
     const esc = (x: string) => x.replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' } as Record<string, string>)[c]);
-    info.innerHTML = `<div class="facts-name">${esc(p.name)}${f?.note ? ` <span>· ${esc(t(f.note[0], f.note[1]))}</span>` : ''}</div>`
-      + `<dl class="facts">${rows.map(([k, v]) => `<dt>${k}</dt><dd>${esc(v)}</dd>`).join('')}</dl>`;
+    // Kurzfassung (Durchmesser, Tag) immer sichtbar, alles weitere erst aufgeklappt, damit der Planet frei bleibt
+    const short = rows.filter(([k]) => k === t('Durchmesser', 'Diameter') || k === t('Tag', 'Day'));
+    const shown = App.factsOpen ? rows : short;
+    info.innerHTML = `<div class="facts-name">${esc(p.name)}${f?.note && App.factsOpen ? ` <span>· ${esc(t(f.note[0], f.note[1]))}</span>` : ''}`
+      + ` <button type="button" class="facts-more" aria-expanded="${App.factsOpen}">${App.factsOpen ? t('weniger ▴', 'less ▴') : t('mehr ▾', 'more ▾')}</button></div>`
+      + `<dl class="facts${App.factsOpen ? '' : ' short'}">${shown.map(([k, v]) => `<dt>${k}</dt><dd>${esc(v)}</dd>`).join('')}</dl>`;
+    info.querySelector('.facts-more')?.addEventListener('click', () => { App.factsOpen = !App.factsOpen; this.updateInfo(); });
   }
 
   private updateVisibility() {
@@ -1750,7 +1759,7 @@ class App {
       case 'velRes': case 'curlRes': this.allocVel(); break;
       case 'dyeRes': this.allocDye(); break;
       case 'particles': this.allocParticles(); break;
-      case 'flow': case 'look': if (key === 'look') { const o = Object.values(EDDY_BY_LOOK); if (o.includes(S.eddyStrength)) S.eddyStrength = EDDY_BY_LOOK[S.look] ?? S.eddyStrength; this.panel.refresh(); } this.updateVisibility(); this.needsDye = true; if (key === 'look' && QUALITY[S.quality]?.fluid) { this.applyQuality(true); this.panel.refresh(); } break;
+      case 'flow': case 'look': if (key === 'look') { const o = Object.values(EDDY_BY_LOOK); if (o.includes(S.eddyStrength)) S.eddyStrength = EDDY_BY_LOOK[S.look] ?? S.eddyStrength; if (Object.values(RELIEF_BY_LOOK).includes(S.relief)) S.relief = RELIEF_BY_LOOK[S.look] ?? S.relief; this.panel.refresh(); } this.updateVisibility(); this.needsDye = true; if (key === 'look' && QUALITY[S.quality]?.fluid) { this.applyQuality(true); this.panel.refresh(); } break;
       case 'retro': this.usePreset(this.preset); this.needsInit = true; break;
       case 'seamless': this.buildPipes(S.seamless); break;
       case 'map': canvas.classList.toggle('map', S.map); break;
