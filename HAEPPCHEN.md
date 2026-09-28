@@ -15,6 +15,33 @@ Also bei jedem Häppchen: Quelle lesen, Verfahren übernehmen (Lizenz beachten),
 
 ## Offen, aufsteigend nach Aufwand
 
+### ZUERST: Stand v0.1 / v21 wiederherstellen, alles danach als Modul (Bestandsaufnahme 2026-09-28)
+Referenzen: Gasriese = v0.1 (`demo/gas-v0.1.html`), Gesteinsplanet = #21 (`demo/planets-v21.html`).
+Ziel: alle Module auf „Referenz“ = pixelgleich zur Referenz. Jede Zeile unten wird ein Schalter (Standard = Referenz):
+
+| Seit | Änderung (Gesteinsplanet, `src/rocky/main.js`) | heute schaltbar? |
+|---|---|---|
+| #22 | Kachel-Gelände (Quadtree) statt festem Netz v21; Nähte zwischen Kacheln = „komische Berglinien“ | nein (v21-Netz fehlt) |
+| #22 | Auto-Bildauflösung bis 200 %, Pixelgrenze 17 Mio. (v21: bis 100 %, 3,6 Mio.) | nein |
+| #22 | Wolken-/Himmelskarte 2048 statt 1024 | nein |
+| #22 | Glitzern: alpha² 0,0064 statt 0,0025, Wellen-Schwelle 3–8 px statt 1,5–4 px | nein |
+| #22 | 8192er-Karte, Drehung 1,2 statt 1,5 °/s, „+20 %“-Schildchen weg | gewollt |
+| #23 | Drehung beim Zoomen bremsen | ja |
+| #24 | Gesteinsschichten sin() statt fract() | nein |
+| #24 | Bloom erste Stufe mit Karis-Mittel | nein |
+| #24 | Milchstraße ins Modul `src/sky/` verschoben, Rauschen minimal geändert (normalize statt taylorInvSqrt) | nein |
+| #24 | MSAA 4× | ja (Standard aus) |
+| #24 | Geomorphing | ja (Standard aus) |
+| #23–27 | Vulkane: im Basis-Höhenshader (GEN) verdrahtet, nur per Zahl aus | halb |
+| #23–27 | Flüsse (3 Varianten + Hydro-Karte): in GEN und fsPlanet verdrahtet, Werte in fremden Uniform-Feldern (L2.z, Fin.w, Bg.w, EroRt.zw) | halb |
+| #24 | gemeinsames Menü/Kopfzeile (`src/shell.*`, `src/ui.ts`) | Oberfläche |
+
+Gasriese (`src/main.ts`): #24 alte Sterne durch gemeinsamen Himmel ersetzt (nicht schaltbar), Zeitleiste nach unten
+links, Kopfzeile. Änderungen v0.1 → v0.4 aus früheren Sitzungen noch nicht geprüft (per `git diff` wie oben).
+Branch `claude/festive-darwin-40hl44` (anderer Agent, Atmosphärenmodell Gasriese) ist nicht gemergt → später als Modul „aus“.
+Offen außerdem: 5 Merge-Commits auf `main` (#21–#27) tragen `Co-authored-by: Claude` und die private E-Mail des
+Urhebers; Säubern nur per Force-Push auf `main` mit ausdrücklichem Ja.
+
 ### Klein
 
 1. **Stürme nicht festnageln.** „Stürme haben festgelegte Standorte? … am Endergebnis eher Pfusch an der
