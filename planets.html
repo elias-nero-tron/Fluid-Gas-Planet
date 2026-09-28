@@ -2,43 +2,9 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Procedural Planets</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500&display=swap">
-<link rel="stylesheet" href="/src/shell.css">
+<!-- Alte Adresse: der Gesteinsplanet läuft jetzt in der gemeinsamen Seite. -->
+<script>location.replace('index.html?body=rocky' + location.hash);</script>
 </head>
-<body>
-<div id="app">
-  <div id="stage">
-    <canvas id="view" aria-label="Planet view: drag to turn, scroll or pinch to zoom"></canvas>
-    <div class="hud">
-      <h1 id="t-title">Procedural Planets</h1>
-      <div class="meta"><span id="fps">– fps</span> <span id="version"></span></div>
-      <div class="meta"><span id="mode-tag"></span> · <span id="t-hint"></span></div>
-    </div>
-    <div id="genbar" hidden><span id="gen-text"></span><div class="track"><div class="fill" id="gen-fill"></div></div></div>
-    <div id="toolbar"></div>
-    <div id="status" hidden></div>
-  </div>
-  <aside id="panel">
-    <div class="panel-head"><button id="panel-toggle" type="button" aria-expanded="false" aria-controls="panel-body"><span id="panel-title">Controls</span> <span aria-hidden="true">▴</span></button><nav id="ptype" class="seg"></nav><button id="lang" type="button">DE</button></div>
-    <div id="panel-body"></div>
-    <p class="credits" id="credits"></p>
-  </aside>
-</div>
-<script>
-  (function () {
-    var aside = document.getElementById('panel');
-    var btn = document.getElementById('panel-toggle');
-    btn.addEventListener('click', function () {
-      var open = aside.classList.toggle('open');
-      btn.setAttribute('aria-expanded', String(open));
-      btn.querySelector('[aria-hidden]').textContent = open ? '▾' : '▴';
-    });
-  })();
-</script>
-<script type="module" src="/src/rocky/main.js"></script>
-</body>
+<body><a href="index.html?body=rocky">Rocky planet</a></body>
 </html>

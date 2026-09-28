@@ -5,7 +5,7 @@ import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 
 mkdirSync('demo', { recursive: true });
 writeFileSync('demo/index.html', readFileSync('dist/index.html', 'utf8'));
-writeFileSync('demo/planets.html', readFileSync('dist/planets.html', 'utf8'));
+writeFileSync('demo/planets.html', readFileSync('planets.html', 'utf8'));  // Umleitung auf index.html?body=rocky
 for (const name of ['coffee']) {
   const page = readFileSync(`demos/${name}.html`, 'utf8');
   writeFileSync(`demo/${name}.html`,

@@ -49,6 +49,10 @@ Als Geräte-Voreinstellungen (Menü „Gerät (Startwerte)“), alte Werte bleib
 - **Desktop-GPU (Fluid):** Render 2.00×, Farbauflösung 2048², Gitter 352², Druck 24, BFECC an. = Grundeinstellung, damit Fluid nach was aussieht.
 - **High-End-GPU:** Render 4.00×, Farbauflösung 2560², Gitter 256², Partikel 4.28 Mio., Druck 24, BFECC an. Läuft evtl. auch auf integrierter Grafik; kann ein Dutzend Körper gleichzeitig zeigen.
 Beobachtungen: Gitter über 256² bringt kaum sichtbar etwas; Partikel 1–5 Mio. sinnvoll, 2–4 Mio. optisch am schönsten; bei Farbauflösung 1024² ist Render 0.5 vs. 4 kaum verschieden.
+**Erledigt 2026-09-28:** Startwerte übernommen (Desktop: Partikel- bzw. Fluid-Werte je nach Darstellung), alte v0.4-Werte als „(alte Werte v0.4)“ wählbar.
+Eine Seite für alle Körper (`index.html?body=rocky`, `planets.html` leitet um); Mond/Asteroid/Lavaplanet ausgegraut mit Modulplan.
+Eingefroren und im Versionsschalter: Gesteinsplanet v22 (Kantenfix), v23 (erste Flüsse + Vulkane), v24, v25.
+Offen: „60 fps halten“ wirkt laut Urheber nicht (adaptScale senkt nur bis 0,5× und hebt nie über 1; prüfen, was der Urheber erwartet: Deckel bei 60 oder Mindest-60).
 Weitere Punkte (je eine Runde):
 1. Einschwingen beim ersten Laden dauert zu lange: Stürme 15–30 s lang schneller antreiben (als Schalter, Standard an nach Freigabe).
 2. Jupiter-Startposition immer mit dem Großen Roten Fleck im Sichtbereich (Wiedererkennung).
