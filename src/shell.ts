@@ -44,7 +44,7 @@ export function initShell(current: PlanetKind) {
     const sel = document.createElement('select');
     sel.id = 'ver-switch';
     sel.setAttribute('aria-label', t('Version', 'Version'));
-    sel.style.width = 'auto';
+    sel.style.cssText = 'width: auto; flex: 0 1 7.5em; min-width: 0;';
     head.insertBefore(sel, document.getElementById('lang'));
     sel.addEventListener('change', () => { if (sel.value) location.href = pageHref(sel.value); });
   }
