@@ -69,6 +69,7 @@ const S = {
   contrast: 1,
   convection: 0.8,
   storms: true,
+  remember: false,        // Modul „Zustand merken“: eingeschwungenen Zustand im Browser speichern, beim nächsten Laden sofort da
   focusStorm: true,       // beim Start den Hauptsturm (z. B. Großer Roter Fleck) auf die Tagseite vor die Kamera drehen
   stormStrength: 1,
   stormSize: 1,
@@ -90,6 +91,8 @@ const S = {
   depthOn: false,         // Tiefe aus der Physik
   depthStrength: 1,
   depthSource: 'pressure',// 'pressure' (nur Stable Fluids) | 'vorticity' (beide Modelle)
+  twilight: 'v04',        // Dämmerung: 'v04' | 'off' | 'soft'
+  rimGlow: 'v04',         // Randschimmer: 'v04' | 'soft' | 'off'
   pomOn: false,           // Parallaxe mit Eigenschatten
   pomHeight: 1,
   pomShadow: 1,
@@ -103,6 +106,8 @@ const S = {
   view: 0,
   map: false,
 };
+// „Zustand merken“ bleibt über das Neuladen hinweg an (sonst wäre es nach jedem Laden wieder aus)
+try { S.remember = localStorage.getItem('fgp-remember') === '1'; } catch { /* Speicher gesperrt */ }
 type Key = keyof typeof S;
 const EDDY_BY_LOOK: Record<string, number> = { dye: 1.5, particles: 1, pure: 1 };
 const DEFAULTS = { ...S };
@@ -199,7 +204,7 @@ const OFF_STORMS = OFF_BANDS + TABLE * 4;
 const OFF_INFO = OFF_STORMS + MAX_STORMS * 4;
 const OFF_WEIGHT = OFF_INFO + MAX_STORMS * 4;
 const SIM_FLOATS = OFF_WEIGHT + MAX_STORMS;
-const RENDER_FLOATS = 16 + 4 * 14;
+const RENDER_FLOATS = 16 + 4 * 15;
 // Fester Zeitschritt: Zeitraffer und Einschwingen machen mehr Schritte, nicht größere.
 const DT = 1 / 60;
 // Vorrechnen beim Start (unsichtbar, hinter dem Ladebild): 20 s Simulationszeit, damit der
@@ -781,6 +786,7 @@ class App {
       S.stars, S.reliefMulti ? S.reliefCoarse : 0, S.reliefFine, S.reliefAdapt ? 1 : 0,
       S.depthOn ? 1 : 0, S.depthStrength, S.depthSource === 'pressure' && this.flowMode() === 'fluid' ? 0 : 1, S.velRes,
       S.pomOn ? 1 : 0, S.pomHeight, S.pomShadow, S.reliefSize,
+      ({ v04: 0, off: 1, soft: 2 } as Record<string, number>)[S.twilight] ?? 0, ({ v04: 0, soft: 1, off: 2 } as Record<string, number>)[S.rimGlow] ?? 0, 0, 0,
     ], 16);
     this.device.queue.writeBuffer(this.renderBuf, 0, d);
   }
@@ -1078,9 +1084,77 @@ class App {
     this.warmTotal = this.warm;
     this.warmStart = performance.now();
     this.manualSkip = false;
+    const fresh = this.needsInit;
     this.needsInit = false;
     this.needsDye = false;
     showLoading(true);
+    this.restored = false;
+    if (fresh && S.remember) void this.loadState();
+  }
+
+  // ---------- Modul „Zustand merken“ (IndexedDB, nur in diesem Browser) ----------
+  private restored = false;
+  private static VIEW_ONLY = new Set(['sunAngle', 'relief', 'limb', 'atmosphere', 'exposure', 'nebula', 'stars', 'spinSpeed', 'view', 'map',
+    'paused', 'timeScale', 'pixelDensity', 'autoQuality', 'quality', 'reliefMulti', 'reliefCoarse', 'reliefFine', 'reliefSize', 'reliefAdapt',
+    'depthOn', 'depthStrength', 'depthSource', 'pomOn', 'pomHeight', 'pomShadow', 'twilight', 'rimGlow', 'remember', 'focusStorm', 'seamless']);
+  /** Schlüssel: alle Regler, die die Rechnung beeinflussen, plus Lauf-Nummer. Andere Werte = anderer Zustand. */
+  private stateKey(): string {
+    const o: Record<string, unknown> = { run: this.runSeed, warm: this.warmSteps };
+    for (const [k, v] of Object.entries(S)) if (!App.VIEW_ONLY.has(k)) o[k] = v;
+    return JSON.stringify(o);
+  }
+  private db(): Promise<IDBDatabase> {
+    return new Promise((res, rej) => {
+      const q = indexedDB.open('fluid-gas-planet', 1);
+      q.onupgradeneeded = () => q.result.createObjectStore('state');
+      q.onsuccess = () => res(q.result); q.onerror = () => rej(q.error);
+    });
+  }
+  private fieldsToKeep(): CubeField[] {
+    return [this.vel[this.vc], this.prs[this.pc], this.dye[this.dc], this.flow].filter((f): f is CubeField => !!f);
+  }
+  private async readField(f: CubeField): Promise<ArrayBuffer> {
+    const bpr = Math.ceil((f.n * 8) / 256) * 256;
+    const buf = this.device.createBuffer({ size: bpr * f.n * 6, usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ });
+    const enc = this.device.createCommandEncoder();
+    enc.copyTextureToBuffer({ texture: f.tex }, { buffer: buf, bytesPerRow: bpr, rowsPerImage: f.n }, [f.n, f.n, 6]);
+    this.device.queue.submit([enc.finish()]);
+    await buf.mapAsync(GPUMapMode.READ);
+    const out = buf.getMappedRange().slice(0);
+    buf.destroy();
+    return out;
+  }
+  private async saveState() {
+    if (!S.remember || this.offscreen) return;
+    try {
+      const key = this.stateKey();
+      const fields = await Promise.all(this.fieldsToKeep().map((f) => this.readField(f)));
+      const db = await this.db();
+      const tx = db.transaction('state', 'readwrite');
+      const st = tx.objectStore('state');
+      st.clear();  // nur den letzten Zustand behalten (Speicherplatz)
+      st.put({ fields, time: this.time, storms: this.storms, vc: this.vc, pc: this.pc, dc: this.dc }, key);
+    } catch (e) { console.warn('Zustand merken:', e); }
+  }
+  private async loadState() {
+    try {
+      const key = this.stateKey();
+      const db = await this.db();
+      const rec = await new Promise<any>((res, rej) => { const q = db.transaction('state').objectStore('state').get(key); q.onsuccess = () => res(q.result); q.onerror = () => rej(q.error); });
+      if (!rec || key !== this.stateKey()) return;
+      const fs = this.fieldsToKeep();
+      if (rec.fields.length !== fs.length) return;
+      fs.forEach((f, i) => {
+        const bpr = Math.ceil((f.n * 8) / 256) * 256;
+        if (rec.fields[i].byteLength !== bpr * f.n * 6) throw new Error('size');
+        this.device.queue.writeTexture({ texture: f.tex }, rec.fields[i], { bytesPerRow: bpr, rowsPerImage: f.n }, [f.n, f.n, 6]);
+      });
+      this.time = rec.time; this.storms = rec.storms;
+      this.restored = true;
+      this.warm = 0; this.warmTotal = 0;
+      showLoading(false);
+      this.faceMainStorm();
+    } catch (e) { console.warn('Zustand laden:', e); }
   }
 
   /** Vorrechnen: viele Schritte ohne Rendern, GPU-Zeit messen, Qualität kalibrieren. */
@@ -1101,7 +1175,7 @@ class App {
     }
     loadBar.style.width = `${Math.round((100 * (this.warmTotal - this.warm)) / Math.max(this.warmTotal, 1))}%`;
     fpsEl.textContent = '– fps';
-    if (this.warm === 0) { showLoading(false); this.manualSkip = false; this.faceMainStorm(); }
+    if (this.warm === 0) { showLoading(false); this.manualSkip = false; if (!this.restored) void this.saveState(); this.faceMainStorm(); }
   }
 
   /** Einmal pro Start: passt ein Simulationsschritt nicht ins Budget, eine Stufe herunter. */
@@ -1374,6 +1448,9 @@ class App {
       .toggle('storms', t('Vorlagen-Stürme', 'Preset storms'),
         t('Setzt die bekannten Stürme der Vorlage (z. B. Großer Roter Fleck) beim Start als Wirbel ein.',
           'Seeds the preset’s known storms (e.g. the Great Red Spot) as vortices at start.') + fx(t('v(d) = 2,33 · x·e<sup>−x²</sup>,  x = d / r', 'v(d) = 2.33 · x·e<sup>−x²</sup>,  x = d / r')))
+      .toggle('remember', t('Zustand merken', 'Remember state'),
+        t('Modul. Speichert den fertig eingeschwungenen Planeten in diesem Browser. Beim nächsten Laden mit denselben Einstellungen ist er sofort da, ohne Einschwingen. Nur der letzte Zustand wird behalten; je nach Farbauflösung braucht er 10 bis 200 MB Speicher im Browser.',
+          'Module. Saves the fully spun-up planet in this browser. Next time with the same settings it appears instantly, without spin-up. Only the latest state is kept; depending on colour resolution it needs 10 to 200 MB of browser storage.'))
       .toggle('focusStorm', t('Start mit Hauptsturm im Blick', 'Start with main storm in view'),
         t('Dreht den Planeten nach dem Laden so, dass der größte Sturm der Vorlage (bei Jupiter der Große Rote Fleck) am Anfang der Tagseite vor der Kamera steht.',
           'After loading, turns the planet so the preset’s largest storm (Jupiter: the Great Red Spot) sits at the start of the day side in front of the camera.'))
@@ -1450,6 +1527,11 @@ class App {
           'Module, on top. Traces the view ray into the height map (brightness plus depth from physics, if on): high parts hide low ones, vortex rims cast shadows into the funnel. Costs more GPU.') + fx('Parallax Occlusion Mapping (Tatarchuk 2006)'))
       .range('pomHeight', t('Parallaxe-Höhe', 'Parallax height'), 0, 10, 0.05, t('Wie hoch die Höhenkarte für die Parallaxe ist.', 'How tall the height map is for parallax.'), f2)
       .range('pomShadow', t('Eigenschatten', 'Self-shadow'), 0, 2, 0.05, t('Wie dunkel die Schatten in den Senken werden.', 'How dark shadows in the dips get.'), f2)
+      .select('twilight', t('Dämmerung', 'Twilight'), [['v04', t('wie v0.4 (Streifen)', 'as v0.4 (stripe)')], ['soft', t('weich, nach Atmosphäre', 'soft, by atmosphere')], ['off', t('aus', 'off')]],
+        t('Aufhellung hinter der Tag-Nacht-Grenze. v0.4: fester Buckel, sieht wie eine Kraterlinie aus. Weich: fällt nur ab, ohne Stufe, so stark wie die Atmosphäre. Aus: nur Sonnenlicht.',
+          'Brightening past the day–night line. v0.4: fixed bump that looks like a crater line. Soft: only falls off, no step, as strong as the atmosphere. Off: sunlight only.'))
+      .select('rimGlow', t('Randschimmer', 'Rim glow'), [['v04', t('wie v0.4', 'as v0.4')], ['soft', t('weich', 'soft')], ['off', t('aus', 'off')]],
+        t('Atmosphären-Schimmer am Planetenrand auf der Sonnenseite.', 'Atmosphere glow at the planet edge on the sun side.'))
       .range('limb', t('Randverdunkelung', 'Limb darkening'), 0.8, 2, 0.01,
         t('Minnaert-Exponent k. 1 = matte Kugel; höher = dunkler Rand wie bei echten Gasplaneten.', 'Minnaert exponent k. 1 = matte sphere; higher = darker limb, as on real gas giants.') + fx('I = (n·l)<sup>k</sup> · (n·v)<sup>k−1</sup>'), f2)
       .range('atmosphere', t('Dunstsaum', 'Haze rim'), 0, 6, 0.05, t('Helligkeit des Atmosphärensaums am Planetenrand.', 'Brightness of the atmospheric rim at the planet’s edge.') + fx(t('Saum = e<sup>−h/0,025</sup>', 'rim = e<sup>−h/0.025</sup>')), f2)
@@ -1663,6 +1745,7 @@ class App {
         break;
       }
       case 'contrast': this.writeTables(); break;
+      case 'remember': try { localStorage.setItem('fgp-remember', S.remember ? '1' : '0'); } catch { /* gesperrt */ } if (S.remember && this.warm === 0) void this.saveState(); break;
       case 'fineStripes': this.needsDye = true; break;
       case 'velRes': case 'curlRes': this.allocVel(); break;
       case 'dyeRes': this.allocDye(); break;
