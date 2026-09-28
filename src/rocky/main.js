@@ -46,6 +46,7 @@ const coarse = matchMedia('(max-width: 760px), (pointer: coarse)').matches;
 // ------------------------------------------------------------------ Zustand & Voreinstellungen
 const randomSeed = () => String(Math.floor(10000000 + Math.random() * 89999999));
 const hashSeed = /^#?(\d{3,12})$/.exec(location.hash);
+const MSAA_Q = Number(new URLSearchParams(location.search).get('msaa')) === 4 ? 4 : 1;
 const S = {
   seed: Q.get('seed') || (hashSeed ? hashSeed[1] : randomSeed()),
   style: Q.get('style') === 'orig' ? 'orig' : 'plus',
@@ -64,9 +65,9 @@ const S = {
   sunAz: -58, sunEl: 12, cover: 0.5,
   nebula: 1.0, stars: 1.0, flare: 0.5,
   mwWidth: 1.0, mwCore: 1.0, mwDust: 1.0, mwHii: 1.0,
-  rotate: true, spin: 1.2, spinZoom: 1.0, volcanoes: 0.15, volcanoOn: true, volcanoType: 0, rivers: 1, riverAmount: 1, craterFill: 1,
+  rotate: true, spin: 1.2, spinZoom: 1.0, volcanoes: 0.15, volcanoOn: true, volcanoType: 0, rivers: 3, riverAmount: 1, mesh: 0, craterFill: 1,
   modClouds: true, modShadows: true, modAtmo: true, modBloom: true, modFlare: true, tilt: 23, fov: 36,
-  view: 0, quality: 0,
+  view: 0, quality: 0, msaa: MSAA_Q,
 };
 // Wer reduzierte Bewegung eingestellt hat, bekommt einen stehenden Planeten (Drehen lässt sich einschalten)
 if (matchMedia('(prefers-reduced-motion: reduce)').matches) S.rotate = false;
@@ -149,6 +150,8 @@ function controls() {
       { k: 'bump', mode: 'plus', min: 0, max: 3, step: 0.01, label: t('Relief-Schärfe', 'Relief sharpness'),
         help: t('Wie steil Hänge im Licht wirken. Die Normalen kommen hier exakt aus dem Rauschen (Ableitung), ohne Stufen.', 'How steep slopes look in the light. Normals come exactly from the noise derivative here, without steps.'),
         fx: 'n = normalize(r̂ − k·∇ₛh)' },
+      { k: 'mesh', mode: 'plus', type: 'select', label: t('Gelände-Netz', 'Terrain mesh'), opts: [[0, t('wie v23', 'as in v23')], [1, t('Geomorphing (Versuch v24)', 'geomorphing (trial v24)')]],
+        help: t('Wie die Gelände-Kacheln beim Zoomen feiner werden. Zum Vergleichen umschaltbar.', 'How terrain tiles refine when zooming. Switchable to compare.') },
       { k: 'relief', mode: 'plus', min: 0, max: 0.08, step: 0.001, label: t('Relief-Höhe', 'Relief height'),
         help: t('Echte Verschiebung der Oberfläche. Berge ragen am Rand über die Kugel hinaus und werfen Schatten.', 'Real displacement of the surface. Mountains rise above the limb and cast shadows.'),
         fx: 'r = 1 + k_r·max(h − s, 0)' },
@@ -159,7 +162,7 @@ function controls() {
         help: t('Schichtvulkane: steile, nach innen gewölbte Flanken wie Fuji oder Mayon, scharfer Kraterrand, Krater als echte Senke (kann sich mit Wasser füllen). Im Meer entstehen Vulkaninseln. Die Erosion zieht Rinnen strahlenförmig die Flanken hinab.',
           'Stratovolcanoes: steep, concave flanks like Fuji or Mayon, a sharp rim, the crater a real sink (can fill with water). In the sea they form volcanic islands. Erosion carves gullies radially down the flanks.'),
         fx: 'v = (e^(−3t) − e^(−3))/(1 − e^(−3)),  t < t_c: v = v(t_c) − 0,28·(1 − (t/t_c)²)' },
-      { k: 'rivers', mode: 'plus', type: 'select', label: t('Flüsse & Seen', 'Rivers & lakes'), opts: [[1, t('Linien (wie v23)', 'Lines (as in v23)')], [2, t('eingegraben mit Seen (Versuch v24)', 'carved with lakes (trial v24)')], [0, t('aus', 'off')]], regen: true,
+      { k: 'rivers', mode: 'plus', type: 'select', label: t('Flüsse & Seen', 'Rivers & lakes'), opts: [[3, t('Linien als Wasser mit Wellen (neu)', 'Lines as water with waves (new)')], [1, t('Linien (wie v23)', 'Lines (as in v23)')], [2, t('eingegraben mit Seen (Versuch v24)', 'carved with lakes (trial v24)')], [0, t('aus', 'off')]], regen: true,
         help: t('Aus der Höhenkarte berechnet: Senken füllen sich zu Seen (Priority-Flood, Barnes 2014), Regen sammelt sich bergab (Abflussakkumulation, O’Callaghan & Mark 1984; kein Abfluss aus Eis, wenig aus Wüsten). Breite und Tiefe wachsen mit der Wassermenge (Leopold & Maddock 1953). Das Tal wird in die Höhenkarte gegraben, der Wasserspiegel füllt es; das Ufer ergibt sich pixelgenau aus dem Gelände.',
           'Computed from the height map: sinks fill up into lakes (priority-flood, Barnes 2014), rain gathers downhill (flow accumulation, O’Callaghan & Mark 1984; no runoff from ice, little from deserts). Width and depth grow with discharge (Leopold & Maddock 1953). The valley is carved into the height map and the water level fills it; the bank follows the terrain pixel by pixel.'),
         fx: 'Q = Σ Regen·(T > 0),  b ∝ Q^0,5,  d ∝ Q^0,4,  h′ = h − d·(1 − q²)²' },
@@ -256,6 +259,8 @@ function controls() {
         fx: 'T = 360° / ω' },
       { k: 'tilt', min: 0, max: 90, step: 1, label: t('Achsneigung', 'Axial tilt'), fmt: (v) => `${Math.round(v)}°` },
       { k: 'fov', min: 15, max: 75, step: 1, label: t('Blickwinkel', 'Field of view'), fmt: (v) => `${Math.round(v)}°` },
+      { k: 'msaa', type: 'select', label: t('Kantenglättung (MSAA)', 'Anti-aliasing (MSAA)'), opts: [[1, t('aus (wie v23, schneller)', 'off (as in v23, faster)')], [4, t('4× (v24, glatter, kostet FPS)', '4× (v24, smoother, costs fps)')]],
+        help: t('Glättet Planetenrand und Bergsilhouetten. Kostet viel Leistung, besonders mit hoher Bildauflösung. Umschalten lädt die Seite neu.', 'Smooths the planet limb and mountain silhouettes. Costs a lot of performance, especially at high render resolution. Switching reloads the page.') },
       { k: 'quality', type: 'select', label: t('Bildauflösung', 'Render resolution'), opts: [[0, t('Automatisch (so scharf wie flüssig geht)', 'Automatic (as sharp as stays smooth)')], [2, t('200 % (Supersampling)', '200 % (supersampling)')], [1.5, '150 %'], [1, '100 %'], [0.75, '75 %'], [0.5, '50 %']],
         help: t('Automatisch senkt die Bildauflösung, wenn die Grafikkarte nicht hinterherkommt, und hebt sie wieder, sobald Luft ist.', 'Automatic lowers the render resolution when the GPU cannot keep up and raises it again when there is headroom.') },
     ] },
@@ -985,15 +990,18 @@ struct PV { @builtin(position) pos: vec4f, @location(0) obj: vec3f, @location(1)
 // Geomorphing (Strugar 2009): nahe der Grenze zur gröberen Kachel wandern die ungeraden Gitterpunkte auf die Linie
 // ihrer Nachbarn, und die Mipmap-Stufe hängt nur vom Abstand ab. So haben Nachbarkacheln an der Naht dieselbe Höhe.
 @vertex fn vsPatch(@location(0) g: vec3f, @location(1) inst: vec4f) -> PV {
-  let M = modelM();
-  let d0 = faceDir(i32(inst.x), inst.yz + g.xy * inst.w);
-  let dist = length(U.cam.xyz - M * d0);
-  let rTile = inst.w * 1.1 * D.y;
-  let mk = clamp((dist / rTile - 1.3) / 0.5, 0.0, 1.0);    // Kachel lebt etwa bei dist/rTile ∈ [1, 2]
-  let gm = g.xy - fract(g.xy * PATCH_G * 0.5) * (2.0 / PATCH_G) * mk;
-  let uv = inst.yz + gm * inst.w;
+  // D.w: Gelände-Netz 0 = wie v23 (Mipmap-Stufe je Kachelgröße), 1 = Geomorphing (Versuch v24)
+  var uv = inst.yz + g.xy * inst.w;
+  var lod = max(log2(U.T.x * inst.w / PATCH_G), 0.0);
+  if (D.w > 0.5) {
+    let M = modelM();
+    let dist = length(U.cam.xyz - M * faceDir(i32(inst.x), uv));
+    let rTile = inst.w * 1.1 * D.y;
+    let mk = clamp((dist / rTile - 1.3) / 0.5, 0.0, 1.0);
+    uv = inst.yz + (g.xy - fract(g.xy * PATCH_G * 0.5) * (2.0 / PATCH_G) * mk) * inst.w;
+    lod = max(log2(U.T.x * dist / (1.1 * D.y * PATCH_G)), 0.0);
+  }
   let d = faceDir(i32(inst.x), uv);
-  let lod = max(log2(U.T.x * dist / (1.1 * D.y * PATCH_G)), 0.0);
   var disp = 0.0;
   if (D.z > 0.0) { disp = D.z * max(texDirLod(tHm, d, U.T.x, lod).x - U.T.z, 0.0); }
   let p = d * (D.x + disp - g.z * (0.02 * inst.w + D.z * 0.3));
@@ -1198,6 +1206,12 @@ fn earthBiome(d: vec3f, h: f32, m: f32, slope: f32, nz: f32) -> vec4f {
     }
   }
   var depth = sea - h;
+  // Flussmodus 3: dieselben Linien wie v23, aber als Wasser mit Wellen und Glitzern wie das Meer
+  var riverW = 0.0;
+  if (U.Fin.w > 0.0 && U.L2.z > 2.5 && depth <= 0.0) {
+    let NRl = U.Fin.w;
+    riverW = smoothstep(0.3, 0.7, texDirLod(tRiverL, d, NRl, log2(max(pix * NRl / 1.5708, 1.0))).x);
+  }
   // Flüsse und Seen: Wasser, wo das Gelände unter dem berechneten Spiegel liegt (Ufer pixelgenau aus der Höhe)
   var inland = false;
   // Kraterfüllung: Kratersee oder leer (Bg.w: 1 = Wasser, 0 = leer)
@@ -1205,6 +1219,7 @@ fn earthBiome(d: vec3f, h: f32, m: f32, slope: f32, nz: f32) -> vec4f {
   if (U.EroRt.z > 0.0 && U.Bg.w < 0.5 && depth <= 0.0 && h > sea + 0.03) { crater = volcCrater(d, U.EroRt.z, U.EroRt.w, U.L2.w); }
   // Flussmodus (L2.z): 2 = eingegraben mit Wasserspiegel; 1 = Linien wie v23 (nur Farbe, Gelände unberührt)
   if (U.W.w > 0.0 && U.L2.z > 1.5 && depth <= 0.0 && hy.y > h && crater < 0.5) { depth = hy.y - h; inland = true; }
+  if (riverW > 0.5) { depth = 0.02 * riverW; inland = true; }
   let water = depth > 0.0;
   // Terrassen (Gesteinsschichten) auf dem Land
   if (!water && U.L.w > 0.0) {
@@ -1345,7 +1360,7 @@ fn earthBiome(d: vec3f, h: f32, m: f32, slope: f32, nz: f32) -> vec4f {
       rough = eb.a;
     }
     // Flüsse wie in v23: weiche Maske mit Mipmaps, Wasser dunkel und glatt, spiegelt Himmel und Sonne
-    if (U.Fin.w > 0.0) {
+    if (U.Fin.w > 0.0 && U.L2.z < 1.5) {
       let NR = U.Fin.w;
       let rv = smoothstep(0.3, 0.7, texDirLod(tRiverL, d, NR, log2(max(pix * NR / 1.5708, 1.0))).x);
       alb = mix(alb, vec3f(0.012, 0.03, 0.04), rv);
@@ -1601,7 +1616,7 @@ fn flare(uv: vec2f) -> vec3f {
 let device, adapter, context, format, P, L;
 const OFFSCREEN = Q.has('offscreen');
 // Kantenglättung der Szene (MSAA): glättet Planetenrand, Bergsilhouetten und Wolkenränder; Nachbearbeitung läuft auf dem aufgelösten Bild
-const MSAA = Number(Q.get('msaa')) === 1 ? 1 : 4;
+const MSAA = Number(Q.get('msaa')) === 4 ? 4 : 1;   // Standard aus (wie vor v24); ?msaa=4 bzw. Regler schaltet ein
 const GPU_RS = {};
 const VF = 3;          // GPUShaderStage.VERTEX | FRAGMENT
 const mipLevels = (n) => Math.floor(Math.log2(n)) + 1;
@@ -2034,7 +2049,7 @@ function toHalf(v) {
 async function buildRiverLines() {
   if (!device || !RS.river || S.style === 'orig') return;
   const token = ++riverToken;
-  if (S.rivers !== 1) { RS.nRiver = 0; return; }
+  if (S.rivers !== 1 && S.rivers !== 3) { RS.nRiver = 0; return; }
   const n = coarse ? 256 : 512, NR = coarse ? 1024 : 2048;
   const mode = 1, ero = S.erosion;
   // 1) Höhen auf der GPU erzeugen und zurücklesen
@@ -2527,6 +2542,7 @@ function changed(it) {
   if (!device) return;
   if (k === 'res' || k === 'erosion' || k === 'volcanoes' || k === 'volcanoOn' || k === 'volcanoType' || k === 'rivers' || k === 'riverAmount') { regenerate(); }
   else if (k === 'modAtmo') { RS.transKey = ''; }
+  else if (k === 'msaa') { const u = new URL(location.href); u.searchParams.set('msaa', String(S.msaa)); u.searchParams.set('seed', S.seed); location.href = u.toString(); }
   else if (it.regen === 'sky') queueSky();
   else if (k === 'sea') { seaH = seaFromFraction(S.sea); lutDirty = true; clearTimeout(riverT); riverT = setTimeout(() => { if (S.rivers === 2) regenerate(); else buildRiverLines(); }, 400); }
   else if (k === 'lang') buildUI();
@@ -2615,7 +2631,7 @@ function fillUniforms(o) {
   u.set([o.orig ? 0 : 1, S.palette === 'earth' ? 1 : 0, S.view, RS.nebReady ? 1 : 0], 104);
   u.set([S.nebula, S.stars, nebRes, S.craterFill], 108);
   u.set([0.45, 0.7, 1.0, S.glow], 112);
-  u.set([o.orig ? 1 : S.exposure * 1.25, o.bloomOn ? S.bloom * 0.12 : 0, o.orig ? 0 : 1, S.rivers === 1 && !o.orig ? RS.nRiver : 0], 116);
+  u.set([o.orig ? 1 : S.exposure * 1.25, o.bloomOn ? S.bloom * 0.12 : 0, o.orig ? 0 : 1, (S.rivers === 1 || S.rivers === 3) && !o.orig ? RS.nRiver : 0], 116);
   u.set(o.fl, 120);
   u.set(cycA, 124); u.set(cycB, 148);
   device.queue.writeBuffer(uBuf, 0, u);
@@ -2658,7 +2674,7 @@ function render(enc) {
     fl = [sx, sy, vis * onScreen * S.flare * (orig ? 0.9 : 0.5), aspect];
   }
   fillUniforms({ vp, ivp, model, eye, sun, sunE, A, orig, clU, clU2, bloomOn, fl });
-  device.queue.writeBuffer(dPlanet, 0, new Float32Array([1, SPLIT, orig ? 0 : S.relief, 0]));
+  device.queue.writeBuffer(dPlanet, 0, new Float32Array([1, SPLIT, orig ? 0 : S.relief, S.mesh]));
   device.queue.writeBuffer(dCloud, 0, new Float32Array([1 + clU2[0], 0, 0, orig ? 0 : S.relief]));
   const g0 = mainGroup();
 
