@@ -12,7 +12,9 @@ struct R {
   p2: vec4f,        // x Seitenverhältnis, y Zeit, z Belichtung, w Farbstoff-Auflösung
   ringColor: vec4f, // rgb, w Ringfaden-Kontrast
   p3: vec4f,        // x Fluss-Skala für Debug-Ansichten, y Pixelwinkel (rad), z Himmelskarte N, w Milchstraße
-  p4: vec4f,        // x Sterne
+  p4: vec4f,        // x Sterne, y Mehrstufig: Grobanteil (0 = aus), z Feinanteil, w Pixel-Anpassung
+  p5: vec4f,        // x Tiefe aus Physik an/aus, y Stärke, z Quelle (0 Druck, 1 Wirbelstärke), w Gitter
+  p6: vec4f,        // x Parallaxe an/aus, y Höhe, z Eigenschatten, w Größe (Mehrstufig)
 };
 
 @group(0) @binding(0) var<uniform> U: R;
@@ -125,6 +127,36 @@ fn surface(q: vec3f, mode: i32) -> vec3f {
 
 fn luminance(c: vec3f) -> f32 { return dot(c, vec3f(0.3, 0.59, 0.11)); }
 
+// ---------- Relief-Module (alle aus = Verhalten wie v0.4) ----------
+fn lumAt(q: vec3f) -> f32 { return luminance(textureSampleLevel(dyeTex, samp, q, 0.0).rgb); }
+// Helligkeit, über ein Kreuz der Breite s gemittelt (grobe Stufe ohne Mipmaps)
+fn lumBlur(q: vec3f, tb: mat2x3f, s: f32) -> f32 {
+  return 0.25 * (lumAt(normalize(q + tb[0] * s)) + lumAt(normalize(q - tb[0] * s)) + lumAt(normalize(q + tb[1] * s)) + lumAt(normalize(q - tb[1] * s)));
+}
+// Wirbelstärke ζ aus dem Wind (geht in beiden Rechenmodellen)
+fn zetaAt(q: vec3f, e: f32) -> f32 {
+  let tb = tangentBasis(q);
+  let a = dot(textureSampleLevel(velTex, samp, normalize(q + tb[0] * e), 0.0).xyz, tb[1]);
+  let b = dot(textureSampleLevel(velTex, samp, normalize(q - tb[0] * e), 0.0).xyz, tb[1]);
+  let c = dot(textureSampleLevel(velTex, samp, normalize(q + tb[1] * e), 0.0).xyz, tb[0]);
+  let d = dot(textureSampleLevel(velTex, samp, normalize(q - tb[1] * e), 0.0).xyz, tb[0]);
+  return (a - b - c + d) / (2.0 * e);
+}
+// Tiefe aus der Physik: Hochdruck-Wirbel wölben sich, Tiefdruck-Wirbel sind Senken.
+// Druck (nur Stable Fluids) oder Wirbelstärke geteilt durch Coriolis (geostrophisch, beide Modelle).
+fn depthAt(q: vec3f) -> f32 {
+  let fs = U.p3.x;
+  if (U.p5.z < 0.5) { return textureSampleLevel(prsTex, samp, q, 0.0).x * 60.0 * fs * fs * 0.25; }
+  let f = select(-1.0, 1.0, q.y >= 0.0) * max(abs(q.y), 0.15);
+  return -zetaAt(q, 1.5 / U.p5.w) * fs * 0.015 / f * 0.3;
+}
+// Höhe 0..1 für die Parallaxe: Helligkeit (wie Relief) plus Tiefe aus der Physik, falls an
+fn pomHeight(q: vec3f) -> f32 {
+  var h = (lumAt(q) - 0.55) * 3.0 * min(U.p0.y, 1.0);
+  if (U.p5.x > 0.5) { h += depthAt(q) * U.p5.y; }
+  return clamp(0.5 + 0.5 * h, 0.0, 1.0);
+}
+
 @fragment
 fn fs(vin: VOut) -> @location(0) vec4f {
   let mode = i32(U.p0.w);
@@ -161,13 +193,67 @@ fn fs(vin: VOut) -> @location(0) vec4f {
   } else {
     let hp = o + d * tPlanet;
     let hs = hp * vec3f(1.0, 1.0 / c, 1.0);
-    let q = normalize(hs);
+    let q0 = normalize(hs);
     var n = normalize(hp * vec3f(1.0, 1.0 / (c * c), 1.0));
 
+    // Modul Parallaxe: Sichtstrahl in die Höhenkarte hinein verfolgen (Parallax Occlusion Mapping, Tatarchuk 2006)
+    var q = q0;
+    var pomShadow = 1.0;
+    if (mode == 0 && U.p6.x > 0.5) {
+      let v0 = -d;
+      let nv = max(dot(v0, n), 0.15);
+      let H = U.p6.y * 0.003;
+      let dirT = -(v0 - n * dot(v0, n)) / nv;
+      for (var i = 1; i <= 24; i++) {
+        let rd = H * f32(i) / 24.0;
+        let qi = normalize(q0 + dirT * rd);
+        if (rd >= H * (1.0 - pomHeight(qi))) { q = qi; break; }
+      }
+      // Eigenschatten: vom Treffer zur Sonne, steht die Höhenkarte über dem Strahl, liegt der Punkt im Schatten
+      let nl = dot(sun, n);
+      if (U.p6.z > 0.0 && nl > 0.0) {
+        let sT = (sun - n * nl) / max(nl, 0.1);
+        let h0 = pomHeight(q);
+        var occ = 0.0;
+        for (var j = 1; j <= 10; j++) {
+          let t = H * f32(j) / 10.0;
+          let hs = h0 + f32(j) / 10.0 * max(nl, 0.1) * 2.0;
+          occ = max(occ, clamp((pomHeight(normalize(q + sT * t)) - hs) * 8.0, 0.0, 1.0));
+        }
+        pomShadow = 1.0 - clamp(occ * U.p6.z, 0.0, 1.0);
+      }
+    }
     var albedo = surface(q, mode);
     if (mode == 0) {
+      // Modul Tiefe aus der Physik: Normale nach dem Gefälle von Druck bzw. ζ/f
+      if (U.p5.x > 0.5) {
+        let tb = tangentBasis(q);
+        let e = 2.0 / U.p5.w;
+        let gx = depthAt(normalize(q + tb[0] * e)) - depthAt(normalize(q - tb[0] * e));
+        let gy = depthAt(normalize(q + tb[1] * e)) - depthAt(normalize(q - tb[1] * e));
+        n = normalize(n - (tb[0] * gx + tb[1] * gy) * U.p5.y * 0.5);
+      }
+      // Modul Mehrstufiges Relief: große Strukturen tief, feine Krümel schwach, Schrittweite nach Pixelgröße
+      if (U.p0.y > 0.0 && U.p4.y > 0.0) {
+        let tb = tangentBasis(q);
+        let foot = tPlanet * U.p3.y / max(dot(-d, n), 0.2);
+        let e0 = max(3.0 / U.p2.w, foot * 1.5 * U.p4.w);
+        let fx = lumAt(normalize(q + tb[0] * e0)) - lumAt(normalize(q - tb[0] * e0));
+        let fy = lumAt(normalize(q + tb[1] * e0)) - lumAt(normalize(q - tb[1] * e0));
+        var gx = fx * U.p4.z;
+        var gy = fy * U.p4.z;
+        for (var k = 0; k < 2; k++) {
+          let s = e0 * U.p6.w * select(16.0, 4.0, k == 0);
+          // Unterschied über die breitere Strecke auf die Steigung der feinen Stufe umrechnen (×e₀/s), mit √ statt linear,
+          // damit große Strukturen etwas mehr Tiefe behalten als ihre reine Steigung
+          let w = U.p4.y * 0.5 * sqrt(e0 / s);
+          gx += (lumBlur(normalize(q + tb[0] * s), tb, s * 0.5) - lumBlur(normalize(q - tb[0] * s), tb, s * 0.5)) * w;
+          gy += (lumBlur(normalize(q + tb[1] * s), tb, s * 0.5) - lumBlur(normalize(q - tb[1] * s), tb, s * 0.5)) * w;
+        }
+        n = normalize(n - (tb[0] * gx + tb[1] * gy) * U.p0.y * 3.0);
+      }
       // Relief aus der Helligkeit: helle Wolken liegen höher (Ammoniak-Eis), dunkle tiefer.
-      if (U.p0.y > 0.0) {
+      else if (U.p0.y > 0.0) {
         let tb = tangentBasis(q);
         let e = 3.0 / U.p2.w;
         let lx = luminance(surface(normalize(q + tb[0] * e), 0)) - luminance(surface(normalize(q - tb[0] * e), 0));
@@ -180,6 +266,7 @@ fn fs(vin: VOut) -> @location(0) vec4f {
       let k = U.p0.z;
       // Minnaert-Randverdunkelung, k = 1 ist Lambert.
       var light = pow(max(ndl, 0.0), k) * pow(ndv, k - 1.0);
+      light *= pomShadow;
       // Dämmerungssaum
       light += smoothstep(0.12, -0.05, ndl) * smoothstep(-0.25, 0.0, ndl) * 0.05;
       // Schatten der Ringe auf dem Planeten
