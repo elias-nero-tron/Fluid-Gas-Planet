@@ -11,7 +11,8 @@ struct R {
   p1: vec4f,        // x Kartenmodus, y Ring innen, z Ring außen, w Ring-Deckkraft
   p2: vec4f,        // x Seitenverhältnis, y Zeit, z Belichtung, w Farbstoff-Auflösung
   ringColor: vec4f, // rgb, w Ringfaden-Kontrast
-  p3: vec4f,        // x Fluss-Skala für Debug-Ansichten, y Pixelwinkel (rad)
+  p3: vec4f,        // x Fluss-Skala für Debug-Ansichten, y Pixelwinkel (rad), z Himmelskarte N, w Milchstraße
+  p4: vec4f,        // x Sterne
 };
 
 @group(0) @binding(0) var<uniform> U: R;
@@ -20,6 +21,7 @@ struct R {
 @group(0) @binding(3) var velTex: texture_cube<f32>;
 @group(0) @binding(4) var auxTex: texture_cube<f32>;
 @group(0) @binding(5) var prsTex: texture_cube<f32>;
+@group(0) @binding(6) var skyTex: texture_2d_array<f32>;   // gemeinsamer Himmel (src/sky)
 
 const PI = 3.14159265359;
 
@@ -123,15 +125,6 @@ fn surface(q: vec3f, mode: i32) -> vec3f {
 
 fn luminance(c: vec3f) -> f32 { return dot(c, vec3f(0.3, 0.59, 0.11)); }
 
-fn stars(d: vec3f) -> vec3f {
-  let uv = vec2f(atan2(d.z, d.x), asin(clamp(d.y, -1.0, 1.0))) * 180.0;
-  let cell = floor(uv);
-  let h = hash21(cell);
-  let f = fract(uv) - 0.5;
-  let s = smoothstep(0.25, 0.0, length(f)) * step(0.985, h);
-  return vec3f(0.8, 0.85, 1.0) * s * (h - 0.985) * 40.0;
-}
-
 @fragment
 fn fs(vin: VOut) -> @location(0) vec4f {
   let mode = i32(U.p0.w);
@@ -154,7 +147,7 @@ fn fs(vin: VOut) -> @location(0) vec4f {
   let sun = normalize(toBody(U.sun.xyz));
   let c = 1.0 - U.p0.x;
 
-  var col = stars(dir);
+  var col = skyColor(skyTex, samp, dir, U.p3.y, U.p3.z, U.p3.w, U.p4.x);
   var tPlanet = hitPlanet(o, d);
 
   // Atmosphärensaum außerhalb der Planetenscheibe.

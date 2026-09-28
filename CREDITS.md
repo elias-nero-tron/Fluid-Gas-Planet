@@ -49,7 +49,7 @@ implementation is original. Thanks to the authors:
 | Mark Jarzynski, Marc Olano, *Hash Functions for GPU Rendering*, JCGT 2020 | `pcg3d` hash |
 | Marcel Minnaert, 1941 | limb darkening |
 | Krzysztof Narkowicz, *ACES Filmic Tone Mapping Curve* (2016) | tone mapping |
-| Max & Becker 1995; Perlin & Neyret 2001; Neyret 2003 | advected textures / flow noise (ROADMAP 1a; two-phase trick used for the clouds in `demos/planets.html`) |
+| Max & Becker 1995; Perlin & Neyret 2001; Neyret 2003 | advected textures / flow noise (ROADMAP 1a; two-phase trick used for the clouds in `src/rocky/main.js`) |
 | Showman 2007; Scott & Polvani 2007 | forced shallow-water turbulence: storms as mass pulses, jets and vortices emerge (ROADMAP 1c, see [docs/RESEARCH.md](docs/RESEARCH.md)) |
 
 ### Physics and measurements (for calibration only; no images in the project)
@@ -65,7 +65,7 @@ The recording in `docs/media/` was made by elias-nero-tron on real hardware.
 Images from NASA, Juno, Hubble, games and the web were only used as references during development
 and are **not** part of the repository. Screenshots in `docs/images/` are renders of this project.
 
-### Procedural Planets (`demos/planets.html`)
+### Rocky planets (`planets.html`, `src/rocky/main.js`) and the shared sky (`src/sky/`)
 | Source | Used for |
 |---|---|
 | colordodge, [ProceduralPlanet](https://github.com/colordodge/ProceduralPlanet) (three.js, WTFPL); live at colordodge.com/procedural-planets | the whole method of the "Original 1:1" mode: cube sphere with per-face height and moisture maps from mixed fBm/ridged simplex noise, random biome image, normals from height + image brightness, roughness map reused as metalness, clouds, glow, nebula, stars, lens flare, seed in the URL. Rebuilt from the author's descriptions and screenshots, not copied |
@@ -78,7 +78,11 @@ and are **not** part of the repository. Screenshots in `docs/images/` are render
 | S. Hillaire, *A Scalable and Production Ready Sky and Atmosphere Rendering Technique* (EGSR 2020) | Rayleigh, Mie and ozone coefficients |
 | C. Cox & W. Munk (1954); R. Pope & E. Fry (1997) | sun-glint slope variance; absorption of pure water |
 | L. G. Henyey & J. L. Greenstein (1941) | cloud forward scattering |
-| B. Walter et al. (2007), GGX; K. Narkowicz, ACES fit (2016); J. Jimenez, bloom (2014) | specular highlights, film curve, bloom |
+| B. Walter et al. (2007), GGX; K. Narkowicz, ACES fit (2016); J. Jimenez, bloom (2014) | specular highlights, film curve, bloom (first stage with Karis average against flickering fireflies) |
+| F. Strugar, *Continuous Distance-Dependent Level of Detail for Rendering Heightmaps* (CDLOD, 2009) | quadtree terrain tiles with geomorphing |
+| R. Barnes, C. Lehman, D. Mulla, *Priority-Flood* (Computers & Geosciences, 2014) | filling sinks into lakes, drainage directions |
+| J. O'Callaghan & D. Mark (1984), flow accumulation; L. Leopold & T. Maddock (1953), hydraulic geometry | river discharge, width ∝ Q^0.5, depth ∝ Q^0.4 |
+| N. McDonald, *Procedural Hydrology* (2020) | reference for carving rivers into the terrain and filling basins (idea, not code) |
 
 ### Fonts and tools
 IBM Plex Sans/Mono (SIL OFL), Barlow Condensed (SIL OFL), loaded via Google Fonts.

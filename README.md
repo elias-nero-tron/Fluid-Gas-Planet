@@ -52,9 +52,11 @@ Details, measured findings and open questions: [docs/STATUS.md](docs/STATUS.md).
   classes from smartphone to high-end GPU. Debug views for wind, vorticity and pressure, a map view,
   a **film-strip recorder** (8 frames in one PNG, for bug reports) and a seam self-test.
 - **Rendering:** oblate ellipsoid, Minnaert limb darkening, cloud relief, haze rim, rings with shadows.
-- **Procedural Planets** ([demos/planets.html](demos/planets.html)): rocky planets after colordodge's
-  ProceduralPlanet, switchable between an original 1:1 look and an improved mode with live sea level,
-  eroded terrain, physical water, atmospheric scattering and clouds driven by zonal winds and cyclones.
+- **Rocky planets** ([planets.html](planets.html), code in `src/rocky/`): same menu, header and sky as the
+  gas giant (one app, one planet type per page). After colordodge's ProceduralPlanet, switchable between an
+  original 1:1 look and an improved mode with live sea level, eroded terrain, stratovolcanoes with crater lakes
+  or lava, rivers and lakes computed from the terrain (priority-flood, flow accumulation, carved valleys),
+  physical water, atmospheric scattering and clouds driven by zonal winds and cyclones.
 - **Cream in Coffee** ([demos/coffee.html](demos/coffee.html)): pour and stir. A test bench for three
   building blocks the planet still lacks: sources, moving obstacles and sharp transport.
 

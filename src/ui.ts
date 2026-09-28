@@ -229,7 +229,15 @@ export class Panel {
     for (const b of this.bindings) if (b.key === key) b.row.hidden = !on;
   }
 
-  refresh() {
+  /** Regler, die im aktuellen Modus nichts bewirken: ausgegraut und nicht bedienbar. */
+  disable(key: string, off: boolean) {
+    for (const b of this.bindings) if (b.key === key) {
+      b.row.classList.toggle('off', off);
+      for (const el of b.row.querySelectorAll<HTMLInputElement | HTMLSelectElement>('input, select')) el.disabled = off;
+    }
+  }
+
+    refresh() {
     for (const b of this.bindings) b.update();
   }
 }
