@@ -216,6 +216,8 @@
   (() => {
     const a = document.getElementById('to-planets');
     if (/\/demo\/[^/]*$/.test(location.pathname)) a.href = 'planets.html';
+    // einzeln gespeicherte Datei: Nachbarseite liegt nicht daneben -> Online-Fassung
+    if (location.protocol === 'file:' && !/Fluid-Gas-Planet\/(demo\/|demos\/|index)/.test(location.pathname)) a.href = 'https://raw.githack.com/elias-nero-tron/Fluid-Gas-Planet/main/demo/planets.html';
     if ((navigator.language || '').toLowerCase().startsWith('de')) a.textContent = 'Gesteinsplaneten';
   })();
 </script>
