@@ -1,0 +1,78 @@
+<!doctype html>
+<!--
+  v0.05 · Verfahren von „Gaseous Giganticus“ (Stephen M. Cameron) – eigenständige Seite,
+  teilt keine Zeile mit dem restlichen Projekt.
+
+  QUELLE: https://github.com/smcameron/gaseous-giganticus (gaseous-giganticus.c, Handbuch gaseous-giganticus.1).
+  Das Original ist GPL-2.0. Hier ist KEIN Code übernommen: Das Verfahren wurde aus dem Original gelesen, als
+  Schrittliste aufgeschrieben und danach neu als WebGPU-Shader geschrieben. Verweise [G1]…[G12] = Schrittliste:
+
+  [G1]  Eingabe ist ein Bild (Farbstreifen). Jedes Partikel bekommt EINMAL beim Start die Farbe des Bildpunkts
+        unter sich, Sinus-Abbildung: y = (Breite + 90°)/180°, x = 0,5 + 0,5·cos(Länge)·cos²(Breite).
+  [G2]  8 Mio. Partikel, zufällig auf der Kugel, sie sterben nie.
+  [G3]  Geschwindigkeitsfeld auf einem Würfel (6 Flächen), EINMAL berechnet, danach fest:
+        v = ov·Rauschmaßstab (2,6); Gradient eines 4D-fBm-Rauschens (4 Oktaven, Abfall 0,5) per Differenz
+        mit Schritt Rauschmaßstab·0,05/1024.
+  [G4]  „curl2“: Gradient auf die Kugel projizieren (normalize(v+g)·|v| − v) und um 90° um die Flächennormale drehen,
+        mal Geschwindigkeitsfaktor 1200.
+  [G5]  Gegenläufige Bänder: Tempo = ((1−a)+a·cos φ)·cos(φ·Bänder)^Potenz·Bandfaktor, a = Pol-Dämpfung 0,5,
+        Bänder 6, Bandfaktor 2,9, Potenz 1; Richtung Ost (z, 0, −x).
+  [G6]  Künstliche Wirbel (Standard 0): Drehung um den Wirbelmittelpunkt um ±2,5°·sin(π·d/r), mal 1024;
+        Platzierung nur wo |Bandtempo| klein ist (Schwelle 0,2), Drehsinn nach dem Bandtempo-Gefälle.
+  [G7]  Partikel bewegen: pos += Feld an der Position (nächster Feldpunkt), auf die Kugel zurück normieren.
+        Maßstab: Kugelradius = 1024 Feldpunkte (Standard-Feldgröße 2048 / 2).
+  [G8]  Ausgabe: 6 Würfelflächen à 1024², 8 Bit je Kanal, Start schwarz.
+  [G9]  Jede Runde: ganze Textur mit der dunkelsten Farbe des Eingabebilds überblenden, Anteil 0,01.
+  [G10] Danach jedes Partikel an seiner Position VOR der Bewegung einmischen: neu = Farbe·Deckkraft + alt·(1−Deckkraft).
+  [G11] Deckkraft startet bei 1,0 und wird jede Runde ×0,95, bis 0,2 erreicht ist.
+  [G12] 1000 Runden, dann fertig (das Original ist ein Offline-Programm und speichert die Textur).
+
+  ÜBERSETZUNG (nötig für WebGPU / Browser, kein neuer Inhalt):
+  [T1] Rauschfunktion: Das Original nutzt OpenSimplex-4D. Hier: 4D-Simplex-Rauschen nach Stefan Gustavson /
+       Ashima Arts (webgl-noise, MIT) – gleiche Rauschfamilie, andere Einzelwerte.
+  [T2] Feld 1024² je Fläche statt 2048² (Grafikspeicher; das Handbuch nennt kleinere Felder ausdrücklich als
+       erlaubte, gröbere Vorschau). Per ?vf= einstellbar.
+  [T3] Partikel malen parallel auf der Grafikkarte; treffen zwei dasselbe Pixel, ist die Reihenfolge zufällig
+       (im Original feste Reihenfolge je Thread).
+  [T4] Die Drehrichtung der 90°-Drehung in [G4] ist nach der Rechte-Hand-Regel gewählt (Quaternion-Bibliothek
+       des Originals nicht mitgelesen); die Gegenrichtung spiegelt nur alle Rauschwirbel.
+  [T5] Anzeige: Das Original zeigt nichts an (Bilder kommen in „mesh_viewer“ aus Space Nerds In Space mit Licht und
+       Atmosphäre). Hier: unbeleuchtete Kugel mit der Textur, Drehen mit der Maus. Deshalb wirkt es flacher als das
+       Beispielbild im Repo.
+  [T6] Standard-Eingabebild: die mittlere Spalte des Beispielbilds aus dem Repo, beim Laden direkt von GitHub geholt
+       (nicht im Projekt gespeichert), Nord oben. Eigenes Bild per Knopf.
+  [T7] Die Zufallszahlen sind andere als im Original (andere Wirbelorte, andere Partikelorte).
+  [T9] Bänder waagerecht (um die Nord-Süd-Achse). Das Programm hat senkrechte Bänder als Voreinstellung, sein
+       Automatik-Modus und das Beispielbild haben waagerechte.
+  [T8] ?test: zeichnet in eine Textur statt auf den Bildschirm (nur zum Prüfen im Software-Renderer).
+-->
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>v0.05 Gaseous Giganticus (Verfahren)</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #000; color: #ddd; font: 13px system-ui, sans-serif; overflow: hidden; }
+  canvas#c { display: block; width: 100vw; height: 100vh; touch-action: none; }
+  #ui { position: fixed; top: 8px; left: 8px; background: rgba(0,0,0,.72); padding: 8px 10px; border-radius: 6px; max-width: 320px; max-height: calc(100vh - 32px); overflow: auto; }
+  #ui label.r { display: grid; grid-template-columns: 130px 1fr 48px; gap: 6px; align-items: center; margin: 2px 0; }
+  #ui input[type=range] { width: 100%; }
+  #st { font-weight: 600; margin-bottom: 4px; }
+  #err { color: #f88; white-space: pre-wrap; }
+  button { margin: 4px 4px 4px 0; }
+  small { color: #999; display: block; margin-top: 4px; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="ui">
+  <div id="st">…</div>
+  <button id="restart">Neu starten</button><label><input type="file" id="file" accept="image/*" hidden><button id="pick">Eigenes Bild</button></label>
+  <label><input type="checkbox" id="stop" checked> nach 1000 Runden anhalten (wie Original)</label>
+  <div id="ctl"></div>
+  <small>Alle Standardwerte sind die des Originals. Regler ändern → „Neu starten“.</small>
+  <div id="err"></div>
+</div>
+<script type="module" src="./main.js"></script>
+</body>
+</html>

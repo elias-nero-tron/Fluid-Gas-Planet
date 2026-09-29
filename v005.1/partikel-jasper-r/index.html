@@ -1,0 +1,70 @@
+<!doctype html>
+<!--
+  v0.05 · Partikel nach jasper-r – eigenständig, teilt keine Zeile mit dem restlichen Projekt.
+
+  EINZIGE QUELLE: jasper-r, „Gas giant particle sim on a sphere“ (2022),
+  https://jasper-r.github.io/gas-giant  (Beitrag im Repo: jasper-r/jasper-r.github.io,
+  _posts/2022-02-22-gas-giant.html). Das Original läuft in Unigine (C#/UUSL), Code ist nicht
+  veröffentlicht; nachgebaut ist das beschriebene Verfahren. Zitate der Quelle stehen als [Q1]…[Q9]
+  an den Stellen, die sie umsetzen:
+
+  [Q1] „store the particle positions and lifetime in a buffer“
+  [Q2] „I chose a sinusoidal mapping … y = tex_height*phi/pi, x = tex_width*(theta/(2*pi)-.5)*sin(phi)“
+  [Q3] „store the particle positions in polar coordinates … generating curl noise in polar coordinates …
+        sample this using the x and y coordinates of the particle directly“
+  [Q4] „I initialise the particles from a gradient based on their latitude“
+  [Q5] „I blend the particles colour with the existing colour with some opacity“
+  [Q6] „the texture is blurred and slowly fades back to a center colour“
+  [Q7] „their opacity fades in and out over their lifetime … I respawned them in batches, resetting only a
+        part of the buffer“
+  [Q8] „a 3D curl noise … evaluated at all points on the sphere … move the noise over time … generate the
+        octaves of noise one by one using a compute shader that calculates a single layer and adds it to the
+        BA channels. Then I use a second shader to move it to the RG layers where it is sampled“
+  [Q9] „Using a fragment shader, I lastly blurred the edge of the resulting sphere“
+  Messlatte der Quelle: „80 fps even with 4 million particles (on my modest rig)“.
+
+  ÜBERSETZUNG (nötig für WebGPU, kein neuer Inhalt):
+  [T1] Texturen als Speicherpuffer (WebGPU kann rgba-Texturen nicht lesend+schreibend binden).
+  [T2] Formel [Q2] um W/2 verschoben, damit x im Bereich 0…W liegt.
+  [T3] 3D-Curl-Vektor → Winkelgeschwindigkeit (dθ, dφ) durch Projektion auf Ost/Süd, damit [Q3] gilt.
+  [T4] Rauschfunktion: Gradientenrauschen mit Hash „Hash without Sine“ (David Hoskins, MIT).
+       Die Quelle nennt keine Rauschfunktion.
+  [T5] „move it to the RG layers“ geschieht im selben Shader beim letzten Oktavenschritt.
+  [T6] Anzeige: Kugel per Strahl im Vollbild-Dreieck; Drehen mit der Maus (zum Anschauen).
+  [T7] ?test: zeichnet in eine Textur statt auf den Bildschirm (nur für Software-Renderer beim Prüfen).
+
+  AUS SEINEN BILDERN GEMESSEN (Text schweigt, Bild zeigt es):
+  [B1] Verlaufsfarben: aus mapping.png ausgelesen.
+  [B2] Startfüllung der Textur = Verlauf nach Breite (in mapping.png außerhalb der Partikelfläche sichtbar).
+  [B3] Randunschärfe über die Kante hinweg, Breite ≈ 5 % des Radius (Helligkeitsprofil in result.mp4).
+  [B4] Ost-West-Streckung des Rauschens: so eingestellt, dass das Verhältnis der Helligkeitskanten senkrecht zu
+       waagerecht dem Original entspricht (mapping.png 2,1, result.mp4 2,4).
+
+  QUELLE SCHWEIGT (Werte sind Platzhalter, alle als Regler, bitte du entscheiden):
+  Farben des Verlaufs, Mittelfarbe, Deckkraft, Weichzeichnen, Verblassrate, Batch-Anzahl
+  (= Lebensdauer), Oktaven, Rausch-Frequenz, -Stärke, -Tempo, Tempo der Partikel, Texturgröße,
+  Breite der Randunschärfe, Anfangsfarbe der Textur. Kein Licht, keine Stürme, keine Atmosphäre –
+  steht alles nicht in der Quelle.
+-->
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>v0.05 Partikel (jasper-r)</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #000; color: #ddd; font: 13px system-ui, sans-serif; overflow: hidden; }
+  canvas { display: block; width: 100vw; height: 100vh; touch-action: none; }
+  #ui { position: fixed; top: 8px; left: 8px; background: rgba(0,0,0,.7); padding: 8px 10px; border-radius: 6px; max-width: 300px; }
+  #ui label { display: grid; grid-template-columns: 120px 1fr 44px; gap: 6px; align-items: center; margin: 2px 0; }
+  #ui input[type=range] { width: 100%; }
+  #fps { font-weight: 600; margin-bottom: 4px; }
+  #err { color: #f88; white-space: pre-wrap; }
+  small { color: #999; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="ui"><div id="fps">…</div><div id="ctl"></div><small>Regler = Werte, zu denen die Quelle schweigt.</small><div id="err"></div></div>
+<script type="module" src="./main.js"></script>
+</body>
+</html>
