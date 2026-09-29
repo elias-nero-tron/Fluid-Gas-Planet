@@ -1,3 +1,4 @@
+// [G3][G8] Würfelabbildung mit derselben Flächenlage wie fij_to_xyz im Original (Gaseous Giganticus).
 // Würfelfläche/Pixel -> Richtung, gleiche Flächenlage wie im Original
 fn fijToXyz(f: u32, i: f32, j: f32, d: f32) -> vec3f {
   let a = (i - d * 0.5) / d; let b = -(j - d * 0.5) / d; let c = (j - d * 0.5) / d;

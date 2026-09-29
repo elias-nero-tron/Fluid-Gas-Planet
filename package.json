@@ -7,7 +7,9 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build && node scripts/artifact.mjs && node scripts/demo.mjs",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "check": "node v005.1/check.mjs",
+    "build:v005": "for s in gaseous-giganticus partikel-jasper-r; do SEITE=$s vite build --config v005.1/vite.config.mjs; done"
   },
   "devDependencies": {
     "@webgpu/types": "^0.1.74",
