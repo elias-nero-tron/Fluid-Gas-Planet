@@ -1,0 +1,390 @@
+<!doctype html>
+<!--
+  v0.05 · Partikel nach jasper-r – eigenständig, teilt keine Zeile mit dem restlichen Projekt.
+
+  EINZIGE QUELLE: jasper-r, „Gas giant particle sim on a sphere“ (2022),
+  https://jasper-r.github.io/gas-giant  (Beitrag im Repo: jasper-r/jasper-r.github.io,
+  _posts/2022-02-22-gas-giant.html). Das Original läuft in Unigine (C#/UUSL), Code ist nicht
+  veröffentlicht; nachgebaut ist das beschriebene Verfahren. Zitate der Quelle stehen als [Q1]…[Q9]
+  an den Stellen, die sie umsetzen:
+
+  [Q1] „store the particle positions and lifetime in a buffer“
+  [Q2] „I chose a sinusoidal mapping … y = tex_height*phi/pi, x = tex_width*(theta/(2*pi)-.5)*sin(phi)“
+  [Q3] „store the particle positions in polar coordinates … generating curl noise in polar coordinates …
+        sample this using the x and y coordinates of the particle directly“
+  [Q4] „I initialise the particles from a gradient based on their latitude“
+  [Q5] „I blend the particles colour with the existing colour with some opacity“
+  [Q6] „the texture is blurred and slowly fades back to a center colour“
+  [Q7] „their opacity fades in and out over their lifetime … I respawned them in batches, resetting only a
+        part of the buffer“
+  [Q8] „a 3D curl noise … evaluated at all points on the sphere … move the noise over time … generate the
+        octaves of noise one by one using a compute shader that calculates a single layer and adds it to the
+        BA channels. Then I use a second shader to move it to the RG layers where it is sampled“
+  [Q9] „Using a fragment shader, I lastly blurred the edge of the resulting sphere“
+  Messlatte der Quelle: „80 fps even with 4 million particles (on my modest rig)“.
+
+  ÜBERSETZUNG (nötig für WebGPU, kein neuer Inhalt):
+  [T1] Texturen als Speicherpuffer (WebGPU kann rgba-Texturen nicht lesend+schreibend binden).
+  [T2] Formel [Q2] um W/2 verschoben, damit x im Bereich 0…W liegt.
+  [T3] 3D-Curl-Vektor → Winkelgeschwindigkeit (dθ, dφ) durch Projektion auf Ost/Süd, damit [Q3] gilt.
+  [T4] Rauschfunktion: Gradientenrauschen mit Hash „Hash without Sine“ (David Hoskins, MIT).
+       Die Quelle nennt keine Rauschfunktion.
+  [T5] „move it to the RG layers“ geschieht im selben Shader beim letzten Oktavenschritt.
+  [T6] Anzeige: Kugel per Strahl im Vollbild-Dreieck; Drehen mit der Maus (zum Anschauen).
+  [T7] ?test: zeichnet in eine Textur statt auf den Bildschirm (nur für Software-Renderer beim Prüfen).
+
+  QUELLE SCHWEIGT (Werte sind Platzhalter, alle als Regler, bitte du entscheiden):
+  Farben des Verlaufs, Mittelfarbe, Deckkraft, Weichzeichnen, Verblassrate, Batch-Anzahl
+  (= Lebensdauer), Oktaven, Rausch-Frequenz, -Stärke, -Tempo, Tempo der Partikel, Texturgröße,
+  Breite der Randunschärfe, Anfangsfarbe der Textur. Kein Licht, keine Stürme, keine Atmosphäre –
+  steht alles nicht in der Quelle.
+-->
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>v0.05 Partikel (jasper-r)</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #000; color: #ddd; font: 13px system-ui, sans-serif; overflow: hidden; }
+  canvas { display: block; width: 100vw; height: 100vh; touch-action: none; }
+  #ui { position: fixed; top: 8px; left: 8px; background: rgba(0,0,0,.7); padding: 8px 10px; border-radius: 6px; max-width: 300px; }
+  #ui label { display: grid; grid-template-columns: 120px 1fr 44px; gap: 6px; align-items: center; margin: 2px 0; }
+  #ui input[type=range] { width: 100%; }
+  #fps { font-weight: 600; margin-bottom: 4px; }
+  #err { color: #f88; white-space: pre-wrap; }
+  small { color: #999; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="ui"><div id="fps">…</div><div id="ctl"></div><small>Regler = Werte, zu denen die Quelle schweigt.</small><div id="err"></div></div>
+<script type="module">
+const err = (m) => { document.getElementById('err').textContent = m; };
+if (!navigator.gpu) { err('Kein WebGPU in diesem Browser.'); throw 0; }
+const adapter = await navigator.gpu.requestAdapter();
+if (!adapter) { err('Kein WebGPU-Adapter.'); throw 0; }
+const device = await adapter.requestDevice({ requiredLimits: {
+  maxStorageBufferBindingSize: adapter.limits.maxStorageBufferBindingSize,
+  maxBufferSize: adapter.limits.maxBufferSize } });
+device.lost.then((i) => err('Grafikgerät verloren: ' + i.message));
+
+const q = new URLSearchParams(location.search);
+// Quelle: 4 Mio. Partikel. Auf zu kleinem Speicher entsprechend weniger.
+const COUNT = Math.min(Number(q.get('n')) || 4194304, Math.floor(device.limits.maxStorageBufferBindingSize / 16));
+const W = 2048, H = 1024;       // Texturgröße: Quelle schweigt
+const FW = 512, FH = 256;       // Flussfeld-Größe: Quelle schweigt
+
+// Regler (Quelle schweigt) – Platzhalterwerte
+const P = { opacity: 0.35, blur: 0.12, fade: 0.05, nBatch: 120, nOct: 4, freq: 3, amp: 0.4, noiseSpeed: 0.02, speed: 1, edge: 0.02 };
+// Verlauf nach Breite [Q4] und Mittelfarbe [Q6]: Farben schweigt die Quelle.
+const GRAD = [[0.62,0.55,0.45],[0.85,0.72,0.55],[0.95,0.92,0.85],[0.70,0.50,0.35],[0.88,0.80,0.66]];
+const CENTRE = GRAD.reduce((a, c) => a.map((v, i) => v + c[i] / GRAD.length), [0, 0, 0]);
+
+const WGSL = /* wgsl */`
+const PI = 3.14159265359;
+const TAU = 6.28318530718;
+struct U {
+  W: f32, H: f32, FW: f32, FH: f32,
+  count: f32, batch: f32, nBatch: f32, cur: f32,
+  opacity: f32, blur: f32, fade: f32, dt: f32,
+  octave: f32, nOct: f32, freq: f32, amp: f32,
+  ntime: f32, init: f32, edge: f32, aspect: f32,
+  speed: f32, frame: f32, p2: f32, p3: f32,
+  centre: vec4f,
+  grad: array<vec4f, 5>,
+  rot0: vec4f, rot1: vec4f, rot2: vec4f,
+};
+@group(0) @binding(0) var<uniform> u: U;
+
+fn dirOf(theta: f32, phi: f32) -> vec3f { return vec3f(sin(phi) * cos(theta), cos(phi), sin(phi) * sin(theta)); }
+
+// [Q2] Sinus-Abbildung (+[T2] um W/2 verschoben). phi = 0 am Nordpol, pi am Südpol.
+fn halfW(y: f32, w: f32, h: f32) -> f32 { return w * 0.5 * sin((y + 0.5) / h * PI); }
+fn texelOf(theta: f32, phi: f32, w: f32, h: f32) -> u32 {
+  let y = clamp(floor(h * phi / PI), 0.0, h - 1.0);
+  let x = clamp(floor(w * (theta / TAU - 0.5) * sin(phi) + w * 0.5), 0.0, w - 1.0);
+  return u32(y) * u32(w) + u32(x);
+}
+fn inside(x: f32, y: f32, w: f32, h: f32) -> bool {
+  return y >= 0.0 && y < h && abs(x + 0.5 - w * 0.5) <= halfW(y, w, h);
+}
+
+// [T4] Hash without Sine (David Hoskins, MIT) + Gradientenrauschen
+fn hash33(pin: vec3f) -> vec3f {
+  var p3 = fract(pin * vec3f(0.1031, 0.1030, 0.0973));
+  p3 += dot(p3, p3.yxz + 33.33);
+  return fract((p3.xxy + p3.yxx) * p3.zyx) * 2.0 - 1.0;
+}
+fn gnoise(p: vec3f) -> f32 {
+  let i = floor(p); let f = fract(p);
+  let w = f * f * f * (f * (f * 6.0 - 15.0) + 10.0);
+  var r = 0.0;
+  for (var k = 0u; k < 8u; k++) {
+    let o = vec3f(f32(k & 1u), f32((k >> 1u) & 1u), f32((k >> 2u) & 1u));
+    let g = dot(hash33(i + o), f - o);
+    let s = mix(1.0 - w, w, o);
+    r += g * s.x * s.y * s.z;
+  }
+  return r;
+}
+fn potential(p: vec3f) -> vec3f {
+  return vec3f(gnoise(p), gnoise(p + vec3f(31.4, 17.1, 5.9)), gnoise(p + vec3f(-12.7, 41.3, 23.2)));
+}
+// Curl eines Vektorpotentials (zentrale Differenzen)
+fn curl3(p: vec3f) -> vec3f {
+  let e = 0.01;
+  let dx = potential(p + vec3f(e, 0, 0)) - potential(p - vec3f(e, 0, 0));
+  let dy = potential(p + vec3f(0, e, 0)) - potential(p - vec3f(0, e, 0));
+  let dz = potential(p + vec3f(0, 0, e)) - potential(p - vec3f(0, 0, e));
+  return vec3f(dy.z - dz.y, dz.x - dx.z, dx.y - dy.x) / (2.0 * e);
+}
+
+@group(0) @binding(1) var<storage, read_write> flow: array<vec4f>;   // RG = benutzt, BA = im Aufbau [Q8]
+@group(0) @binding(2) var<storage, read_write> parts: array<vec4f>;  // [Q1] theta, phi, Alter, Geburts-phi
+@group(0) @binding(3) var<storage, read_write> surfA: array<vec4f>;
+@group(0) @binding(4) var<storage, read_write> surfB: array<vec4f>;
+
+// [Q8] eine Oktave pro Aufruf in BA addieren; beim letzten Schritt nach RG [T5]
+@compute @workgroup_size(16, 16)
+fn flowOctave(@builtin(global_invocation_id) g: vec3u) {
+  if (f32(g.x) >= u.FW || f32(g.y) >= u.FH) { return; }
+  let i = g.y * u32(u.FW) + g.x;
+  let x = f32(g.x); let y = f32(g.y);
+  if (!inside(x, y, u.FW, u.FH)) { flow[i] = vec4f(0.0); return; }
+  let phi = (y + 0.5) / u.FH * PI;
+  let s = sin(phi);
+  let theta = ((x + 0.5 - u.FW * 0.5) / (u.FW * s) + 0.5) * TAU;
+  let d = dirOf(theta, phi);
+  let o = u.octave;
+  let c = curl3(d * u.freq * pow(2.0, o) + vec3f(o * 17.3, u.ntime, -o * 9.1)) * u.amp * pow(0.5, o);
+  // [T3] auf die Tangentialebene, dann Ost/Süd -> dθ/dt, dφ/dt
+  let vt = c - d * dot(c, d);
+  let east = vec3f(-sin(theta), 0.0, cos(theta));
+  let south = vec3f(cos(phi) * cos(theta), -s, cos(phi) * sin(theta));
+  var f = flow[i];
+  if (o < 0.5) { f.z = 0.0; f.w = 0.0; }
+  f.z += dot(vt, east) / max(s, 0.05);
+  f.w += dot(vt, south);
+  if (o > u.nOct - 1.5) { f.x = f.z; f.y = f.w; }
+  flow[i] = f;
+}
+
+fn pcg(v: u32) -> u32 {
+  let s = v * 747796405u + 2891336453u;
+  let w = ((s >> ((s >> 28u) + 4u)) ^ s) * 277803737u;
+  return (w >> 22u) ^ w;
+}
+fn rnd(a: u32) -> f32 { return f32(pcg(a)) / 4294967295.0; }
+
+fn gradAt(phi: f32) -> vec3f {   // [Q4] Verlauf nach Breite
+  let x = clamp(phi / PI, 0.0, 1.0) * 4.0;
+  let i = u32(min(floor(x), 3.0));
+  return mix(u.grad[i].rgb, u.grad[i + 1u].rgb, x - f32(i));
+}
+
+@compute @workgroup_size(256)
+fn moveParticles(@builtin(global_invocation_id) g: vec3u) {
+  let i = g.x + g.y * 65535u * 256u;
+  if (f32(i) >= u.count) { return; }
+  var p = parts[i];
+  let b = i / u32(u.batch);
+  let cur = u32(u.cur);
+  let nb = u32(u.nBatch);
+  if (u.init > 0.5 || b == cur) {
+    // [Q7] Batch neu geboren: gleichverteilt auf der Kugel
+    let seed = i * 3u + u32(u.frame) * 9781u;
+    let phi = acos(1.0 - 2.0 * rnd(seed));
+    let theta = TAU * rnd(seed + 1u);
+    var age = 0.0;
+    if (u.init > 0.5) { age = f32((cur + nb - b % nb) % nb); }
+    p = vec4f(theta, phi, age, phi);
+  } else {
+    // [Q3] Fluss direkt an der Partikelposition in Polarkoordinaten
+    let v = flow[texelOf(p.x, p.y, u.FW, u.FH)].xy;
+    p.x = fract((p.x + v.x * u.speed * u.dt) / TAU) * TAU;
+    p.y = clamp(p.y + v.y * u.speed * u.dt, 0.001, PI - 0.001);
+    p.z += 1.0;
+  }
+  parts[i] = p;
+  // [Q7] ein- und ausblenden über die Lebenszeit; [Q5] mit Deckkraft in die Textur mischen
+  let a = u.opacity * sin(PI * clamp(p.z / u.nBatch, 0.0, 1.0));
+  let t = texelOf(p.x, p.y, u.W, u.H);
+  surfA[t] = vec4f(mix(surfA[t].rgb, gradAt(p.w), a), 1.0);
+}
+
+fn surfAt(x: f32, y: f32, c: vec4f) -> vec4f {
+  if (!inside(x, y, u.W, u.H)) { return c; }
+  return surfA[u32(y) * u32(u.W) + u32(x)];
+}
+
+// [Q6] weichzeichnen und langsam zur Mittelfarbe verblassen
+@compute @workgroup_size(16, 16)
+fn blurFade(@builtin(global_invocation_id) g: vec3u) {
+  if (f32(g.x) >= u.W || f32(g.y) >= u.H) { return; }
+  let x = f32(g.x); let y = f32(g.y);
+  let i = g.y * u32(u.W) + g.x;
+  if (!inside(x, y, u.W, u.H)) { surfB[i] = u.centre; return; }
+  if (u.init > 0.5) { surfA[i] = u.centre; surfB[i] = u.centre; return; }
+  let c = surfA[i];
+  let avg = (surfAt(x + 1.0, y, c) + surfAt(x - 1.0, y, c) + surfAt(x, y + 1.0, c) + surfAt(x, y - 1.0, c)) * 0.25;
+  let bl = mix(c, avg, u.blur);
+  surfB[i] = vec4f(mix(bl.rgb, u.centre.rgb, 1.0 - exp(-u.fade * u.dt)), 1.0);
+}
+`;
+
+const RENDER = /* wgsl */`
+const PI = 3.14159265359;
+const TAU = 6.28318530718;
+struct U {
+  W: f32, H: f32, FW: f32, FH: f32,
+  count: f32, batch: f32, nBatch: f32, cur: f32,
+  opacity: f32, blur: f32, fade: f32, dt: f32,
+  octave: f32, nOct: f32, freq: f32, amp: f32,
+  ntime: f32, init: f32, edge: f32, aspect: f32,
+  speed: f32, frame: f32, p2: f32, p3: f32,
+  centre: vec4f,
+  grad: array<vec4f, 5>,
+  rot0: vec4f, rot1: vec4f, rot2: vec4f,
+};
+@group(0) @binding(0) var<uniform> u: U;
+@group(0) @binding(1) var<storage, read> surf: array<vec4f>;
+struct VO { @builtin(position) pos: vec4f, @location(0) ndc: vec2f };
+@vertex fn vs(@builtin(vertex_index) k: u32) -> VO {
+  let p = vec2f(f32((k << 1u) & 2u), f32(k & 2u)) * 2.0 - 1.0;
+  return VO(vec4f(p, 0.0, 1.0), p);
+}
+fn fetch(x: f32, y: f32) -> vec3f {
+  let yy = clamp(y, 0.0, u.H - 1.0);
+  let hw = u.W * 0.5 * sin((yy + 0.5) / u.H * PI);
+  let xx = clamp(x, floor(u.W * 0.5 - hw), ceil(u.W * 0.5 + hw) - 1.0);
+  return surf[u32(yy) * u32(u.W) + u32(clamp(xx, 0.0, u.W - 1.0))].rgb;
+}
+@fragment fn fs(v: VO) -> @location(0) vec4f {
+  let o = vec3f(0.0, 0.0, 3.0);
+  let d = normalize(vec3f(v.ndc.x * u.aspect * 0.4, v.ndc.y * 0.4, -1.0));
+  let tca = -dot(o, d);
+  let d2 = dot(o, o) - tca * tca;
+  let b = sqrt(max(d2, 0.0));
+  if (b >= 1.0) { return vec4f(0.0, 0.0, 0.0, 1.0); }
+  let hit = o + d * (tca - sqrt(1.0 - d2));
+  let n = normalize(vec3f(dot(u.rot0.xyz, hit), dot(u.rot1.xyz, hit), dot(u.rot2.xyz, hit)));
+  let phi = acos(clamp(n.y, -1.0, 1.0));
+  let theta = fract(atan2(n.z, n.x) / TAU) * TAU;
+  // [Q2] Sinus-Abbildung, bilinear
+  let fx = u.W * (theta / TAU - 0.5) * sin(phi) + u.W * 0.5 - 0.5;
+  let fy = phi / PI * u.H - 0.5;
+  let x0 = floor(fx); let y0 = floor(fy);
+  let tx = fx - x0; let ty = fy - y0;
+  let c = mix(mix(fetch(x0, y0), fetch(x0 + 1.0, y0), tx), mix(fetch(x0, y0 + 1.0), fetch(x0 + 1.0, y0 + 1.0), tx), ty);
+  // [Q9] Rand der Kugel weichzeichnen
+  let a = smoothstep(0.0, u.edge, 1.0 - b);
+  return vec4f(c * a, 1.0);
+}
+`;
+
+const mod = device.createShaderModule({ code: WGSL });
+const rmod = device.createShaderModule({ code: RENDER });
+for (const m of [mod, rmod]) m.getCompilationInfo().then((i) => { const e = i.messages.filter((x) => x.type === 'error'); if (e.length) err(e.map((x) => `Zeile ${x.lineNum}: ${x.message}`).join('\n')); });
+
+const S = GPUBufferUsage.STORAGE;
+const ubuf = device.createBuffer({ size: 64 * 4, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
+const flow = device.createBuffer({ size: FW * FH * 16, usage: S });
+const parts = device.createBuffer({ size: COUNT * 16, usage: S });
+const surf = [device.createBuffer({ size: W * H * 16, usage: S }), device.createBuffer({ size: W * H * 16, usage: S })];
+
+const C = GPUShaderStage.COMPUTE;
+const cl = device.createBindGroupLayout({ entries: [
+  { binding: 0, visibility: C, buffer: { type: 'uniform' } },
+  ...[1, 2, 3, 4].map((b) => ({ binding: b, visibility: C, buffer: { type: 'storage' } })) ] });
+const layout = device.createPipelineLayout({ bindGroupLayouts: [cl] });
+const pipe = (e) => device.createComputePipeline({ layout, compute: { module: mod, entryPoint: e } });
+const pFlow = pipe('flowOctave'), pMove = pipe('moveParticles'), pBlur = pipe('blurFade');
+const cbg = [0, 1].map((k) => device.createBindGroup({ layout: cl, entries: [
+  { binding: 0, resource: { buffer: ubuf } }, { binding: 1, resource: { buffer: flow } }, { binding: 2, resource: { buffer: parts } },
+  { binding: 3, resource: { buffer: surf[k] } }, { binding: 4, resource: { buffer: surf[1 - k] } } ] }));
+
+const canvas = document.getElementById('c');
+const TEST = q.has('test');   // [T7]
+const ctx = TEST ? null : canvas.getContext('webgpu');
+const format = TEST ? 'rgba8unorm' : navigator.gpu.getPreferredCanvasFormat();
+if (ctx) ctx.configure({ device, format, alphaMode: 'opaque' });
+let testTex = null;
+if (TEST) { canvas.width = 640; canvas.height = 480; testTex = device.createTexture({ size: [640, 480], format, usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.COPY_SRC }); }
+window.grab = async () => {   // [T7] Testbild als Daten-URL
+  const buf = device.createBuffer({ size: 640 * 480 * 4, usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ });
+  const e = device.createCommandEncoder();
+  e.copyTextureToBuffer({ texture: testTex }, { buffer: buf, bytesPerRow: 640 * 4 }, [640, 480]);
+  device.queue.submit([e.finish()]);
+  await buf.mapAsync(GPUMapMode.READ);
+  const c2 = document.createElement('canvas'); c2.width = 640; c2.height = 480;
+  c2.getContext('2d').putImageData(new ImageData(new Uint8ClampedArray(buf.getMappedRange().slice(0)), 640, 480), 0, 0);
+  return c2.toDataURL();
+};
+const rpipe = device.createRenderPipeline({ layout: 'auto', vertex: { module: rmod, entryPoint: 'vs' },
+  fragment: { module: rmod, entryPoint: 'fs', targets: [{ format }] }, primitive: { topology: 'triangle-list' } });
+// Anzeige liest die Textur, die blurFade gerade geschrieben hat (surf[1-k])
+const rbg = [0, 1].map((k) => device.createBindGroup({ layout: rpipe.getBindGroupLayout(0), entries: [
+  { binding: 0, resource: { buffer: ubuf } }, { binding: 1, resource: { buffer: surf[1 - k] } } ] }));
+
+// Regler
+const ctl = document.getElementById('ctl');
+const sliders = [['opacity', 'Deckkraft', 0, 1, 0.01], ['blur', 'Weichzeichnen', 0, 1, 0.01], ['fade', 'Verblassen /s', 0, 1, 0.005],
+  ['nBatch', 'Batches (Lebenszeit)', 8, 600, 1], ['nOct', 'Oktaven', 1, 8, 1], ['freq', 'Rausch-Frequenz', 0.5, 12, 0.1],
+  ['amp', 'Rausch-Stärke', 0, 2, 0.01], ['noiseSpeed', 'Rausch-Tempo', 0, 0.2, 0.001], ['speed', 'Partikel-Tempo', 0, 5, 0.05],
+  ['edge', 'Randunschärfe', 0.001, 0.2, 0.001]];
+for (const [k, label, min, max, step] of sliders) {
+  const l = document.createElement('label');
+  l.innerHTML = `<span>${label}</span><input type="range" min="${min}" max="${max}" step="${step}" value="${P[k]}"><output>${P[k]}</output>`;
+  const [inp, out] = [l.querySelector('input'), l.querySelector('output')];
+  inp.oninput = () => { P[k] = Number(inp.value); out.textContent = inp.value; if (k === 'nBatch') init = true; };
+  ctl.appendChild(l);
+}
+
+// Drehen mit der Maus [T6]
+let yaw = 0, pitch = 0.2, drag = null;
+canvas.onpointerdown = (e) => { drag = [e.clientX, e.clientY]; canvas.setPointerCapture(e.pointerId); };
+canvas.onpointerup = () => { drag = null; };
+canvas.onpointermove = (e) => { if (!drag) return; yaw += (e.clientX - drag[0]) * 0.005; pitch = Math.max(-1.5, Math.min(1.5, pitch + (e.clientY - drag[1]) * 0.005)); drag = [e.clientX, e.clientY]; };
+
+const data = new Float32Array(64);
+let frame = 0, octave = 0, ntime = 0, time = 0, k = 0, init = true;
+let fpsT = performance.now(), fpsN = 0;
+function tick() {
+  const dpr = Math.min(devicePixelRatio, 2);
+  const w = TEST ? 640 : Math.round(canvas.clientWidth * dpr), h = TEST ? 480 : Math.round(canvas.clientHeight * dpr);
+  if (!TEST && (canvas.width !== w || canvas.height !== h)) { canvas.width = w; canvas.height = h; }
+  const dt = 1 / 60;
+  const nb = P.nBatch, batch = Math.ceil(COUNT / nb);
+  if (octave === 0) ntime = time * P.noiseSpeed;   // [Q8] Rauschen bewegt sich über die Zeit
+  const cy = Math.cos(yaw), sy = Math.sin(yaw), cp = Math.cos(pitch), sp = Math.sin(pitch);
+  // Welt -> Kugel: erst um x (pitch), dann um y (yaw)
+  const r = [[cy, sy * sp, -sy * cp], [0, cp, sp], [sy, -cy * sp, cy * cp]];
+  data.set([W, H, FW, FH, COUNT, batch, nb, frame % nb, P.opacity, P.blur, P.fade, dt,
+    octave, P.nOct, P.freq, P.amp, ntime, init ? 1 : 0, P.edge, w / h, P.speed, frame, 0, 0,
+    ...CENTRE, 1, ...GRAD.flatMap((c) => [...c, 1]), ...r[0], 0, ...r[1], 0, ...r[2], 0]);
+  device.queue.writeBuffer(ubuf, 0, data);
+  const enc = device.createCommandEncoder();
+  const p = enc.beginComputePass();
+  p.setBindGroup(0, cbg[k]);
+  p.setPipeline(pFlow); p.dispatchWorkgroups(Math.ceil(FW / 16), Math.ceil(FH / 16));
+  p.setPipeline(pMove);
+  const groups = Math.ceil(COUNT / 256);
+  p.dispatchWorkgroups(Math.min(groups, 65535), Math.ceil(groups / 65535));
+  p.setPipeline(pBlur); p.dispatchWorkgroups(Math.ceil(W / 16), Math.ceil(H / 16));
+  p.end();
+  const rp = enc.beginRenderPass({ colorAttachments: [{ view: (TEST ? testTex : ctx.getCurrentTexture()).createView(), loadOp: 'clear', storeOp: 'store', clearValue: [0, 0, 0, 1] }] });
+  rp.setPipeline(rpipe); rp.setBindGroup(0, rbg[k]); rp.draw(3); rp.end();
+  device.queue.submit([enc.finish()]);
+  k = 1 - k; frame++; time += dt; init = false;
+  octave = (octave + 1) % P.nOct;
+  fpsN++;
+  const now = performance.now();
+  window.frames_ = frame;
+  if (now - fpsT > 500) { document.getElementById('fps').textContent = `${Math.round(fpsN * 1000 / (now - fpsT))} fps · ${(COUNT / 1e6).toFixed(2)} Mio. Partikel`; fpsT = now; fpsN = 0; }
+  if (TEST) device.queue.onSubmittedWorkDone().then(() => requestAnimationFrame(tick));   // [T7] nicht vorauslaufen
+  else requestAnimationFrame(tick);
+}
+requestAnimationFrame(tick);
+</script>
+</body>
+</html>
