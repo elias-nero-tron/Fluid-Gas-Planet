@@ -33,6 +33,13 @@
   [T6] Anzeige: Kugel per Strahl im Vollbild-Dreieck; Drehen mit der Maus (zum Anschauen).
   [T7] ?test: zeichnet in eine Textur statt auf den Bildschirm (nur für Software-Renderer beim Prüfen).
 
+  AUS SEINEN BILDERN GEMESSEN (Text schweigt, Bild zeigt es):
+  [B1] Verlaufsfarben: aus mapping.png ausgelesen.
+  [B2] Startfüllung der Textur = Verlauf nach Breite (in mapping.png außerhalb der Partikelfläche sichtbar).
+  [B3] Randunschärfe über die Kante hinweg, Breite ≈ 5 % des Radius (Helligkeitsprofil in result.mp4).
+  [B4] Ost-West-Streckung des Rauschens: so eingestellt, dass das Verhältnis der Helligkeitskanten senkrecht zu
+       waagerecht dem Original entspricht (mapping.png 2,1, result.mp4 2,4).
+
   QUELLE SCHWEIGT (Werte sind Platzhalter, alle als Regler, bitte du entscheiden):
   Farben des Verlaufs, Mittelfarbe, Deckkraft, Weichzeichnen, Verblassrate, Batch-Anzahl
   (= Lebensdauer), Oktaven, Rausch-Frequenz, -Stärke, -Tempo, Tempo der Partikel, Texturgröße,
@@ -75,9 +82,11 @@ const W = 2048, H = 1024;       // Texturgröße: Quelle schweigt
 const FW = 512, FH = 256;       // Flussfeld-Größe: Quelle schweigt
 
 // Regler (Quelle schweigt) – Platzhalterwerte
-const P = { opacity: 0.35, blur: 0.12, fade: 0.05, nBatch: 120, nOct: 4, freq: 3, amp: 0.4, noiseSpeed: 0.02, speed: 1, edge: 0.02 };
-// Verlauf nach Breite [Q4] und Mittelfarbe [Q6]: Farben schweigt die Quelle.
-const GRAD = [[0.62,0.55,0.45],[0.85,0.72,0.55],[0.95,0.92,0.85],[0.70,0.50,0.35],[0.88,0.80,0.66]];
+const P = { opacity: 0.35, blur: 0.12, fade: 0.05, nBatch: 120, nOct: 4, freq: 3, amp: 0.4, noiseSpeed: 0.02, speed: 1, edge: 0.05, stretch: 6 };
+// Verlauf nach Breite [Q4]: 16 Farben GEMESSEN aus jasper-rs eigener Textur (assets/images/gas-giant/mapping.png,
+// Spalte außerhalb der Partikelfläche, Nord → Süd). [B1]
+const GRAD = [[0.094,0.067,0.063],[0.310,0.263,0.251],[0.431,0.337,0.322],[0.416,0.322,0.302],[0.416,0.365,0.380],[0.341,0.302,0.333],[0.282,0.224,0.251],[0.196,0.173,0.216],[0.137,0.129,0.176],[0.129,0.122,0.169],[0.251,0.212,0.251],[0.431,0.322,0.310],[0.149,0.125,0.149],[0.106,0.106,0.118],[0.118,0.110,0.118],[0.157,0.149,0.157]];
+for (const k in P) if (q.has(k)) P[k] = Number(q.get(k));   // Werte per Adresse (zum Prüfen)
 const CENTRE = GRAD.reduce((a, c) => a.map((v, i) => v + c[i] / GRAD.length), [0, 0, 0]);
 
 const WGSL = /* wgsl */`
@@ -91,7 +100,7 @@ struct U {
   ntime: f32, init: f32, edge: f32, aspect: f32,
   speed: f32, frame: f32, p2: f32, p3: f32,
   centre: vec4f,
-  grad: array<vec4f, 5>,
+  grad: array<vec4f, 16>,
   rot0: vec4f, rot1: vec4f, rot2: vec4f,
 };
 @group(0) @binding(0) var<uniform> u: U;
@@ -156,7 +165,7 @@ fn flowOctave(@builtin(global_invocation_id) g: vec3u) {
   let theta = ((x + 0.5 - u.FW * 0.5) / (u.FW * s) + 0.5) * TAU;
   let d = dirOf(theta, phi);
   let o = u.octave;
-  let c = curl3(d * u.freq * pow(2.0, o) + vec3f(o * 17.3, u.ntime, -o * 9.1)) * u.amp * pow(0.5, o);
+  let c = curl3(d * vec3f(1.0, u.p2, 1.0) * u.freq * pow(2.0, o) + vec3f(o * 17.3, u.ntime, -o * 9.1)) * u.amp * pow(0.5, o);
   // [T3] auf die Tangentialebene, dann Ost/Süd -> dθ/dt, dφ/dt
   let vt = c - d * dot(c, d);
   let east = vec3f(-sin(theta), 0.0, cos(theta));
@@ -177,8 +186,8 @@ fn pcg(v: u32) -> u32 {
 fn rnd(a: u32) -> f32 { return f32(pcg(a)) / 4294967295.0; }
 
 fn gradAt(phi: f32) -> vec3f {   // [Q4] Verlauf nach Breite
-  let x = clamp(phi / PI, 0.0, 1.0) * 4.0;
-  let i = u32(min(floor(x), 3.0));
+  let x = clamp(phi / PI * 16.0 - 0.5, 0.0, 15.0);
+  let i = u32(min(floor(x), 14.0));
   return mix(u.grad[i].rgb, u.grad[i + 1u].rgb, x - f32(i));
 }
 
@@ -224,7 +233,7 @@ fn blurFade(@builtin(global_invocation_id) g: vec3u) {
   let x = f32(g.x); let y = f32(g.y);
   let i = g.y * u32(u.W) + g.x;
   if (!inside(x, y, u.W, u.H)) { surfB[i] = u.centre; return; }
-  if (u.init > 0.5) { surfA[i] = u.centre; surfB[i] = u.centre; return; }
+  if (u.init > 0.5) { let gc = vec4f(gradAt((y + 0.5) / u.H * PI), 1.0); surfA[i] = gc; surfB[i] = gc; return; }   // [B2]
   let c = surfA[i];
   let avg = (surfAt(x + 1.0, y, c) + surfAt(x - 1.0, y, c) + surfAt(x, y + 1.0, c) + surfAt(x, y - 1.0, c)) * 0.25;
   let bl = mix(c, avg, u.blur);
@@ -243,7 +252,7 @@ struct U {
   ntime: f32, init: f32, edge: f32, aspect: f32,
   speed: f32, frame: f32, p2: f32, p3: f32,
   centre: vec4f,
-  grad: array<vec4f, 5>,
+  grad: array<vec4f, 16>,
   rot0: vec4f, rot1: vec4f, rot2: vec4f,
 };
 @group(0) @binding(0) var<uniform> u: U;
@@ -265,8 +274,8 @@ fn fetch(x: f32, y: f32) -> vec3f {
   let tca = -dot(o, d);
   let d2 = dot(o, o) - tca * tca;
   let b = sqrt(max(d2, 0.0));
-  if (b >= 1.0) { return vec4f(0.0, 0.0, 0.0, 1.0); }
-  let hit = o + d * (tca - sqrt(1.0 - d2));
+  if (b >= 1.0 + u.edge) { return vec4f(0.0, 0.0, 0.0, 1.0); }
+  let hit = o + d * (tca - sqrt(max(1.0 - d2, 0.0)));   // jenseits des Randes: Randfarbe
   let n = normalize(vec3f(dot(u.rot0.xyz, hit), dot(u.rot1.xyz, hit), dot(u.rot2.xyz, hit)));
   let phi = acos(clamp(n.y, -1.0, 1.0));
   let theta = fract(atan2(n.z, n.x) / TAU) * TAU;
@@ -277,7 +286,7 @@ fn fetch(x: f32, y: f32) -> vec3f {
   let tx = fx - x0; let ty = fy - y0;
   let c = mix(mix(fetch(x0, y0), fetch(x0 + 1.0, y0), tx), mix(fetch(x0, y0 + 1.0), fetch(x0 + 1.0, y0 + 1.0), tx), ty);
   // [Q9] Rand der Kugel weichzeichnen
-  let a = smoothstep(0.0, u.edge, 1.0 - b);
+  let a = smoothstep(1.0 + u.edge, 1.0 - u.edge, b);   // [B3] über den Rand hinweg weich
   return vec4f(c * a, 1.0);
 }
 `;
@@ -287,7 +296,7 @@ const rmod = device.createShaderModule({ code: RENDER });
 for (const m of [mod, rmod]) m.getCompilationInfo().then((i) => { const e = i.messages.filter((x) => x.type === 'error'); if (e.length) err(e.map((x) => `Zeile ${x.lineNum}: ${x.message}`).join('\n')); });
 
 const S = GPUBufferUsage.STORAGE;
-const ubuf = device.createBuffer({ size: 64 * 4, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
+const ubuf = device.createBuffer({ size: 128 * 4, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
 const flow = device.createBuffer({ size: FW * FH * 16, usage: S });
 const parts = device.createBuffer({ size: COUNT * 16, usage: S });
 const surf = [device.createBuffer({ size: W * H * 16, usage: S }), device.createBuffer({ size: W * H * 16, usage: S })];
@@ -331,7 +340,7 @@ const ctl = document.getElementById('ctl');
 const sliders = [['opacity', 'Deckkraft', 0, 1, 0.01], ['blur', 'Weichzeichnen', 0, 1, 0.01], ['fade', 'Verblassen /s', 0, 1, 0.005],
   ['nBatch', 'Batches (Lebenszeit)', 8, 600, 1], ['nOct', 'Oktaven', 1, 8, 1], ['freq', 'Rausch-Frequenz', 0.5, 12, 0.1],
   ['amp', 'Rausch-Stärke', 0, 2, 0.01], ['noiseSpeed', 'Rausch-Tempo', 0, 0.2, 0.001], ['speed', 'Partikel-Tempo', 0, 5, 0.05],
-  ['edge', 'Randunschärfe', 0.001, 0.2, 0.001]];
+  ['edge', 'Randunschärfe', 0.001, 0.2, 0.001], ['stretch', 'Ost-West-Streckung', 1, 8, 0.1]];
 for (const [k, label, min, max, step] of sliders) {
   const l = document.createElement('label');
   l.innerHTML = `<span>${label}</span><input type="range" min="${min}" max="${max}" step="${step}" value="${P[k]}"><output>${P[k]}</output>`;
@@ -346,7 +355,7 @@ canvas.onpointerdown = (e) => { drag = [e.clientX, e.clientY]; canvas.setPointer
 canvas.onpointerup = () => { drag = null; };
 canvas.onpointermove = (e) => { if (!drag) return; yaw += (e.clientX - drag[0]) * 0.005; pitch = Math.max(-1.5, Math.min(1.5, pitch + (e.clientY - drag[1]) * 0.005)); drag = [e.clientX, e.clientY]; };
 
-const data = new Float32Array(64);
+const data = new Float32Array(128);
 let frame = 0, octave = 0, ntime = 0, time = 0, k = 0, init = true;
 let fpsT = performance.now(), fpsN = 0;
 function tick() {
@@ -360,7 +369,7 @@ function tick() {
   // Welt -> Kugel: erst um x (pitch), dann um y (yaw)
   const r = [[cy, sy * sp, -sy * cp], [0, cp, sp], [sy, -cy * sp, cy * cp]];
   data.set([W, H, FW, FH, COUNT, batch, nb, frame % nb, P.opacity, P.blur, P.fade, dt,
-    octave, P.nOct, P.freq, P.amp, ntime, init ? 1 : 0, P.edge, w / h, P.speed, frame, 0, 0,
+    octave, P.nOct, P.freq, P.amp, ntime, init ? 1 : 0, P.edge, w / h, P.speed, frame, P.stretch, 0,
     ...CENTRE, 1, ...GRAD.flatMap((c) => [...c, 1]), ...r[0], 0, ...r[1], 0, ...r[2], 0]);
   device.queue.writeBuffer(ubuf, 0, data);
   const enc = device.createCommandEncoder();
