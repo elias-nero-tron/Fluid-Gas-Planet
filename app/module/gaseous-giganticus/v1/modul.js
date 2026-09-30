@@ -1,0 +1,110 @@
+// Modul: Verfahren von „Gaseous Giganticus“ (Stephen M. Cameron), Version 1.
+// Quelle: https://github.com/smcameron/gaseous-giganticus (GPL-2.0). Kein Code übernommen: Verfahren gelesen,
+// als Schritte [G1]–[G12] aufgeschrieben, neu als WebGPU geschrieben. Abweichungen [T1]–[T9]:
+// [T1] 4D-Simplex nach Gustavson (MIT) statt OpenSimplex · [T2] Feld 1024² statt 2048² (?vf=) ·
+// [T3] Partikel malen parallel · [T4] Drehrichtung der 90°-Drehung nach Rechte-Hand-Regel ·
+// [T5] Anzeige unbeleuchtet (Licht im Beispielbild stammt aus mesh_viewer) · [T6] Standard-Eingabe = Spalte des Beispielbilds ·
+// [T7] andere Zufallszahlen · [T9] Bänder waagerecht (wie Automatik-Modus und Beispielbild).
+import uniforms from './shaders/uniforms.wgsl?raw';
+import wuerfel from './shaders/wuerfel.wgsl?raw';
+import rauschen from './shaders/rauschen.wgsl?raw';
+import feld from './shaders/feld.wgsl?raw';
+import partikel from './shaders/partikel.wgsl?raw';
+import bild from './shaders/bild.wgsl?raw';
+import farbe from './farbe.wgsl?raw';
+import { bildLaden, beispielStreifen } from './eingabe.js';
+import { wirbelErzeugen } from './wirbel.js';
+
+export const info = { name: 'Gaseous Giganticus', quelle: 'github.com/smcameron/gaseous-giganticus (Verfahren, neu geschrieben)', kamera: { pitch: 0.15 } };
+// Standardwerte des Originals
+export const standard = { noiseScale: 2.6, velocityFactor: 1200, bands: 6, bandFactor: 2.9, bandPower: 1, poleAtt: 0.5,
+  vortices: 0, vortexSize: 0.04, vortexVar: 0.02, vortexThresh: 0.2, fade: 0.01, opacityLimit: 0.2, wOffset: 0,
+  octaves: 4, falloff: 0.5, stop1000: true };
+
+export async function erstellen(gpu, P, meldung, q) {
+  const { device } = gpu;
+  const DIM = 1024;                                    // [G8]
+  const VF = Number(q.get('vf')) || 1024;              // [T2]
+  const COUNT = Math.min(Number(q.get('n')) || 8000000, Math.floor(device.limits.maxStorageBufferBindingSize / 16));  // [G2]
+  const m = device.createShaderModule({ label: 'gg', code: [uniforms, wuerfel, rauschen, feld, partikel, bild].join('') });
+  m.getCompilationInfo().then((i) => { const e = i.messages.filter((x) => x.type === 'error'); if (e.length) meldung(e.map((x) => `Zeile ${x.lineNum}: ${x.message}`).join('\n')); });
+  const S = GPUBufferUsage.STORAGE;
+  const ubuf = device.createBuffer({ size: 32 * 4, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
+  const field = device.createBuffer({ size: 6 * VF * VF * 8, usage: S });
+  const parts = device.createBuffer({ size: COUNT * 16, usage: S });
+  const img = device.createBuffer({ size: 6 * DIM * DIM * 4, usage: S });
+  const vortBuf = device.createBuffer({ size: 200 * 16, usage: S | GPUBufferUsage.COPY_DST });
+  const C = GPUShaderStage.COMPUTE;
+  const cl = device.createBindGroupLayout({ entries: [
+    { binding: 0, visibility: C, buffer: { type: 'uniform' } },
+    { binding: 1, visibility: C, buffer: { type: 'storage' } },
+    { binding: 2, visibility: C, buffer: { type: 'storage' } },
+    { binding: 3, visibility: C, buffer: { type: 'storage' } },
+    { binding: 4, visibility: C, buffer: { type: 'read-only-storage' } },
+    { binding: 5, visibility: C, texture: { sampleType: 'float' } } ] });
+  const layout = device.createPipelineLayout({ bindGroupLayouts: [cl] });
+  const pipe = (e) => device.createComputePipeline({ layout, compute: { module: m, entryPoint: e } });
+  const pField = pipe('makeField'), pInit = pipe('initParticles'), pClear = pipe('clearImg'), pFade = pipe('fadeImg'), pMove = pipe('moveAndPaint');
+
+  let eingabe;
+  try { eingabe = await bildLaden(device, await beispielStreifen()); }
+  catch (e) { meldung('Beispielbild nicht ladbar (' + e.message + '). Bitte „Eigenes Bild“ wählen.'); eingabe = await bildLaden(device, new ImageData(new Uint8ClampedArray([128, 100, 80, 255]), 1, 1)); }
+
+  const U = new Float32Array(32);
+  let iter = 0, opacity = 1, nvort = 0, seed = 1, cbg = null, g1 = null;
+  const writeU = () => {
+    U.set([DIM, VF, COUNT, opacity, P.noiseScale, P.velocityFactor, P.bands, P.bandFactor,
+      P.bandPower, P.poleAtt, nvort, P.wOffset, P.octaves, P.falloff, P.fade, seed,
+      ...eingabe.dunkel, 1, eingabe.w, eingabe.h, 0, 0]);
+    device.queue.writeBuffer(ubuf, 0, U);
+  };
+  const groups = (n) => { const g = Math.ceil(n / 256); return [Math.min(g, 65535), Math.ceil(g / 65535)]; };
+  const neu = () => {
+    const w = wirbelErzeugen(P); device.queue.writeBuffer(vortBuf, 0, w.daten); nvort = w.n;
+    iter = 0; opacity = 1; seed++;
+    cbg = device.createBindGroup({ layout: cl, entries: [
+      { binding: 0, resource: { buffer: ubuf } }, { binding: 1, resource: { buffer: field } },
+      { binding: 2, resource: { buffer: parts } }, { binding: 3, resource: { buffer: img } },
+      { binding: 4, resource: { buffer: vortBuf } }, { binding: 5, resource: eingabe.tex.createView() } ] });
+    writeU();
+    const enc = device.createCommandEncoder(); const p = enc.beginComputePass(); p.setBindGroup(0, cbg);
+    p.setPipeline(pField); p.dispatchWorkgroups(Math.ceil(VF / 8), Math.ceil(VF / 8), 6);   // [G3] einmal
+    p.setPipeline(pInit); p.dispatchWorkgroups(...groups(COUNT));
+    p.setPipeline(pClear); p.dispatchWorkgroups(...groups(6 * DIM * DIM));
+    p.end(); device.queue.submit([enc.finish()]);
+  };
+  neu();
+
+  return {
+    farbeWGSL: farbe,
+    regler: [
+      { typ: 'knopf', label: 'Neu starten', aktion: neu },
+      { typ: 'datei', label: 'Eigenes Bild', aktion: async (f) => { eingabe.tex.destroy(); eingabe = await bildLaden(device, f); neu(); } },
+      { typ: 'haken', k: 'stop1000', label: 'nach 1000 Runden anhalten (wie Original)' },
+      { k: 'noiseScale', label: 'Rauschmaßstab', min: 0.5, max: 8, step: 0.1 }, { k: 'velocityFactor', label: 'Geschw.-Faktor', min: 0, max: 4000, step: 10 },
+      { k: 'bands', label: 'Bänder', min: 0, max: 20, step: 0.5 }, { k: 'bandFactor', label: 'Band-Faktor', min: 0, max: 10, step: 0.1 },
+      { k: 'bandPower', label: 'Band-Potenz (ungerade)', min: 1, max: 9, step: 2 }, { k: 'poleAtt', label: 'Pol-Dämpfung', min: 0, max: 1, step: 0.01 },
+      { k: 'vortices', label: 'Wirbel', min: 0, max: 200, step: 1 }, { k: 'vortexSize', label: 'Wirbelgröße', min: 0.005, max: 0.2, step: 0.005 },
+      { k: 'vortexVar', label: 'Wirbelgröße ±', min: 0, max: 0.1, step: 0.005 }, { k: 'vortexThresh', label: 'Wirbel-Schwelle', min: 0.05, max: 1, step: 0.01 },
+      { k: 'fade', label: 'Verblassen', min: 0, max: 0.1, step: 0.001 }, { k: 'opacityLimit', label: 'Deckkraft min.', min: 0, max: 1, step: 0.01 },
+      { k: 'wOffset', label: 'w-Versatz', min: 0, max: 300, step: 1 }, { k: 'octaves', label: 'Oktaven', min: 1, max: 7, step: 1 },
+      { k: 'falloff', label: 'fBm-Abfall', min: 0.1, max: 0.9, step: 0.05 },
+    ],
+    // eine Runde [G9][G7][G10][G11]; false = angehalten [G12]
+    schritt(enc) {
+      if (P.stop1000 && iter >= 1000) return false;
+      writeU();
+      const p = enc.beginComputePass(); p.setBindGroup(0, cbg);
+      p.setPipeline(pFade); p.dispatchWorkgroups(...groups(6 * DIM * DIM));
+      p.setPipeline(pMove); p.dispatchWorkgroups(...groups(COUNT));
+      p.end();
+      iter++;
+      if (opacity > P.opacityLimit) opacity *= 0.95;
+      return true;
+    },
+    gruppe1(layout1) { return g1 ??= device.createBindGroup({ layout: layout1, entries: [{ binding: 0, resource: { buffer: img } }] }); },
+    rand: () => 0,
+    status: () => `Runde ${iter}${P.stop1000 && iter >= 1000 ? ' (fertig)' : ''} · ${(COUNT / 1e6).toFixed(1)} Mio. Partikel · Feld ${VF}²`,
+    zerstoeren() { for (const b of [ubuf, field, parts, img, vortBuf]) b.destroy(); eingabe.tex.destroy(); },
+  };
+}

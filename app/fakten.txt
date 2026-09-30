@@ -1,0 +1,20 @@
+Fakten des Urhebers für kommende Module (aus den gesicherten Notizen, nur Befunde, keine Regeln)
+
+Gasriese – Gerätewerte (vom Urheber auf Hardware gewählt):
+- Smartphone: Render 1,00×, Farbe 1024², Gitter 128², 960 k Partikel, 12 Druck-Iterationen, BFECC an.
+- Desktop Partikel: Render 1,75×, Farbe 2048², Gitter 256², 960 k Partikel, 24 Iterationen.
+- Desktop Fluid: Render 2,00×, Farbe 2048², Gitter 352², 24 Iterationen.
+- High-End: Render 4,00×, Farbe 2560², Gitter 256², 4,28 Mio. Partikel, 24 Iterationen.
+- Gitter über 256² bringt kaum etwas; 2–4 Mio. Partikel am schönsten; bei Farbe 1024² ist Render 0,5 vs. 4 kaum verschieden.
+- Stürme: neue Stürme 2,0, Anstoßdauer 30 s; Hauptsturm (Roter Fleck) beim Start auf der Tagseite.
+- Strudelstärke 1,5 nur beim Fluid-Look; Relief bei Fluid 1,0.
+- Der harte Strich auf der Tagseite kam von der Dämmerung → Dämmerung standardmäßig aus.
+- „60 fps halten“ wirkte nicht (senkte nur bis 0,5×, hob nie über 1).
+
+Gesteinsplanet:
+- Referenz = v21 (eingefroren demo/planets-v21.html). v22 = Kantenfix (Quadtree), eingefroren.
+- Glitzern: v21 alpha² 0,0025, Wellen-Schwelle 1,5–4 px. #22 hat das auf 0,0064 und 3–8 px geändert (ohne Quelle).
+- Wellen glitzern auch im Bergschatten → Glanz auf Wasser mit Geländeschatten multiplizieren.
+- Naht am Vulkanfuß (Kegel endet mit Knick) → Profil am Rand weich auslaufen lassen.
+- Flüsse: Linien wie v23 richtig; „eingegraben mit Seen“ (v24) zerpflückt die Kontinente.
+- Leistung: v22-Auto-Auflösung bis 200 % frisst die GPU; v21-Auto (bis 100 %) ist Standard.

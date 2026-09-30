@@ -1,0 +1,15 @@
+/* Das einzige CSS der App. Module bringen kein eigenes CSS mit; der Editor zeichnet alle Regler gleich. */
+html, body { margin: 0; height: 100%; background: #000; color: #ddd; font: 13px system-ui, sans-serif; overflow: hidden; }
+#bild { display: block; width: 100vw; height: 100vh; touch-action: none; }
+#editor { position: fixed; top: 8px; left: 8px; width: 320px; max-height: calc(100vh - 32px); overflow: auto;
+  background: rgba(0, 0, 0, .72); padding: 8px 10px; border-radius: 6px; box-sizing: border-box; }
+#editor h2 { font-size: 12px; margin: 10px 0 4px; color: #aaa; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; }
+#editor .status { font-weight: 600; margin-bottom: 6px; }
+#editor .fehler { color: #f88; white-space: pre-wrap; }
+#editor .quelle { color: #999; font-size: 11px; margin: 2px 0 6px; }
+#editor label.regler { display: grid; grid-template-columns: 130px 1fr 48px; gap: 6px; align-items: center; margin: 2px 0; }
+#editor label.wahl { display: grid; grid-template-columns: 130px 1fr; gap: 6px; align-items: center; margin: 2px 0; }
+#editor label.haken { display: block; margin: 4px 0; }
+#editor input[type=range], #editor select { width: 100%; }
+#editor button { margin: 4px 4px 4px 0; }
+@media (max-width: 600px) { #editor { width: calc(100vw - 16px); max-height: 45vh; } }

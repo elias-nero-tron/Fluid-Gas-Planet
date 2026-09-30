@@ -12,11 +12,16 @@ Commits: Autor `elias-nero-tron <321670013+elias-nero-tron@users.noreply.github.
 4. „Rückgängig“ = alten Stand 1:1 aus Git holen, nie nachbauen.
 5. Nichts still ändern; Standard bleibt der alte Wert, bis der Urheber umschaltet.
 
-## Aufbau (modular = getrennte Dateien)
-- Aktueller Stand: `v005.1/<verfahren>/` – ein Ordner pro Verfahren, kleine Dateien, eine Datei pro Schritt.
-- Kein Ordner importiert aus einem anderen. `npm run check` prüft das und die Quellenangaben.
-- `npm run build:v005` baut jede Seite zu EINER HTML-Datei (`v005.1/dist/`) für OGame.
-- `v005/` (Einzeldatei-Stand) und alles Alte (`src/`, `demo/`) nicht ändern.
+## Aufbau (modular = getrennte Dateien) – aktueller Stand: `app/`
+- EINE Seite, EIN CSS (`app/style.css`), EINE Grafikkarten-Verbindung (`app/kern/`), EIN Editor (`app/editor/`).
+- Verfahren = Module: `app/module/<id>/<version>/` (modul.js, farbe.wgsl, shaders/*.wgsl). Neue Version = neuer
+  Ordner + eine Zeile in `app/module/register.js`; alte Versionen bleiben wählbar. Ein Fix gehört in das Modul, das er betrifft.
+- Modul liefert: info, standard (Werte), erstellen() → { regler, schritt, farbeWGSL (fn modulFarbe), gruppe1, rand, status, zerstoeren }.
+  Regler beschreibt das Modul, gezeichnet werden sie nur vom Editor. Module haben kein eigenes CSS und keine eigene Oberfläche.
+- `npm run check` prüft: Module importieren nur aus ihrem Ordner, Kern/Editor nie aus Modulen, Shader mit Quelle.
+- `npm run build:app` baut `app/dist/index.html` (eine Datei für OGame).
+- Befunde des Urhebers für kommende Module: `app/fakten.txt`.
+- `v005/`, `v005.1/` und alles Alte (`src/`, `demo/`) nicht ändern (Archiv/Vergleich).
 
 ## Testen
 Headless: Playwright mit `executablePath: /opt/pw-browsers/chromium`, `--use-webgpu-adapter=swiftshader`,
