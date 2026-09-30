@@ -2,3 +2,4 @@ node_modules/
 dist/
 !app/dist/
 !v005.1/dist/
+app/pruefung/referenz/*.ist.png

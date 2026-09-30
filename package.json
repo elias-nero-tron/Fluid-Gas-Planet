@@ -10,10 +10,13 @@
     "typecheck": "tsc --noEmit",
     "check": "node v005.1/check.mjs && node app/check.mjs",
     "build:v005": "for s in gaseous-giganticus partikel-jasper-r; do SEITE=$s vite build --config v005.1/vite.config.mjs; done",
-    "build:app": "vite build --config app/vite.config.mjs"
+    "build:app": "vite build --config app/vite.config.mjs",
+    "sichttest": "node app/pruefung/sichttest.mjs",
+    "pruefen": "npm run check && npm run build:app && npm run sichttest"
   },
   "devDependencies": {
     "@webgpu/types": "^0.1.74",
+    "playwright": "^1.63.0",
     "typescript": "^5.9.3",
     "vite": "^7.3.6",
     "vite-plugin-singlefile": "^2.3.3"
