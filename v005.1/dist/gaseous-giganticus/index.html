@@ -1,0 +1,327 @@
+<!doctype html>
+<!--
+  v0.05 · Verfahren von „Gaseous Giganticus“ (Stephen M. Cameron) – eigenständige Seite,
+  teilt keine Zeile mit dem restlichen Projekt.
+
+  QUELLE: https://github.com/smcameron/gaseous-giganticus (gaseous-giganticus.c, Handbuch gaseous-giganticus.1).
+  Das Original ist GPL-2.0. Hier ist KEIN Code übernommen: Das Verfahren wurde aus dem Original gelesen, als
+  Schrittliste aufgeschrieben und danach neu als WebGPU-Shader geschrieben. Verweise [G1]…[G12] = Schrittliste:
+
+  [G1]  Eingabe ist ein Bild (Farbstreifen). Jedes Partikel bekommt EINMAL beim Start die Farbe des Bildpunkts
+        unter sich, Sinus-Abbildung: y = (Breite + 90°)/180°, x = 0,5 + 0,5·cos(Länge)·cos²(Breite).
+  [G2]  8 Mio. Partikel, zufällig auf der Kugel, sie sterben nie.
+  [G3]  Geschwindigkeitsfeld auf einem Würfel (6 Flächen), EINMAL berechnet, danach fest:
+        v = ov·Rauschmaßstab (2,6); Gradient eines 4D-fBm-Rauschens (4 Oktaven, Abfall 0,5) per Differenz
+        mit Schritt Rauschmaßstab·0,05/1024.
+  [G4]  „curl2“: Gradient auf die Kugel projizieren (normalize(v+g)·|v| − v) und um 90° um die Flächennormale drehen,
+        mal Geschwindigkeitsfaktor 1200.
+  [G5]  Gegenläufige Bänder: Tempo = ((1−a)+a·cos φ)·cos(φ·Bänder)^Potenz·Bandfaktor, a = Pol-Dämpfung 0,5,
+        Bänder 6, Bandfaktor 2,9, Potenz 1; Richtung Ost (z, 0, −x).
+  [G6]  Künstliche Wirbel (Standard 0): Drehung um den Wirbelmittelpunkt um ±2,5°·sin(π·d/r), mal 1024;
+        Platzierung nur wo |Bandtempo| klein ist (Schwelle 0,2), Drehsinn nach dem Bandtempo-Gefälle.
+  [G7]  Partikel bewegen: pos += Feld an der Position (nächster Feldpunkt), auf die Kugel zurück normieren.
+        Maßstab: Kugelradius = 1024 Feldpunkte (Standard-Feldgröße 2048 / 2).
+  [G8]  Ausgabe: 6 Würfelflächen à 1024², 8 Bit je Kanal, Start schwarz.
+  [G9]  Jede Runde: ganze Textur mit der dunkelsten Farbe des Eingabebilds überblenden, Anteil 0,01.
+  [G10] Danach jedes Partikel an seiner Position VOR der Bewegung einmischen: neu = Farbe·Deckkraft + alt·(1−Deckkraft).
+  [G11] Deckkraft startet bei 1,0 und wird jede Runde ×0,95, bis 0,2 erreicht ist.
+  [G12] 1000 Runden, dann fertig (das Original ist ein Offline-Programm und speichert die Textur).
+
+  ÜBERSETZUNG (nötig für WebGPU / Browser, kein neuer Inhalt):
+  [T1] Rauschfunktion: Das Original nutzt OpenSimplex-4D. Hier: 4D-Simplex-Rauschen nach Stefan Gustavson /
+       Ashima Arts (webgl-noise, MIT) – gleiche Rauschfamilie, andere Einzelwerte.
+  [T2] Feld 1024² je Fläche statt 2048² (Grafikspeicher; das Handbuch nennt kleinere Felder ausdrücklich als
+       erlaubte, gröbere Vorschau). Per ?vf= einstellbar.
+  [T3] Partikel malen parallel auf der Grafikkarte; treffen zwei dasselbe Pixel, ist die Reihenfolge zufällig
+       (im Original feste Reihenfolge je Thread).
+  [T4] Die Drehrichtung der 90°-Drehung in [G4] ist nach der Rechte-Hand-Regel gewählt (Quaternion-Bibliothek
+       des Originals nicht mitgelesen); die Gegenrichtung spiegelt nur alle Rauschwirbel.
+  [T5] Anzeige: Das Original zeigt nichts an (Bilder kommen in „mesh_viewer“ aus Space Nerds In Space mit Licht und
+       Atmosphäre). Hier: unbeleuchtete Kugel mit der Textur, Drehen mit der Maus. Deshalb wirkt es flacher als das
+       Beispielbild im Repo.
+  [T6] Standard-Eingabebild: die mittlere Spalte des Beispielbilds aus dem Repo, beim Laden direkt von GitHub geholt
+       (nicht im Projekt gespeichert), Nord oben. Eigenes Bild per Knopf.
+  [T7] Die Zufallszahlen sind andere als im Original (andere Wirbelorte, andere Partikelorte).
+  [T9] Bänder waagerecht (um die Nord-Süd-Achse). Das Programm hat senkrechte Bänder als Voreinstellung, sein
+       Automatik-Modus und das Beispielbild haben waagerechte.
+  [T8] ?test: zeichnet in eine Textur statt auf den Bildschirm (nur zum Prüfen im Software-Renderer).
+-->
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>v0.05 Gaseous Giganticus (Verfahren)</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #000; color: #ddd; font: 13px system-ui, sans-serif; overflow: hidden; }
+  canvas#c { display: block; width: 100vw; height: 100vh; touch-action: none; }
+  #ui { position: fixed; top: 8px; left: 8px; background: rgba(0,0,0,.72); padding: 8px 10px; border-radius: 6px; max-width: 320px; max-height: calc(100vh - 32px); overflow: auto; }
+  #ui label.r { display: grid; grid-template-columns: 130px 1fr 48px; gap: 6px; align-items: center; margin: 2px 0; }
+  #ui input[type=range] { width: 100%; }
+  #st { font-weight: 600; margin-bottom: 4px; }
+  #err { color: #f88; white-space: pre-wrap; }
+  button { margin: 4px 4px 4px 0; }
+  small { color: #999; display: block; margin-top: 4px; }
+</style>
+  <script type="module" crossorigin>(function(){const t=document.createElement("link").relList;if(t&&t.supports&&t.supports("modulepreload"))return;for(const n of document.querySelectorAll('link[rel="modulepreload"]'))c(n);new MutationObserver(n=>{for(const r of n)if(r.type==="childList")for(const a of r.addedNodes)a.tagName==="LINK"&&a.rel==="modulepreload"&&c(a)}).observe(document,{childList:!0,subtree:!0});function s(n){const r={};return n.integrity&&(r.integrity=n.integrity),n.referrerPolicy&&(r.referrerPolicy=n.referrerPolicy),n.crossOrigin==="use-credentials"?r.credentials="include":n.crossOrigin==="anonymous"?r.credentials="omit":r.credentials="same-origin",r}function c(n){if(n.ep)return;n.ep=!0;const r=s(n);fetch(n.href,r)}})();const ae=`const PI = 3.14159265359;
+struct U {
+  dim: f32, vf: f32, count: f32, opacity: f32,
+  ns: f32, vfac: f32, bands: f32, bfac: f32,
+  bpow: f32, patt: f32, nvort: f32, woff: f32,
+  octaves: f32, falloff: f32, fade: f32, seed: f32,
+  dark: vec4f,
+  imgW: f32, imgH: f32, p2: f32, p3: f32,
+};
+@group(0) @binding(0) var<uniform> u: U;
+@group(0) @binding(1) var<storage, read_write> field: array<vec2u>;   // Geschwindigkeit, halbe Genauigkeit
+@group(0) @binding(2) var<storage, read_write> parts: array<vec4f>;   // xyz Ort, w Farbe (rgba8)
+@group(0) @binding(3) var<storage, read_write> img: array<u32>;       // [G8] 6·1024², rgba8
+@group(0) @binding(4) var<storage, read> vort: array<vec4f>;          // xyz Mitte, w Radius; Drehsinn im Vorzeichen des Radius
+@group(0) @binding(5) var src: texture_2d<f32>;                       // Eingabebild [G1]
+
+`,oe=`// [G3][G8] Würfelabbildung mit derselben Flächenlage wie fij_to_xyz im Original (Gaseous Giganticus).
+// Würfelfläche/Pixel -> Richtung, gleiche Flächenlage wie im Original
+fn fijToXyz(f: u32, i: f32, j: f32, d: f32) -> vec3f {
+  let a = (i - d * 0.5) / d; let b = -(j - d * 0.5) / d; let c = (j - d * 0.5) / d;
+  var v: vec3f;
+  switch f {
+    case 0u: { v = vec3f(a, b, 0.5); }
+    case 1u: { v = vec3f(0.5, b, -a); }
+    case 2u: { v = vec3f(-a, b, -0.5); }
+    case 3u: { v = vec3f(-0.5, b, a); }
+    case 4u: { v = vec3f(a, 0.5, c); }
+    default: { v = vec3f(a, -0.5, -c); }
+  }
+  return normalize(v);
+}
+// Umkehrung: Richtung -> Index in einem Würfelfeld der Kantenlänge d
+fn xyzToIdx(p: vec3f, d: f32) -> u32 {
+  let ap = abs(p);
+  var f = 0u; var a = 0.0; var jj = 0.0;
+  if (ap.z >= ap.x && ap.z >= ap.y) {
+    let s = 0.5 / ap.z;
+    if (p.z > 0.0) { f = 0u; a = p.x * s; } else { f = 2u; a = -p.x * s; }
+    jj = -p.y * s;
+  } else if (ap.x >= ap.y) {
+    let s = 0.5 / ap.x;
+    if (p.x > 0.0) { f = 1u; a = -p.z * s; } else { f = 3u; a = p.z * s; }
+    jj = -p.y * s;
+  } else {
+    let s = 0.5 / ap.y;
+    a = p.x * s;
+    if (p.y > 0.0) { f = 4u; jj = p.z * s; } else { f = 5u; jj = -p.z * s; }
+  }
+  let i = u32(clamp(floor(a * d + d * 0.5), 0.0, d - 1.0));
+  let j = u32(clamp(floor(jj * d + d * 0.5), 0.0, d - 1.0));
+  return (f * u32(d) + j) * u32(d) + i;
+}
+
+`,ce=`// [T1] 4D-Simplex-Rauschen (Stefan Gustavson / Ashima Arts, webgl-noise, MIT-Lizenz)
+fn mod289v(x: vec4f) -> vec4f { return x - floor(x * (1.0 / 289.0)) * 289.0; }
+fn mod289s(x: f32) -> f32 { return x - floor(x * (1.0 / 289.0)) * 289.0; }
+fn permv(x: vec4f) -> vec4f { return mod289v(((x * 34.0) + 10.0) * x); }
+fn perms(x: f32) -> f32 { return mod289s(((x * 34.0) + 10.0) * x); }
+fn tis(r: vec4f) -> vec4f { return 1.79284291400159 - 0.85373472095314 * r; }
+fn grad4(j: f32, ip: vec4f) -> vec4f {
+  var p = vec4f(floor(fract(vec3f(j) * ip.xyz) * 7.0) * ip.z - 1.0, 0.0);
+  p.w = 1.5 - dot(abs(p.xyz), vec3f(1.0));
+  let s = select(vec4f(0.0), vec4f(1.0), p < vec4f(0.0));
+  p = vec4f(p.xyz + (s.xyz * 2.0 - 1.0) * s.www, p.w);
+  return p;
+}
+fn snoise(v: vec4f) -> f32 {
+  let C = vec4f(0.138196601125011, 0.276393202250021, 0.414589803375032, -0.447213595499958);
+  var i = floor(v + dot(v, vec4f(0.309016994374947451)));
+  let x0 = v - i + dot(i, C.xxxx);
+  var i0 = vec4f(0.0);
+  let isX = step(x0.yzw, x0.xxx);
+  let isYZ = step(x0.zww, x0.yyz);
+  i0.x = isX.x + isX.y + isX.z;
+  i0 = vec4f(i0.x, 1.0 - isX);
+  i0.y += isYZ.x + isYZ.y;
+  i0 = vec4f(i0.xy, i0.zw + 1.0 - isYZ.xy);
+  i0.z += isYZ.z;
+  i0.w += 1.0 - isYZ.z;
+  let i3 = clamp(i0, vec4f(0.0), vec4f(1.0));
+  let i2 = clamp(i0 - 1.0, vec4f(0.0), vec4f(1.0));
+  let i1 = clamp(i0 - 2.0, vec4f(0.0), vec4f(1.0));
+  let x1 = x0 - i1 + C.xxxx;
+  let x2 = x0 - i2 + C.yyyy;
+  let x3 = x0 - i3 + C.zzzz;
+  let x4 = x0 + C.wwww;
+  i = mod289v(i);
+  let j0 = perms(perms(perms(perms(i.w) + i.z) + i.y) + i.x);
+  let j1 = permv(permv(permv(permv(i.w + vec4f(i1.w, i2.w, i3.w, 1.0)) + i.z + vec4f(i1.z, i2.z, i3.z, 1.0))
+           + i.y + vec4f(i1.y, i2.y, i3.y, 1.0)) + i.x + vec4f(i1.x, i2.x, i3.x, 1.0));
+  let ip = vec4f(1.0 / 294.0, 1.0 / 49.0, 1.0 / 7.0, 0.0);
+  var p0 = grad4(j0, ip); var p1 = grad4(j1.x, ip); var p2 = grad4(j1.y, ip);
+  var p3 = grad4(j1.z, ip); var p4 = grad4(j1.w, ip);
+  let nrm = tis(vec4f(dot(p0, p0), dot(p1, p1), dot(p2, p2), dot(p3, p3)));
+  p0 *= nrm.x; p1 *= nrm.y; p2 *= nrm.z; p3 *= nrm.w;
+  p4 *= tis(vec4f(dot(p4, p4))).x;
+  var m0 = max(0.6 - vec3f(dot(x0, x0), dot(x1, x1), dot(x2, x2)), vec3f(0.0));
+  var m1 = max(0.6 - vec2f(dot(x3, x3), dot(x4, x4)), vec2f(0.0));
+  m0 = m0 * m0; m1 = m1 * m1;
+  return 49.0 * (dot(m0 * m0, vec3f(dot(p0, x0), dot(p1, x1), dot(p2, x2))) + dot(m1 * m1, vec2f(dot(p3, x3), dot(p4, x4))));
+}
+`,se=`// [G3] fBm: Oktave k mit Frequenz 2^k und Gewicht Abfall^k
+fn fbm(p: vec4f) -> f32 {
+  var r = 0.0; var a = 1.0; var f = 1.0;
+  for (var k = 0; k < i32(u.octaves); k++) { r += a * snoise(p * f); a *= u.falloff; f *= 2.0; }
+  return r;
+}
+fn bandSpeed(lat: f32) -> f32 {   // [G5]
+  let c = cos(lat * u.bands);
+  let pw = sign(c) * pow(abs(c), u.bpow);   // Potenz ist ungerade ganze Zahl
+  return ((1.0 - u.patt) + u.patt * cos(lat)) * pw * u.bfac;
+}
+fn rotAbout(v: vec3f, k: vec3f, ang: f32) -> vec3f {  // Drehung von v um Achse k (Rodrigues)
+  return v * cos(ang) + cross(k, v) * sin(ang) + k * dot(k, v) * (1.0 - cos(ang));
+}
+
+@compute @workgroup_size(8, 8, 1)
+fn makeField(@builtin(global_invocation_id) g: vec3u) {
+  let d = u.vf;
+  if (f32(g.x) >= d || f32(g.y) >= d) { return; }
+  let ov = fijToXyz(g.z, f32(g.x), f32(g.y), d);
+  let v = ov * u.ns;
+  let w = u.woff * u.ns;
+  let h = u.ns * (0.05 / 1024.0);
+  // [G3] Gradient per Differenz (ohne Division, wie im Original)
+  let gr = vec3f(fbm(vec4f(v + vec3f(h, 0, 0), w)) - fbm(vec4f(v - vec3f(h, 0, 0), w)),
+                 fbm(vec4f(v + vec3f(0, h, 0), w)) - fbm(vec4f(v - vec3f(0, h, 0), w)),
+                 fbm(vec4f(v + vec3f(0, 0, h), w)) - fbm(vec4f(v - vec3f(0, 0, h), w)));
+  // [G4] curl2
+  let proj = normalize(v + gr) * u.ns - v;
+  var vel = rotAbout(proj, ov, PI * 0.5) * u.vfac;
+  // [G5] Bänder
+  let lat = asin(clamp(ov.y, -1.0, 1.0));
+  let bv = vec3f(ov.z, 0.0, -ov.x);
+  if (length(bv) > 1e-20) { vel += normalize(bv) * bandSpeed(lat); }
+  // [G6] Wirbel
+  for (var k = 0u; k < u32(u.nvort); k++) {
+    let c = vort[k].xyz; let r = abs(vort[k].w); let av = select(-2.5, 2.5, vort[k].w > 0.0);
+    let dist = length(c - ov);
+    if (dist > r) { continue; }
+    let ang = (av * PI / 180.0) * sin(PI * dist / r);
+    let rv = rotAbout(ov, c, ang);
+    vel += 1024.0 * (rv - ov);
+  }
+  // [G7] in Einheiten des Kugelradius (Radius = 1024 Feldpunkte)
+  vel = vel / 1024.0;
+  let idx = (g.z * u32(d) + g.y) * u32(d) + g.x;
+  field[idx] = vec2u(pack2x16float(vel.xy), pack2x16float(vec2f(vel.z, 0.0)));
+}
+
+`,fe=`fn pcg(v: u32) -> u32 {
+  let s = v * 747796405u + 2891336453u;
+  let w = ((s >> ((s >> 28u) + 4u)) ^ s) * 277803737u;
+  return (w >> 22u) ^ w;
+}
+fn rnd(a: u32) -> f32 { return f32(pcg(a)) / 4294967295.0; }
+
+// [G1][G2] Partikel zufällig auf die Kugel, Farbe einmal aus dem Eingabebild
+@compute @workgroup_size(256)
+fn initParticles(@builtin(global_invocation_id) g: vec3u) {
+  let i = g.x + g.y * 65535u * 256u;
+  if (f32(i) >= u.count) { return; }
+  let sd = i * 2u + u32(u.seed) * 7919u;
+  let z = 1.0 - 2.0 * rnd(sd);
+  let ph = 6.28318530718 * rnd(sd + 1u);
+  let s = sqrt(max(0.0, 1.0 - z * z));
+  let p = vec3f(s * cos(ph), z, s * sin(ph));
+  let lat = asin(clamp(p.y, -1.0, 1.0));
+  let lon = atan2(p.z, p.x);
+  let yo = (lat + 0.5 * PI) / PI;
+  let cl = abs(cos(lat));
+  let xo = cos(lon) * cl * 0.5 * cl + 0.5;
+  let px = i32(clamp(xo * u.imgW, 0.0, u.imgW - 1.0));
+  let py = i32(clamp(yo * u.imgH, 0.0, u.imgH - 1.0));
+  let c = textureLoad(src, vec2i(px, py), 0);
+  parts[i] = vec4f(p, bitcast<f32>(pack4x8unorm(vec4f(c.rgb, 1.0))));
+}
+
+// [G7][G10] Pixel VOR der Bewegung merken, bewegen, dann an der gemerkten Stelle malen
+@compute @workgroup_size(256)
+fn moveAndPaint(@builtin(global_invocation_id) g: vec3u) {
+  let i = g.x + g.y * 65535u * 256u;
+  if (f32(i) >= u.count) { return; }
+  var pt = parts[i];
+  let pix = xyzToIdx(pt.xyz, u.dim);
+  let fv = field[xyzToIdx(pt.xyz, u.vf)];
+  let vel = vec3f(unpack2x16float(fv.x), unpack2x16float(fv.y).x);
+  parts[i] = vec4f(normalize(pt.xyz + vel), pt.w);
+  let c = unpack4x8unorm(bitcast<u32>(pt.w)).rgb;
+  let oc = unpack4x8unorm(img[pix]).rgb;
+  img[pix] = pack4x8unorm(vec4f(to8(c * u.opacity + oc * (1.0 - u.opacity)), 1.0));
+}
+`,ue=`@compute @workgroup_size(256)
+fn clearImg(@builtin(global_invocation_id) g: vec3u) {
+  let i = g.x + g.y * 65535u * 256u;
+  if (i < u32(6.0 * u.dim * u.dim)) { img[i] = 0u; }   // [G8] Start schwarz
+}
+
+fn to8(c: vec3f) -> vec3f { return floor(c * 255.0) / 255.0; }   // 8 Bit, abgeschnitten wie im Original
+
+// [G9] Überblenden mit der dunkelsten Farbe
+@compute @workgroup_size(256)
+fn fadeImg(@builtin(global_invocation_id) g: vec3u) {
+  let i = g.x + g.y * 65535u * 256u;
+  if (i >= u32(6.0 * u.dim * u.dim)) { return; }
+  let oc = unpack4x8unorm(img[i]).rgb;
+  let nc = u.dark.rgb * u.fade + oc * (1.0 - u.fade);
+  img[i] = pack4x8unorm(vec4f(to8(nc), 1.0));
+}
+
+`,le=`struct R { rot0: vec4f, rot1: vec4f, rot2: vec4f, aspect: f32, dim: f32, p2: f32, p3: f32 };
+@group(0) @binding(0) var<uniform> r: R;
+@group(0) @binding(1) var<storage, read> img: array<u32>;
+struct VO { @builtin(position) pos: vec4f, @location(0) ndc: vec2f };
+@vertex fn vs(@builtin(vertex_index) k: u32) -> VO {
+  let p = vec2f(f32((k << 1u) & 2u), f32(k & 2u)) * 2.0 - 1.0;
+  return VO(vec4f(p, 0.0, 1.0), p);
+}
+fn xyzToIdx(p: vec3f, d: f32) -> u32 {
+  let ap = abs(p);
+  var f = 0u; var a = 0.0; var jj = 0.0;
+  if (ap.z >= ap.x && ap.z >= ap.y) {
+    let s = 0.5 / ap.z;
+    if (p.z > 0.0) { f = 0u; a = p.x * s; } else { f = 2u; a = -p.x * s; }
+    jj = -p.y * s;
+  } else if (ap.x >= ap.y) {
+    let s = 0.5 / ap.x;
+    if (p.x > 0.0) { f = 1u; a = -p.z * s; } else { f = 3u; a = p.z * s; }
+    jj = -p.y * s;
+  } else {
+    let s = 0.5 / ap.y;
+    a = p.x * s;
+    if (p.y > 0.0) { f = 4u; jj = p.z * s; } else { f = 5u; jj = -p.z * s; }
+  }
+  let i = u32(clamp(floor(a * d + d * 0.5), 0.0, d - 1.0));
+  let j = u32(clamp(floor(jj * d + d * 0.5), 0.0, d - 1.0));
+  return (f * u32(d) + j) * u32(d) + i;
+}
+@fragment fn fs(v: VO) -> @location(0) vec4f {   // [T5] unbeleuchtete Kugel
+  let o = vec3f(0.0, 0.0, 3.0);
+  let d = normalize(vec3f(v.ndc.x * r.aspect * 0.4, v.ndc.y * 0.4, -1.0));
+  let tca = -dot(o, d);
+  let d2 = dot(o, o) - tca * tca;
+  if (d2 >= 1.0) { return vec4f(0.0, 0.0, 0.0, 1.0); }
+  let hit = o + d * (tca - sqrt(1.0 - d2));
+  let n = normalize(vec3f(dot(r.rot0.xyz, hit), dot(r.rot1.xyz, hit), dot(r.rot2.xyz, hit)));
+  return vec4f(unpack4x8unorm(img[xyzToIdx(n, r.dim)]).rgb, 1.0);
+}
+`,B=e=>{document.getElementById("err").textContent=e};if(!navigator.gpu)throw B("Kein WebGPU in diesem Browser."),0;const G=await navigator.gpu.requestAdapter();if(!G)throw B("Kein WebGPU-Adapter."),0;const i=await G.requestDevice({requiredLimits:{maxStorageBufferBindingSize:G.limits.maxStorageBufferBindingSize,maxBufferSize:G.limits.maxBufferSize}});i.lost.then(e=>B("Grafikgerät verloren: "+e.message));const P=new URLSearchParams(location.search),p=P.has("test"),v=1024,h=Number(P.get("vf"))||1024,k=Math.min(Number(P.get("n"))||8e6,Math.floor(i.limits.maxStorageBufferBindingSize/16)),o={noiseScale:2.6,velocityFactor:1200,bands:6,bandFactor:2.9,bandPower:1,poleAtt:.5,vortices:0,vortexSize:.04,vortexVar:.02,vortexThresh:.2,fade:.01,opacityLimit:.2,wOffset:0,octaves:4,falloff:.5};for(const e in o)P.has(e)&&(o[e]=Number(P.get(e)));const de=[ae,oe,ce,se,fe,ue].join(""),pe=le,X=i.createShaderModule({code:de}),E=i.createShaderModule({code:pe});for(const e of[X,E])e.getCompilationInfo().then(t=>{const s=t.messages.filter(c=>c.type==="error");s.length&&B(s.map(c=>`Zeile ${c.lineNum}: ${c.message}`).join(`
+`))});const S=GPUBufferUsage.STORAGE,H=i.createBuffer({size:128,usage:GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST}),ve=i.createBuffer({size:6*h*h*8,usage:S}),ge=i.createBuffer({size:k*16,usage:S}),Z=i.createBuffer({size:6*v*v*4,usage:S}),K=i.createBuffer({size:3200,usage:S|GPUBufferUsage.COPY_DST});let I=null,x=1,b=1,J=[0,0,0];async function F(e){const t=await createImageBitmap(e);x=t.width,b=t.height,I?.destroy(),I=i.createTexture({size:[x,b],format:"rgba8unorm",usage:GPUTextureUsage.TEXTURE_BINDING|GPUTextureUsage.COPY_DST|GPUTextureUsage.RENDER_ATTACHMENT}),i.queue.copyExternalImageToTexture({source:t},{texture:I},[x,b]);const c=new OffscreenCanvas(x,b).getContext("2d");c.drawImage(t,0,0);const n=c.getImageData(0,0,x,b).data;let r=1e9;for(let a=0;a<n.length;a+=4){const u=n[a]+n[a+1]+n[a+2];u<r&&(r=u,J=[n[a]/255,n[a+1]/255,n[a+2]/255])}}async function me(){const e=await fetch("https://raw.githubusercontent.com/smcameron/gaseous-giganticus/master/sample-gg-output-1.jpg"),t=await createImageBitmap(await e.blob()),s=40,c=910,n=Math.round(t.width/2),r=new OffscreenCanvas(8,c),a=r.getContext("2d");return a.translate(0,c),a.scale(1,-1),a.drawImage(t,n,s,1,c,0,0,8,c),r.transferToImageBitmap()}function C(e){const t=Math.cos(e*o.bands);return(1-o.poleAtt+o.poleAtt*Math.cos(e))*Math.sign(t)*Math.abs(t)**o.bandPower*o.bandFactor}function xe(){const e=new Float32Array(800),t=Math.min(200,Math.round(o.vortices)),s=()=>(2*Math.random()-1)*(2*Math.random()-1);for(let c=0;c<t;c++){let n,r,a,u=0;do{const d=1-2*Math.random(),g=2*Math.PI*Math.random(),l=Math.sqrt(1-d*d);n=[l*Math.cos(g),d,l*Math.sin(g)],r=o.vortexSize+s()*o.vortexVar,a=Math.asin(n[1])}while(o.bands>0&&Math.abs(C(a))>o.vortexThresh*o.bandFactor&&Math.abs(a)>15*Math.PI/180&&++u<1e4);const w=o.bands>0?C(a+.05)<C(a-.05):Math.random()>.5;e.set([...n,w?Math.abs(r):-Math.abs(r)],c*4)}return i.queue.writeBuffer(K,0,e),t}const m=GPUShaderStage.COMPUTE,Q=i.createBindGroupLayout({entries:[{binding:0,visibility:m,buffer:{type:"uniform"}},{binding:1,visibility:m,buffer:{type:"storage"}},{binding:2,visibility:m,buffer:{type:"storage"}},{binding:3,visibility:m,buffer:{type:"storage"}},{binding:4,visibility:m,buffer:{type:"read-only-storage"}},{binding:5,visibility:m,texture:{sampleType:"float"}}]}),be=i.createPipelineLayout({bindGroupLayouts:[Q]}),M=e=>i.createComputePipeline({layout:be,compute:{module:X,entryPoint:e}}),ye=M("makeField"),he=M("initParticles"),we=M("clearImg"),ze=M("fadeImg"),Pe=M("moveAndPaint");let R=null;const f=document.getElementById("c"),_=p?null:f.getContext("webgpu"),W=p?"rgba8unorm":navigator.gpu.getPreferredCanvasFormat();_&&_.configure({device:i,format:W,alphaMode:"opaque"});let N=null;p&&(N=i.createTexture({size:[640,480],format:W,usage:GPUTextureUsage.RENDER_ATTACHMENT|GPUTextureUsage.COPY_SRC}));const ee=i.createBuffer({size:64,usage:GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST}),te=i.createRenderPipeline({layout:"auto",vertex:{module:E,entryPoint:"vs"},fragment:{module:E,entryPoint:"fs",targets:[{format:W}]},primitive:{topology:"triangle-list"}}),ke=i.createBindGroup({layout:te.getBindGroupLayout(0),entries:[{binding:0,resource:{buffer:ee}},{binding:1,resource:{buffer:Z}}]});window.grab=async()=>{const e=i.createBuffer({size:1228800,usage:GPUBufferUsage.COPY_DST|GPUBufferUsage.MAP_READ}),t=i.createCommandEncoder();t.copyTextureToBuffer({texture:N},{buffer:e,bytesPerRow:640*4},[640,480]),i.queue.submit([t.finish()]),await e.mapAsync(GPUMapMode.READ);const s=document.createElement("canvas");return s.width=640,s.height=480,s.getContext("2d").putImageData(new ImageData(new Uint8ClampedArray(e.getMappedRange().slice(0)),640,480),0,0),s.toDataURL()};const V=new Float32Array(32);let z=0,T=1,ne=0,re=1;function ie(){V.set([v,h,k,T,o.noiseScale,o.velocityFactor,o.bands,o.bandFactor,o.bandPower,o.poleAtt,ne,o.wOffset,o.octaves,o.falloff,o.fade,re,...J,1,x,b,0,0]),i.queue.writeBuffer(H,0,V)}const j=e=>{const t=Math.ceil(e/256);return[Math.min(t,65535),Math.ceil(t/65535)]};function L(){ne=xe(),z=0,T=1,re++,R=i.createBindGroup({layout:Q,entries:[{binding:0,resource:{buffer:H}},{binding:1,resource:{buffer:ve}},{binding:2,resource:{buffer:ge}},{binding:3,resource:{buffer:Z}},{binding:4,resource:{buffer:K}},{binding:5,resource:I.createView()}]}),ie();const e=i.createCommandEncoder(),t=e.beginComputePass();t.setBindGroup(0,R),t.setPipeline(ye),t.dispatchWorkgroups(Math.ceil(h/8),Math.ceil(h/8),6),t.setPipeline(he),t.dispatchWorkgroups(...j(k)),t.setPipeline(we),t.dispatchWorkgroups(...j(6*v*v)),t.end(),i.queue.submit([e.finish()])}const Be=document.getElementById("ctl");for(const[e,t,s,c,n]of[["noiseScale","Rauschmaßstab",.5,8,.1],["velocityFactor","Geschw.-Faktor",0,4e3,10],["bands","Bänder",0,20,.5],["bandFactor","Band-Faktor",0,10,.1],["bandPower","Band-Potenz (ungerade)",1,9,2],["poleAtt","Pol-Dämpfung",0,1,.01],["vortices","Wirbel",0,200,1],["vortexSize","Wirbelgröße",.005,.2,.005],["vortexVar","Wirbelgröße ±",0,.1,.005],["vortexThresh","Wirbel-Schwelle",.05,1,.01],["fade","Verblassen",0,.1,.001],["opacityLimit","Deckkraft min.",0,1,.01],["wOffset","w-Versatz",0,300,1],["octaves","Oktaven",1,7,1],["falloff","fBm-Abfall",.1,.9,.05]]){const r=document.createElement("label");r.className="r",r.innerHTML=`<span>${t}</span><input type="range" min="${s}" max="${c}" step="${n}" value="${o[e]}"><output>${o[e]}</output>`;const[a,u]=[r.querySelector("input"),r.querySelector("output")];a.oninput=()=>{o[e]=Number(a.value),u.textContent=a.value},Be.appendChild(r)}document.getElementById("restart").onclick=L;document.getElementById("pick").onclick=()=>document.getElementById("file").click();document.getElementById("file").onchange=async e=>{const t=e.target.files[0];t&&(await F(t),L())};let D=0,U=.15,y=null;f.onpointerdown=e=>{y=[e.clientX,e.clientY],f.setPointerCapture(e.pointerId)};f.onpointerup=()=>{y=null};f.onpointermove=e=>{y&&(D+=(e.clientX-y[0])*.005,U=Math.max(-1.5,Math.min(1.5,U+(e.clientY-y[1])*.005)),y=[e.clientX,e.clientY])};try{await F(await me())}catch(e){B("Beispielbild nicht ladbar ("+e.message+"). Bitte „Eigenes Bild“ wählen."),await F(new ImageData(new Uint8ClampedArray([128,100,80,255]),1,1))}L();const Y=new Float32Array(16);let A=performance.now(),O=0,$=0;function q(){const e=Math.min(devicePixelRatio,2),t=p?640:Math.round(f.clientWidth*e),s=p?480:Math.round(f.clientHeight*e);!p&&(f.width!==t||f.height!==s)&&(f.width=t,f.height=s);const c=i.createCommandEncoder(),n=!(document.getElementById("stop").checked&&z>=1e3);if(n){ie();const l=c.beginComputePass();l.setBindGroup(0,R),l.setPipeline(ze),l.dispatchWorkgroups(...j(6*v*v)),l.setPipeline(Pe),l.dispatchWorkgroups(...j(k)),l.end(),z++,T>o.opacityLimit&&(T*=.95)}const r=Math.cos(D),a=Math.sin(D),u=Math.cos(U),w=Math.sin(U);Y.set([r,a*w,-a*u,0,0,u,w,0,a,-r*w,r*u,0,t/s,v,0,0]),i.queue.writeBuffer(ee,0,Y);const d=c.beginRenderPass({colorAttachments:[{view:(p?N:_.getCurrentTexture()).createView(),loadOp:"clear",storeOp:"store",clearValue:[0,0,0,1]}]});d.setPipeline(te),d.setBindGroup(0,ke),d.draw(3),d.end(),i.queue.submit([c.finish()]),O++;const g=performance.now();g-A>500&&($=Math.round(O*1e3/(g-A)),A=g,O=0),window.iter_=z,document.getElementById("st").textContent=`Runde ${z}${n?"":" (fertig)"} · ${$} fps · ${(k/1e6).toFixed(1)} Mio. Partikel · Feld ${h}²`,p?i.queue.onSubmittedWorkDone().then(()=>requestAnimationFrame(q)):requestAnimationFrame(q)}requestAnimationFrame(q);</script>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="ui">
+  <div id="st">…</div>
+  <button id="restart">Neu starten</button><label><input type="file" id="file" accept="image/*" hidden><button id="pick">Eigenes Bild</button></label>
+  <label><input type="checkbox" id="stop" checked> nach 1000 Runden anhalten (wie Original)</label>
+  <div id="ctl"></div>
+  <small>Alle Standardwerte sind die des Originals. Regler ändern → „Neu starten“.</small>
+  <div id="err"></div>
+</div>
+</body>
+</html>

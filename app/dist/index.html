@@ -1,0 +1,454 @@
+<!doctype html>
+<!-- Eine Seite, ein CSS, eine Grafikkarten-Verbindung, ein Editor. Verfahren kommen als Module (module/). -->
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Planeten-Editor</title>
+  <script type="module" crossorigin>(function(){const n=document.createElement("link").relList;if(n&&n.supports&&n.supports("modulepreload"))return;for(const e of document.querySelectorAll('link[rel="modulepreload"]'))r(e);new MutationObserver(e=>{for(const a of e)if(a.type==="childList")for(const s of a.addedNodes)s.tagName==="LINK"&&s.rel==="modulepreload"&&r(s)}).observe(document,{childList:!0,subtree:!0});function i(e){const a={};return e.integrity&&(a.integrity=e.integrity),e.referrerPolicy&&(a.referrerPolicy=e.referrerPolicy),e.crossOrigin==="use-credentials"?a.credentials="include":e.crossOrigin==="anonymous"?a.credentials="omit":a.credentials="same-origin",a}function r(e){if(e.ep)return;e.ep=!0;const a=i(e);fetch(e.href,a)}})();async function ie(t,n){if(!navigator.gpu)throw new Error("Kein WebGPU in diesem Browser.");const i=await navigator.gpu.requestAdapter();if(!i)throw new Error("Kein WebGPU-Adapter.");const r=await i.requestDevice({requiredLimits:{maxStorageBufferBindingSize:i.limits.maxStorageBufferBindingSize,maxBufferSize:i.limits.maxBufferSize}}),e=n?"rgba8unorm":navigator.gpu.getPreferredCanvasFormat(),a=n?null:t.getContext("webgpu");a&&a.configure({device:r,format:e,alphaMode:"opaque"});const s=n?r.createTexture({size:[640,480],format:e,usage:GPUTextureUsage.RENDER_ATTACHMENT|GPUTextureUsage.COPY_SRC}):null;return{device:r,format:e,ziel:()=>n?s:a.getCurrentTexture(),groesse:()=>{if(n)return[640,480];const l=Math.min(devicePixelRatio,2),o=Math.round(t.clientWidth*l),c=Math.round(t.clientHeight*l);return(t.width!==o||t.height!==c)&&(t.width=o,t.height=c),[o,c]},grab:async()=>{const l=r.createBuffer({size:1228800,usage:GPUBufferUsage.COPY_DST|GPUBufferUsage.MAP_READ}),o=r.createCommandEncoder();o.copyTextureToBuffer({texture:s},{buffer:l,bytesPerRow:640*4},[640,480]),r.queue.submit([o.finish()]),await l.mapAsync(GPUMapMode.READ);const c=document.createElement("canvas");return c.width=640,c.height=480,c.getContext("2d").putImageData(new ImageData(new Uint8ClampedArray(l.getMappedRange().slice(0)),640,480),0,0),c.toDataURL()},test:n}}function oe(t,n,i,r){const e=t.createShaderModule({label:n,code:i});return e.getCompilationInfo().then(a=>{const s=a.messages.filter(u=>u.type==="error");s.length&&r(`Shader ${n}: `+s.map(u=>`Zeile ${u.lineNum}: ${u.message}`).join(`
+`))}),e}function se(t){const n={yaw:0,pitch:.15};let i=null;return t.onpointerdown=r=>{i=[r.clientX,r.clientY],t.setPointerCapture(r.pointerId)},t.onpointerup=()=>{i=null},t.onpointermove=r=>{i&&(n.yaw+=(r.clientX-i[0])*.005,n.pitch=Math.max(-1.5,Math.min(1.5,n.pitch+(r.clientY-i[1])*.005)),i=[r.clientX,r.clientY])},n.zeilen=()=>{const r=Math.cos(n.yaw),e=Math.sin(n.yaw),a=Math.cos(n.pitch),s=Math.sin(n.pitch);return[[r,e*s,-e*a],[0,a,s],[e,-r*s,r*a]]},n}const ce=`// Kern: Kugel zeichnen. Jeder Pixel schneidet seinen Sichtstrahl mit der Einheitskugel.
+// Die Farbe liefert das aktive Modul über  fn modulFarbe(n: vec3f, b: f32) -> vec3f  (Bindungen in Gruppe 1).
+// b = Abstand des Strahls zur Kugelmitte; Module mit weichem Rand setzen kern.rand > 0.
+struct Kern { rot0: vec4f, rot1: vec4f, rot2: vec4f, aspect: f32, rand: f32, p2: f32, p3: f32 };
+@group(0) @binding(0) var<uniform> kern: Kern;
+struct VO { @builtin(position) pos: vec4f, @location(0) ndc: vec2f };
+@vertex fn vs(@builtin(vertex_index) k: u32) -> VO {
+  let p = vec2f(f32((k << 1u) & 2u), f32(k & 2u)) * 2.0 - 1.0;
+  return VO(vec4f(p, 0.0, 1.0), p);
+}
+@fragment fn fs(v: VO) -> @location(0) vec4f {
+  let o = vec3f(0.0, 0.0, 3.0);
+  let d = normalize(vec3f(v.ndc.x * kern.aspect * 0.4, v.ndc.y * 0.4, -1.0));
+  let tca = -dot(o, d);
+  let d2 = dot(o, o) - tca * tca;
+  let b = sqrt(max(d2, 0.0));
+  if (b >= 1.0 + kern.rand) { return vec4f(0.0, 0.0, 0.0, 1.0); }
+  let hit = o + d * (tca - sqrt(max(1.0 - d2, 0.0)));
+  let n = normalize(vec3f(dot(kern.rot0.xyz, hit), dot(kern.rot1.xyz, hit), dot(kern.rot2.xyz, hit)));
+  return vec4f(modulFarbe(n, b), 1.0);
+}
+`;function ue(t,n,i){const{device:r,format:e}=t,a=oe(r,"anzeige",ce+n,i),s=r.createRenderPipeline({layout:"auto",vertex:{module:a,entryPoint:"vs"},fragment:{module:a,entryPoint:"fs",targets:[{format:e}]},primitive:{topology:"triangle-list"}}),u=r.createBuffer({size:64,usage:GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST}),g=r.createBindGroup({layout:s.getBindGroupLayout(0),entries:[{binding:0,resource:{buffer:u}}]}),f=new Float32Array(16);return{layout1:s.getBindGroupLayout(1),zeichnen(l,o,c,h,k){f.set([...o[0],0,...o[1],0,...o[2],0,c,h,0,0]),r.queue.writeBuffer(u,0,f);const d=l.beginRenderPass({colorAttachments:[{view:t.ziel().createView(),loadOp:"clear",storeOp:"store",clearValue:[0,0,0,1]}]});d.setPipeline(s),d.setBindGroup(0,g),d.setBindGroup(1,k),d.draw(3),d.end()}}}function fe(t){t.innerHTML='<div class="status"></div><div class="fehler"></div><h2>Verfahren</h2><div class="auswahl"></div><div class="quelle"></div><h2>Regler</h2><div class="regler"></div>';const[n,i,r,e,a]=[".status",".fehler",".auswahl",".quelle",".regler"].map(u=>t.querySelector(u)),s=(u,g,f,l)=>{const o=document.createElement("label");return o.className="wahl",o.innerHTML=`<span>${u}</span><select>${g.map(([c,h])=>`<option value="${c}"${c===f?" selected":""}>${h}</option>`).join("")}</select>`,o.querySelector("select").onchange=c=>l(c.target.value),o};return{status:u=>{n.textContent=u},fehler:u=>{i.textContent=u},auswahlZeigen(u,g,f,l){r.replaceChildren(s("Modul",u.map(([o,c])=>[o,c]),g,o=>l(o,u.find(c=>c[0]===o)[2].at(-1))),s("Version",u.find(o=>o[0]===g)[2].map(o=>[o,o]),f,o=>l(g,o)))},modulZeigen(u,g,f,l){e.textContent=`Quelle: ${u.quelle}`,a.replaceChildren(...g.map(o=>{const c=document.createElement("label");if(o.typ==="knopf"||o.typ==="datei"){const d=document.createElement("button");if(d.textContent=o.label,o.typ==="knopf")d.onclick=o.aktion;else{const x=document.createElement("input");x.type="file",x.accept="image/*",x.hidden=!0,x.onchange=T=>T.target.files[0]&&o.aktion(T.target.files[0]),d.onclick=()=>x.click(),c.append(x)}return c.append(d),c}if(o.typ==="haken")return c.className="haken",c.innerHTML=`<input type="checkbox"${f[o.k]?" checked":""}> ${o.label}`,c.querySelector("input").onchange=d=>{f[o.k]=d.target.checked,l(o.k)},c;c.className="regler",c.innerHTML=`<span>${o.label}</span><input type="range" min="${o.min}" max="${o.max}" step="${o.step}" value="${f[o.k]}"><output>${f[o.k]}</output>`;const[h,k]=[c.querySelector("input"),c.querySelector("output")];return h.oninput=()=>{f[o.k]=Number(h.value),k.textContent=h.value,l(o.k)},c}))}}}const le=`const PI = 3.14159265359;
+struct U {
+  dim: f32, vf: f32, count: f32, opacity: f32,
+  ns: f32, vfac: f32, bands: f32, bfac: f32,
+  bpow: f32, patt: f32, nvort: f32, woff: f32,
+  octaves: f32, falloff: f32, fade: f32, seed: f32,
+  dark: vec4f,
+  imgW: f32, imgH: f32, p2: f32, p3: f32,
+};
+@group(0) @binding(0) var<uniform> u: U;
+@group(0) @binding(1) var<storage, read_write> field: array<vec2u>;   // Geschwindigkeit, halbe Genauigkeit
+@group(0) @binding(2) var<storage, read_write> parts: array<vec4f>;   // xyz Ort, w Farbe (rgba8)
+@group(0) @binding(3) var<storage, read_write> img: array<u32>;       // [G8] 6·1024², rgba8
+@group(0) @binding(4) var<storage, read> vort: array<vec4f>;          // xyz Mitte, w Radius; Drehsinn im Vorzeichen des Radius
+@group(0) @binding(5) var src: texture_2d<f32>;                       // Eingabebild [G1]
+
+`,pe=`// [G3][G8] Würfelabbildung mit derselben Flächenlage wie fij_to_xyz im Original (Gaseous Giganticus).
+// Würfelfläche/Pixel -> Richtung, gleiche Flächenlage wie im Original
+fn fijToXyz(f: u32, i: f32, j: f32, d: f32) -> vec3f {
+  let a = (i - d * 0.5) / d; let b = -(j - d * 0.5) / d; let c = (j - d * 0.5) / d;
+  var v: vec3f;
+  switch f {
+    case 0u: { v = vec3f(a, b, 0.5); }
+    case 1u: { v = vec3f(0.5, b, -a); }
+    case 2u: { v = vec3f(-a, b, -0.5); }
+    case 3u: { v = vec3f(-0.5, b, a); }
+    case 4u: { v = vec3f(a, 0.5, c); }
+    default: { v = vec3f(a, -0.5, -c); }
+  }
+  return normalize(v);
+}
+// Umkehrung: Richtung -> Index in einem Würfelfeld der Kantenlänge d
+fn xyzToIdx(p: vec3f, d: f32) -> u32 {
+  let ap = abs(p);
+  var f = 0u; var a = 0.0; var jj = 0.0;
+  if (ap.z >= ap.x && ap.z >= ap.y) {
+    let s = 0.5 / ap.z;
+    if (p.z > 0.0) { f = 0u; a = p.x * s; } else { f = 2u; a = -p.x * s; }
+    jj = -p.y * s;
+  } else if (ap.x >= ap.y) {
+    let s = 0.5 / ap.x;
+    if (p.x > 0.0) { f = 1u; a = -p.z * s; } else { f = 3u; a = p.z * s; }
+    jj = -p.y * s;
+  } else {
+    let s = 0.5 / ap.y;
+    a = p.x * s;
+    if (p.y > 0.0) { f = 4u; jj = p.z * s; } else { f = 5u; jj = -p.z * s; }
+  }
+  let i = u32(clamp(floor(a * d + d * 0.5), 0.0, d - 1.0));
+  let j = u32(clamp(floor(jj * d + d * 0.5), 0.0, d - 1.0));
+  return (f * u32(d) + j) * u32(d) + i;
+}
+
+`,de=`// [T1] 4D-Simplex-Rauschen (Stefan Gustavson / Ashima Arts, webgl-noise, MIT-Lizenz)
+fn mod289v(x: vec4f) -> vec4f { return x - floor(x * (1.0 / 289.0)) * 289.0; }
+fn mod289s(x: f32) -> f32 { return x - floor(x * (1.0 / 289.0)) * 289.0; }
+fn permv(x: vec4f) -> vec4f { return mod289v(((x * 34.0) + 10.0) * x); }
+fn perms(x: f32) -> f32 { return mod289s(((x * 34.0) + 10.0) * x); }
+fn tis(r: vec4f) -> vec4f { return 1.79284291400159 - 0.85373472095314 * r; }
+fn grad4(j: f32, ip: vec4f) -> vec4f {
+  var p = vec4f(floor(fract(vec3f(j) * ip.xyz) * 7.0) * ip.z - 1.0, 0.0);
+  p.w = 1.5 - dot(abs(p.xyz), vec3f(1.0));
+  let s = select(vec4f(0.0), vec4f(1.0), p < vec4f(0.0));
+  p = vec4f(p.xyz + (s.xyz * 2.0 - 1.0) * s.www, p.w);
+  return p;
+}
+fn snoise(v: vec4f) -> f32 {
+  let C = vec4f(0.138196601125011, 0.276393202250021, 0.414589803375032, -0.447213595499958);
+  var i = floor(v + dot(v, vec4f(0.309016994374947451)));
+  let x0 = v - i + dot(i, C.xxxx);
+  var i0 = vec4f(0.0);
+  let isX = step(x0.yzw, x0.xxx);
+  let isYZ = step(x0.zww, x0.yyz);
+  i0.x = isX.x + isX.y + isX.z;
+  i0 = vec4f(i0.x, 1.0 - isX);
+  i0.y += isYZ.x + isYZ.y;
+  i0 = vec4f(i0.xy, i0.zw + 1.0 - isYZ.xy);
+  i0.z += isYZ.z;
+  i0.w += 1.0 - isYZ.z;
+  let i3 = clamp(i0, vec4f(0.0), vec4f(1.0));
+  let i2 = clamp(i0 - 1.0, vec4f(0.0), vec4f(1.0));
+  let i1 = clamp(i0 - 2.0, vec4f(0.0), vec4f(1.0));
+  let x1 = x0 - i1 + C.xxxx;
+  let x2 = x0 - i2 + C.yyyy;
+  let x3 = x0 - i3 + C.zzzz;
+  let x4 = x0 + C.wwww;
+  i = mod289v(i);
+  let j0 = perms(perms(perms(perms(i.w) + i.z) + i.y) + i.x);
+  let j1 = permv(permv(permv(permv(i.w + vec4f(i1.w, i2.w, i3.w, 1.0)) + i.z + vec4f(i1.z, i2.z, i3.z, 1.0))
+           + i.y + vec4f(i1.y, i2.y, i3.y, 1.0)) + i.x + vec4f(i1.x, i2.x, i3.x, 1.0));
+  let ip = vec4f(1.0 / 294.0, 1.0 / 49.0, 1.0 / 7.0, 0.0);
+  var p0 = grad4(j0, ip); var p1 = grad4(j1.x, ip); var p2 = grad4(j1.y, ip);
+  var p3 = grad4(j1.z, ip); var p4 = grad4(j1.w, ip);
+  let nrm = tis(vec4f(dot(p0, p0), dot(p1, p1), dot(p2, p2), dot(p3, p3)));
+  p0 *= nrm.x; p1 *= nrm.y; p2 *= nrm.z; p3 *= nrm.w;
+  p4 *= tis(vec4f(dot(p4, p4))).x;
+  var m0 = max(0.6 - vec3f(dot(x0, x0), dot(x1, x1), dot(x2, x2)), vec3f(0.0));
+  var m1 = max(0.6 - vec2f(dot(x3, x3), dot(x4, x4)), vec2f(0.0));
+  m0 = m0 * m0; m1 = m1 * m1;
+  return 49.0 * (dot(m0 * m0, vec3f(dot(p0, x0), dot(p1, x1), dot(p2, x2))) + dot(m1 * m1, vec2f(dot(p3, x3), dot(p4, x4))));
+}
+`,ge=`// [G3] fBm: Oktave k mit Frequenz 2^k und Gewicht Abfall^k
+fn fbm(p: vec4f) -> f32 {
+  var r = 0.0; var a = 1.0; var f = 1.0;
+  for (var k = 0; k < i32(u.octaves); k++) { r += a * snoise(p * f); a *= u.falloff; f *= 2.0; }
+  return r;
+}
+fn bandSpeed(lat: f32) -> f32 {   // [G5]
+  let c = cos(lat * u.bands);
+  let pw = sign(c) * pow(abs(c), u.bpow);   // Potenz ist ungerade ganze Zahl
+  return ((1.0 - u.patt) + u.patt * cos(lat)) * pw * u.bfac;
+}
+fn rotAbout(v: vec3f, k: vec3f, ang: f32) -> vec3f {  // Drehung von v um Achse k (Rodrigues)
+  return v * cos(ang) + cross(k, v) * sin(ang) + k * dot(k, v) * (1.0 - cos(ang));
+}
+
+@compute @workgroup_size(8, 8, 1)
+fn makeField(@builtin(global_invocation_id) g: vec3u) {
+  let d = u.vf;
+  if (f32(g.x) >= d || f32(g.y) >= d) { return; }
+  let ov = fijToXyz(g.z, f32(g.x), f32(g.y), d);
+  let v = ov * u.ns;
+  let w = u.woff * u.ns;
+  let h = u.ns * (0.05 / 1024.0);
+  // [G3] Gradient per Differenz (ohne Division, wie im Original)
+  let gr = vec3f(fbm(vec4f(v + vec3f(h, 0, 0), w)) - fbm(vec4f(v - vec3f(h, 0, 0), w)),
+                 fbm(vec4f(v + vec3f(0, h, 0), w)) - fbm(vec4f(v - vec3f(0, h, 0), w)),
+                 fbm(vec4f(v + vec3f(0, 0, h), w)) - fbm(vec4f(v - vec3f(0, 0, h), w)));
+  // [G4] curl2
+  let proj = normalize(v + gr) * u.ns - v;
+  var vel = rotAbout(proj, ov, PI * 0.5) * u.vfac;
+  // [G5] Bänder
+  let lat = asin(clamp(ov.y, -1.0, 1.0));
+  let bv = vec3f(ov.z, 0.0, -ov.x);
+  if (length(bv) > 1e-20) { vel += normalize(bv) * bandSpeed(lat); }
+  // [G6] Wirbel
+  for (var k = 0u; k < u32(u.nvort); k++) {
+    let c = vort[k].xyz; let r = abs(vort[k].w); let av = select(-2.5, 2.5, vort[k].w > 0.0);
+    let dist = length(c - ov);
+    if (dist > r) { continue; }
+    let ang = (av * PI / 180.0) * sin(PI * dist / r);
+    let rv = rotAbout(ov, c, ang);
+    vel += 1024.0 * (rv - ov);
+  }
+  // [G7] in Einheiten des Kugelradius (Radius = 1024 Feldpunkte)
+  vel = vel / 1024.0;
+  let idx = (g.z * u32(d) + g.y) * u32(d) + g.x;
+  field[idx] = vec2u(pack2x16float(vel.xy), pack2x16float(vec2f(vel.z, 0.0)));
+}
+
+`,me=`fn pcg(v: u32) -> u32 {
+  let s = v * 747796405u + 2891336453u;
+  let w = ((s >> ((s >> 28u) + 4u)) ^ s) * 277803737u;
+  return (w >> 22u) ^ w;
+}
+fn rnd(a: u32) -> f32 { return f32(pcg(a)) / 4294967295.0; }
+
+// [G1][G2] Partikel zufällig auf die Kugel, Farbe einmal aus dem Eingabebild
+@compute @workgroup_size(256)
+fn initParticles(@builtin(global_invocation_id) g: vec3u) {
+  let i = g.x + g.y * 65535u * 256u;
+  if (f32(i) >= u.count) { return; }
+  let sd = i * 2u + u32(u.seed) * 7919u;
+  let z = 1.0 - 2.0 * rnd(sd);
+  let ph = 6.28318530718 * rnd(sd + 1u);
+  let s = sqrt(max(0.0, 1.0 - z * z));
+  let p = vec3f(s * cos(ph), z, s * sin(ph));
+  let lat = asin(clamp(p.y, -1.0, 1.0));
+  let lon = atan2(p.z, p.x);
+  let yo = (lat + 0.5 * PI) / PI;
+  let cl = abs(cos(lat));
+  let xo = cos(lon) * cl * 0.5 * cl + 0.5;
+  let px = i32(clamp(xo * u.imgW, 0.0, u.imgW - 1.0));
+  let py = i32(clamp(yo * u.imgH, 0.0, u.imgH - 1.0));
+  let c = textureLoad(src, vec2i(px, py), 0);
+  parts[i] = vec4f(p, bitcast<f32>(pack4x8unorm(vec4f(c.rgb, 1.0))));
+}
+
+// [G7][G10] Pixel VOR der Bewegung merken, bewegen, dann an der gemerkten Stelle malen
+@compute @workgroup_size(256)
+fn moveAndPaint(@builtin(global_invocation_id) g: vec3u) {
+  let i = g.x + g.y * 65535u * 256u;
+  if (f32(i) >= u.count) { return; }
+  var pt = parts[i];
+  let pix = xyzToIdx(pt.xyz, u.dim);
+  let fv = field[xyzToIdx(pt.xyz, u.vf)];
+  let vel = vec3f(unpack2x16float(fv.x), unpack2x16float(fv.y).x);
+  parts[i] = vec4f(normalize(pt.xyz + vel), pt.w);
+  let c = unpack4x8unorm(bitcast<u32>(pt.w)).rgb;
+  let oc = unpack4x8unorm(img[pix]).rgb;
+  img[pix] = pack4x8unorm(vec4f(to8(c * u.opacity + oc * (1.0 - u.opacity)), 1.0));
+}
+`,ve=`@compute @workgroup_size(256)
+fn clearImg(@builtin(global_invocation_id) g: vec3u) {
+  let i = g.x + g.y * 65535u * 256u;
+  if (i < u32(6.0 * u.dim * u.dim)) { img[i] = 0u; }   // [G8] Start schwarz
+}
+
+fn to8(c: vec3f) -> vec3f { return floor(c * 255.0) / 255.0; }   // 8 Bit, abgeschnitten wie im Original
+
+// [G9] Überblenden mit der dunkelsten Farbe
+@compute @workgroup_size(256)
+fn fadeImg(@builtin(global_invocation_id) g: vec3u) {
+  let i = g.x + g.y * 65535u * 256u;
+  if (i >= u32(6.0 * u.dim * u.dim)) { return; }
+  let oc = unpack4x8unorm(img[i]).rgb;
+  let nc = u.dark.rgb * u.fade + oc * (1.0 - u.fade);
+  img[i] = pack4x8unorm(vec4f(to8(nc), 1.0));
+}
+
+`,be=`// [T5] Farbe der Kugel = Ausgabetextur [G8] (6 Würfelflächen, rgba8), gleiche Flächenlage wie [G3][G8].
+@group(1) @binding(0) var<storage, read> ggBild: array<u32>;
+fn ggIdx(p: vec3f, d: f32) -> u32 {
+  let ap = abs(p);
+  var f = 0u; var a = 0.0; var jj = 0.0;
+  if (ap.z >= ap.x && ap.z >= ap.y) {
+    let s = 0.5 / ap.z;
+    if (p.z > 0.0) { f = 0u; a = p.x * s; } else { f = 2u; a = -p.x * s; }
+    jj = -p.y * s;
+  } else if (ap.x >= ap.y) {
+    let s = 0.5 / ap.x;
+    if (p.x > 0.0) { f = 1u; a = -p.z * s; } else { f = 3u; a = p.z * s; }
+    jj = -p.y * s;
+  } else {
+    let s = 0.5 / ap.y;
+    a = p.x * s;
+    if (p.y > 0.0) { f = 4u; jj = p.z * s; } else { f = 5u; jj = -p.z * s; }
+  }
+  let i = u32(clamp(floor(a * d + d * 0.5), 0.0, d - 1.0));
+  let j = u32(clamp(floor(jj * d + d * 0.5), 0.0, d - 1.0));
+  return (f * u32(d) + j) * u32(d) + i;
+}
+fn modulFarbe(n: vec3f, b: f32) -> vec3f { return unpack4x8unorm(ggBild[ggIdx(n, 1024.0)]).rgb; }
+`;async function L(t,n){const i=await createImageBitmap(n),r=t.createTexture({size:[i.width,i.height],format:"rgba8unorm",usage:GPUTextureUsage.TEXTURE_BINDING|GPUTextureUsage.COPY_DST|GPUTextureUsage.RENDER_ATTACHMENT});t.queue.copyExternalImageToTexture({source:i},{texture:r},[i.width,i.height]);const a=new OffscreenCanvas(i.width,i.height).getContext("2d");a.drawImage(i,0,0);const s=a.getImageData(0,0,i.width,i.height).data;let u=1e9,g=[0,0,0];for(let f=0;f<s.length;f+=4){const l=s[f]+s[f+1]+s[f+2];l<u&&(u=l,g=[s[f]/255,s[f+1]/255,s[f+2]/255])}return{tex:r,w:i.width,h:i.height,dunkel:g}}async function he(){const t=await fetch("https://raw.githubusercontent.com/smcameron/gaseous-giganticus/master/sample-gg-output-1.jpg"),n=await createImageBitmap(await t.blob()),i=40,r=910,e=Math.round(n.width/2),a=new OffscreenCanvas(8,r),s=a.getContext("2d");return s.translate(0,r),s.scale(1,-1),s.drawImage(n,e,i,1,r,0,0,8,r),a.transferToImageBitmap()}function H(t,n){const i=Math.cos(n*t.bands);return(1-t.poleAtt+t.poleAtt*Math.cos(n))*Math.sign(i)*Math.abs(i)**t.bandPower*t.bandFactor}function xe(t){const n=new Float32Array(800),i=Math.min(200,Math.round(t.vortices)),r=()=>(2*Math.random()-1)*(2*Math.random()-1);for(let e=0;e<i;e++){let a,s,u,g=0;do{const l=1-2*Math.random(),o=2*Math.PI*Math.random(),c=Math.sqrt(1-l*l);a=[c*Math.cos(o),l,c*Math.sin(o)],s=t.vortexSize+r()*t.vortexVar,u=Math.asin(a[1])}while(t.bands>0&&Math.abs(H(t,u))>t.vortexThresh*t.bandFactor&&Math.abs(u)>15*Math.PI/180&&++g<1e4);const f=t.bands>0?H(t,u+.05)<H(t,u-.05):Math.random()>.5;n.set([...a,f?Math.abs(s):-Math.abs(s)],e*4)}return{daten:n,n:i}}const ye={name:"Gaseous Giganticus",quelle:"github.com/smcameron/gaseous-giganticus (Verfahren, neu geschrieben)",kamera:{pitch:.15}},we={noiseScale:2.6,velocityFactor:1200,bands:6,bandFactor:2.9,bandPower:1,poleAtt:.5,vortices:0,vortexSize:.04,vortexVar:.02,vortexThresh:.2,fade:.01,opacityLimit:.2,wOffset:0,octaves:4,falloff:.5,stop1000:!0};async function ke(t,n,i,r){const{device:e}=t,a=1024,s=Number(r.get("vf"))||1024,u=Math.min(Number(r.get("n"))||8e6,Math.floor(e.limits.maxStorageBufferBindingSize/16)),g=e.createShaderModule({label:"gg",code:[le,pe,de,ge,me,ve].join("")});g.getCompilationInfo().then(p=>{const b=p.messages.filter(m=>m.type==="error");b.length&&i(b.map(m=>`Zeile ${m.lineNum}: ${m.message}`).join(`
+`))});const f=GPUBufferUsage.STORAGE,l=e.createBuffer({size:128,usage:GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST}),o=e.createBuffer({size:6*s*s*8,usage:f}),c=e.createBuffer({size:u*16,usage:f}),h=e.createBuffer({size:6*a*a*4,usage:f}),k=e.createBuffer({size:3200,usage:f|GPUBufferUsage.COPY_DST}),d=GPUShaderStage.COMPUTE,x=e.createBindGroupLayout({entries:[{binding:0,visibility:d,buffer:{type:"uniform"}},{binding:1,visibility:d,buffer:{type:"storage"}},{binding:2,visibility:d,buffer:{type:"storage"}},{binding:3,visibility:d,buffer:{type:"storage"}},{binding:4,visibility:d,buffer:{type:"read-only-storage"}},{binding:5,visibility:d,texture:{sampleType:"float"}}]}),T=e.createPipelineLayout({bindGroupLayouts:[x]}),S=p=>e.createComputePipeline({layout:T,compute:{module:g,entryPoint:p}}),j=S("makeField"),q=S("initParticles"),E=S("clearImg"),$=S("fadeImg"),D=S("moveAndPaint");let y;try{y=await L(e,await he())}catch(p){i("Beispielbild nicht ladbar ("+p.message+"). Bitte „Eigenes Bild“ wählen."),y=await L(e,new ImageData(new Uint8ClampedArray([128,100,80,255]),1,1))}const A=new Float32Array(32);let z=0,O=1,F=0,P=1,U=null,I=null;const W=()=>{A.set([a,s,u,O,n.noiseScale,n.velocityFactor,n.bands,n.bandFactor,n.bandPower,n.poleAtt,F,n.wOffset,n.octaves,n.falloff,n.fade,P,...y.dunkel,1,y.w,y.h,0,0]),e.queue.writeBuffer(l,0,A)},v=p=>{const b=Math.ceil(p/256);return[Math.min(b,65535),Math.ceil(b/65535)]},w=()=>{const p=xe(n);e.queue.writeBuffer(k,0,p.daten),F=p.n,z=0,O=1,P++,U=e.createBindGroup({layout:x,entries:[{binding:0,resource:{buffer:l}},{binding:1,resource:{buffer:o}},{binding:2,resource:{buffer:c}},{binding:3,resource:{buffer:h}},{binding:4,resource:{buffer:k}},{binding:5,resource:y.tex.createView()}]}),W();const b=e.createCommandEncoder(),m=b.beginComputePass();m.setBindGroup(0,U),m.setPipeline(j),m.dispatchWorkgroups(Math.ceil(s/8),Math.ceil(s/8),6),m.setPipeline(q),m.dispatchWorkgroups(...v(u)),m.setPipeline(E),m.dispatchWorkgroups(...v(6*a*a)),m.end(),e.queue.submit([b.finish()])};return w(),{farbeWGSL:be,regler:[{typ:"knopf",label:"Neu starten",aktion:w},{typ:"datei",label:"Eigenes Bild",aktion:async p=>{y.tex.destroy(),y=await L(e,p),w()}},{typ:"haken",k:"stop1000",label:"nach 1000 Runden anhalten (wie Original)"},{k:"noiseScale",label:"Rauschmaßstab",min:.5,max:8,step:.1},{k:"velocityFactor",label:"Geschw.-Faktor",min:0,max:4e3,step:10},{k:"bands",label:"Bänder",min:0,max:20,step:.5},{k:"bandFactor",label:"Band-Faktor",min:0,max:10,step:.1},{k:"bandPower",label:"Band-Potenz (ungerade)",min:1,max:9,step:2},{k:"poleAtt",label:"Pol-Dämpfung",min:0,max:1,step:.01},{k:"vortices",label:"Wirbel",min:0,max:200,step:1},{k:"vortexSize",label:"Wirbelgröße",min:.005,max:.2,step:.005},{k:"vortexVar",label:"Wirbelgröße ±",min:0,max:.1,step:.005},{k:"vortexThresh",label:"Wirbel-Schwelle",min:.05,max:1,step:.01},{k:"fade",label:"Verblassen",min:0,max:.1,step:.001},{k:"opacityLimit",label:"Deckkraft min.",min:0,max:1,step:.01},{k:"wOffset",label:"w-Versatz",min:0,max:300,step:1},{k:"octaves",label:"Oktaven",min:1,max:7,step:1},{k:"falloff",label:"fBm-Abfall",min:.1,max:.9,step:.05}],schritt(p){if(n.stop1000&&z>=1e3)return!1;W();const b=p.beginComputePass();return b.setBindGroup(0,U),b.setPipeline($),b.dispatchWorkgroups(...v(6*a*a)),b.setPipeline(D),b.dispatchWorkgroups(...v(u)),b.end(),z++,O>n.opacityLimit&&(O*=.95),!0},gruppe1(p){return I??=e.createBindGroup({layout:p,entries:[{binding:0,resource:{buffer:h}}]})},rand:()=>0,status:()=>`Runde ${z}${n.stop1000&&z>=1e3?" (fertig)":""} · ${(u/1e6).toFixed(1)} Mio. Partikel · Feld ${s}²`,zerstoeren(){for(const p of[l,o,c,h,k])p.destroy();y.tex.destroy()}}}const ze=Object.freeze(Object.defineProperty({__proto__:null,erstellen:ke,info:ye,standard:we},Symbol.toStringTag,{value:"Module"})),Be=`const PI = 3.14159265359;
+const TAU = 6.28318530718;
+struct U {
+  W: f32, H: f32, FW: f32, FH: f32,
+  count: f32, batch: f32, nBatch: f32, cur: f32,
+  opacity: f32, blur: f32, fade: f32, dt: f32,
+  octave: f32, nOct: f32, freq: f32, amp: f32,
+  ntime: f32, init: f32, edge: f32, aspect: f32,
+  speed: f32, frame: f32, p2: f32, p3: f32,
+  centre: vec4f,
+  grad: array<vec4f, 16>,
+  rot0: vec4f, rot1: vec4f, rot2: vec4f,
+};
+@group(0) @binding(0) var<uniform> u: U;
+
+@group(0) @binding(1) var<storage, read_write> flow: array<vec4f>;   // RG = benutzt, BA = im Aufbau [Q8]
+@group(0) @binding(2) var<storage, read_write> parts: array<vec4f>;  // [Q1] theta, phi, Alter, Geburts-phi
+@group(0) @binding(3) var<storage, read_write> surfA: array<vec4f>;
+@group(0) @binding(4) var<storage, read_write> surfB: array<vec4f>;
+
+`,Me=`fn dirOf(theta: f32, phi: f32) -> vec3f { return vec3f(sin(phi) * cos(theta), cos(phi), sin(phi) * sin(theta)); }
+
+// [Q2] Sinus-Abbildung (+[T2] um W/2 verschoben). phi = 0 am Nordpol, pi am Südpol.
+fn halfW(y: f32, w: f32, h: f32) -> f32 { return w * 0.5 * sin((y + 0.5) / h * PI); }
+fn texelOf(theta: f32, phi: f32, w: f32, h: f32) -> u32 {
+  let y = clamp(floor(h * phi / PI), 0.0, h - 1.0);
+  let x = clamp(floor(w * (theta / TAU - 0.5) * sin(phi) + w * 0.5), 0.0, w - 1.0);
+  return u32(y) * u32(w) + u32(x);
+}
+fn inside(x: f32, y: f32, w: f32, h: f32) -> bool {
+  return y >= 0.0 && y < h && abs(x + 0.5 - w * 0.5) <= halfW(y, w, h);
+}
+
+`,Ge=`// [T4] Hash without Sine (David Hoskins, MIT) + Gradientenrauschen
+fn hash33(pin: vec3f) -> vec3f {
+  var p3 = fract(pin * vec3f(0.1031, 0.1030, 0.0973));
+  p3 += dot(p3, p3.yxz + 33.33);
+  return fract((p3.xxy + p3.yxx) * p3.zyx) * 2.0 - 1.0;
+}
+fn gnoise(p: vec3f) -> f32 {
+  let i = floor(p); let f = fract(p);
+  let w = f * f * f * (f * (f * 6.0 - 15.0) + 10.0);
+  var r = 0.0;
+  for (var k = 0u; k < 8u; k++) {
+    let o = vec3f(f32(k & 1u), f32((k >> 1u) & 1u), f32((k >> 2u) & 1u));
+    let g = dot(hash33(i + o), f - o);
+    let s = mix(1.0 - w, w, o);
+    r += g * s.x * s.y * s.z;
+  }
+  return r;
+}
+fn potential(p: vec3f) -> vec3f {
+  return vec3f(gnoise(p), gnoise(p + vec3f(31.4, 17.1, 5.9)), gnoise(p + vec3f(-12.7, 41.3, 23.2)));
+}
+// Curl eines Vektorpotentials (zentrale Differenzen)
+fn curl3(p: vec3f) -> vec3f {
+  let e = 0.01;
+  let dx = potential(p + vec3f(e, 0, 0)) - potential(p - vec3f(e, 0, 0));
+  let dy = potential(p + vec3f(0, e, 0)) - potential(p - vec3f(0, e, 0));
+  let dz = potential(p + vec3f(0, 0, e)) - potential(p - vec3f(0, 0, e));
+  return vec3f(dy.z - dz.y, dz.x - dx.z, dx.y - dy.x) / (2.0 * e);
+}
+
+`,Te=`// [Q8] eine Oktave pro Aufruf in BA addieren; beim letzten Schritt nach RG [T5]
+@compute @workgroup_size(16, 16)
+fn flowOctave(@builtin(global_invocation_id) g: vec3u) {
+  if (f32(g.x) >= u.FW || f32(g.y) >= u.FH) { return; }
+  let i = g.y * u32(u.FW) + g.x;
+  let x = f32(g.x); let y = f32(g.y);
+  if (!inside(x, y, u.FW, u.FH)) { flow[i] = vec4f(0.0); return; }
+  let phi = (y + 0.5) / u.FH * PI;
+  let s = sin(phi);
+  let theta = ((x + 0.5 - u.FW * 0.5) / (u.FW * s) + 0.5) * TAU;
+  let d = dirOf(theta, phi);
+  let o = u.octave;
+  let c = curl3(d * vec3f(1.0, u.p2, 1.0) * u.freq * pow(2.0, o) + vec3f(o * 17.3, u.ntime, -o * 9.1)) * u.amp * pow(0.5, o);
+  // [T3] auf die Tangentialebene, dann Ost/Süd -> dθ/dt, dφ/dt
+  let vt = c - d * dot(c, d);
+  let east = vec3f(-sin(theta), 0.0, cos(theta));
+  let south = vec3f(cos(phi) * cos(theta), -s, cos(phi) * sin(theta));
+  var f = flow[i];
+  if (o < 0.5) { f.z = 0.0; f.w = 0.0; }
+  f.z += dot(vt, east) / max(s, 0.05);
+  f.w += dot(vt, south);
+  if (o > u.nOct - 1.5) { f.x = f.z; f.y = f.w; }
+  flow[i] = f;
+}
+
+`,Se=`fn pcg(v: u32) -> u32 {
+  let s = v * 747796405u + 2891336453u;
+  let w = ((s >> ((s >> 28u) + 4u)) ^ s) * 277803737u;
+  return (w >> 22u) ^ w;
+}
+fn rnd(a: u32) -> f32 { return f32(pcg(a)) / 4294967295.0; }
+
+fn gradAt(phi: f32) -> vec3f {   // [Q4] Verlauf nach Breite
+  let x = clamp(phi / PI * 16.0 - 0.5, 0.0, 15.0);
+  let i = u32(min(floor(x), 14.0));
+  return mix(u.grad[i].rgb, u.grad[i + 1u].rgb, x - f32(i));
+}
+
+@compute @workgroup_size(256)
+fn moveParticles(@builtin(global_invocation_id) g: vec3u) {
+  let i = g.x + g.y * 65535u * 256u;
+  if (f32(i) >= u.count) { return; }
+  var p = parts[i];
+  let b = i / u32(u.batch);
+  let cur = u32(u.cur);
+  let nb = u32(u.nBatch);
+  if (u.init > 0.5 || b == cur) {
+    // [Q7] Batch neu geboren: gleichverteilt auf der Kugel
+    let seed = i * 3u + u32(u.frame) * 9781u;
+    let phi = acos(1.0 - 2.0 * rnd(seed));
+    let theta = TAU * rnd(seed + 1u);
+    var age = 0.0;
+    if (u.init > 0.5) { age = f32((cur + nb - b % nb) % nb); }
+    p = vec4f(theta, phi, age, phi);
+  } else {
+    // [Q3] Fluss direkt an der Partikelposition in Polarkoordinaten
+    let v = flow[texelOf(p.x, p.y, u.FW, u.FH)].xy;
+    p.x = fract((p.x + v.x * u.speed * u.dt) / TAU) * TAU;
+    p.y = clamp(p.y + v.y * u.speed * u.dt, 0.001, PI - 0.001);
+    p.z += 1.0;
+  }
+  parts[i] = p;
+  // [Q7] ein- und ausblenden über die Lebenszeit; [Q5] mit Deckkraft in die Textur mischen
+  let a = u.opacity * sin(PI * clamp(p.z / u.nBatch, 0.0, 1.0));
+  let t = texelOf(p.x, p.y, u.W, u.H);
+  surfA[t] = vec4f(mix(surfA[t].rgb, gradAt(p.w), a), 1.0);
+}
+
+`,Ae=`fn surfAt(x: f32, y: f32, c: vec4f) -> vec4f {
+  if (!inside(x, y, u.W, u.H)) { return c; }
+  return surfA[u32(y) * u32(u.W) + u32(x)];
+}
+
+// [Q6] weichzeichnen und langsam zur Mittelfarbe verblassen
+@compute @workgroup_size(16, 16)
+fn blurFade(@builtin(global_invocation_id) g: vec3u) {
+  if (f32(g.x) >= u.W || f32(g.y) >= u.H) { return; }
+  let x = f32(g.x); let y = f32(g.y);
+  let i = g.y * u32(u.W) + g.x;
+  if (!inside(x, y, u.W, u.H)) { surfB[i] = u.centre; return; }
+  if (u.init > 0.5) { let gc = vec4f(gradAt((y + 0.5) / u.H * PI), 1.0); surfA[i] = gc; surfB[i] = gc; return; }   // [B2]
+  let c = surfA[i];
+  let avg = (surfAt(x + 1.0, y, c) + surfAt(x - 1.0, y, c) + surfAt(x, y + 1.0, c) + surfAt(x, y - 1.0, c)) * 0.25;
+  let bl = mix(c, avg, u.blur);
+  surfB[i] = vec4f(mix(bl.rgb, u.centre.rgb, 1.0 - exp(-u.fade * u.dt)), 1.0);
+}
+`,Oe=`// Farbe der Kugel: [Q2] Sinus-Abbildung bilinear, [Q9] Rand weichgezeichnet ([B3] über die Kante hinweg).
+const PI = 3.14159265359;
+const TAU = 6.28318530718;
+struct U {
+  W: f32, H: f32, FW: f32, FH: f32,
+  count: f32, batch: f32, nBatch: f32, cur: f32,
+  opacity: f32, blur: f32, fade: f32, dt: f32,
+  octave: f32, nOct: f32, freq: f32, amp: f32,
+  ntime: f32, init: f32, edge: f32, aspect: f32,
+  speed: f32, frame: f32, p2: f32, p3: f32,
+  centre: vec4f,
+  grad: array<vec4f, 16>,
+  rot0: vec4f, rot1: vec4f, rot2: vec4f,
+};
+@group(1) @binding(0) var<uniform> u: U;
+@group(1) @binding(1) var<storage, read> surf: array<vec4f>;
+fn fetch(x: f32, y: f32) -> vec3f {
+  let yy = clamp(y, 0.0, u.H - 1.0);
+  let hw = u.W * 0.5 * sin((yy + 0.5) / u.H * PI);
+  let xx = clamp(x, floor(u.W * 0.5 - hw), ceil(u.W * 0.5 + hw) - 1.0);
+  return surf[u32(yy) * u32(u.W) + u32(clamp(xx, 0.0, u.W - 1.0))].rgb;
+}
+fn modulFarbe(n: vec3f, b: f32) -> vec3f {
+  let phi = acos(clamp(n.y, -1.0, 1.0));
+  let theta = fract(atan2(n.z, n.x) / TAU) * TAU;
+  let fx = u.W * (theta / TAU - 0.5) * sin(phi) + u.W * 0.5 - 0.5;
+  let fy = phi / PI * u.H - 0.5;
+  let x0 = floor(fx); let y0 = floor(fy);
+  let tx = fx - x0; let ty = fy - y0;
+  let c = mix(mix(fetch(x0, y0), fetch(x0 + 1.0, y0), tx), mix(fetch(x0, y0 + 1.0), fetch(x0 + 1.0, y0 + 1.0), tx), ty);
+  let a = smoothstep(1.0 + u.edge, 1.0 - u.edge, b);
+  return c * a;
+}
+`,Pe={name:"Partikel nach jasper-r",quelle:"jasper-r.github.io/gas-giant (Verfahren aus Text, Werte aus seinen Bildern)",kamera:{pitch:.2}},Ue={opacity:.35,blur:.12,fade:.05,nBatch:120,nOct:4,freq:3,amp:.4,noiseSpeed:.02,speed:1,edge:.05,stretch:6},Y=[[.094,.067,.063],[.31,.263,.251],[.431,.337,.322],[.416,.322,.302],[.416,.365,.38],[.341,.302,.333],[.282,.224,.251],[.196,.173,.216],[.137,.129,.176],[.129,.122,.169],[.251,.212,.251],[.431,.322,.31],[.149,.125,.149],[.106,.106,.118],[.118,.11,.118],[.157,.149,.157]],je=Y.reduce((t,n)=>t.map((i,r)=>i+n[r]/Y.length),[0,0,0]);async function Fe(t,n,i,r){const{device:e}=t,a=Math.min(Number(r.get("n"))||4194304,Math.floor(e.limits.maxStorageBufferBindingSize/16)),s=2048,u=1024,g=512,f=256,l=e.createShaderModule({label:"jasper",code:[Be,Me,Ge,Te,Se,Ae].join("")});l.getCompilationInfo().then(v=>{const w=v.messages.filter(p=>p.type==="error");w.length&&i(w.map(p=>`Zeile ${p.lineNum}: ${p.message}`).join(`
+`))});const o=GPUBufferUsage.STORAGE,c=e.createBuffer({size:512,usage:GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST}),h=e.createBuffer({size:g*f*16,usage:o}),k=e.createBuffer({size:a*16,usage:o}),d=[e.createBuffer({size:s*u*16,usage:o}),e.createBuffer({size:s*u*16,usage:o})],x=GPUShaderStage.COMPUTE,T=e.createBindGroupLayout({entries:[{binding:0,visibility:x,buffer:{type:"uniform"}},...[1,2,3,4].map(v=>({binding:v,visibility:x,buffer:{type:"storage"}}))]}),S=e.createPipelineLayout({bindGroupLayouts:[T]}),j=v=>e.createComputePipeline({layout:S,compute:{module:l,entryPoint:v}}),q=j("flowOctave"),E=j("moveParticles"),$=j("blurFade"),D=[0,1].map(v=>e.createBindGroup({layout:T,entries:[{binding:0,resource:{buffer:c}},{binding:1,resource:{buffer:h}},{binding:2,resource:{buffer:k}},{binding:3,resource:{buffer:d[v]}},{binding:4,resource:{buffer:d[1-v]}}]})),y=new Float32Array(128);let A=0,z=0,O=0,F=0,P=0,U=!0,I=null,W=0;return{farbeWGSL:Oe,regler:[{k:"opacity",label:"Deckkraft",min:0,max:1,step:.01},{k:"blur",label:"Weichzeichnen",min:0,max:1,step:.01},{k:"fade",label:"Verblassen /s",min:0,max:1,step:.005},{k:"nBatch",label:"Batches (Lebenszeit)",min:8,max:600,step:1},{k:"nOct",label:"Oktaven",min:1,max:8,step:1},{k:"freq",label:"Rausch-Frequenz",min:.5,max:12,step:.1},{k:"amp",label:"Rausch-Stärke",min:0,max:2,step:.01},{k:"noiseSpeed",label:"Rausch-Tempo",min:0,max:.2,step:.001},{k:"speed",label:"Partikel-Tempo",min:0,max:5,step:.05},{k:"edge",label:"Randunschärfe",min:.001,max:.2,step:.001},{k:"stretch",label:"Ost-West-Streckung",min:1,max:8,step:.1}],geaendert(v){v==="nBatch"&&(U=!0)},schritt(v){const w=.016666666666666666,p=n.nBatch,b=Math.ceil(a/p);z===0&&(O=F*n.noiseSpeed),y.set([s,u,g,f,a,b,p,A%p,n.opacity,n.blur,n.fade,w,z,n.nOct,n.freq,n.amp,O,U?1:0,n.edge,0,n.speed,A,n.stretch,0,...je,1,...Y.flatMap(ae=>[...ae,1])]),e.queue.writeBuffer(c,0,y);const m=v.beginComputePass();m.setBindGroup(0,D[P]),m.setPipeline(q),m.dispatchWorkgroups(Math.ceil(g/16),Math.ceil(f/16)),m.setPipeline(E);const X=Math.ceil(a/256);return m.dispatchWorkgroups(Math.min(X,65535),Math.ceil(X/65535)),m.setPipeline($),m.dispatchWorkgroups(Math.ceil(s/16),Math.ceil(u/16)),m.end(),W=P,P=1-P,A++,F+=w,U=!1,z=(z+1)%n.nOct,!0},gruppe1(v){return I??=[0,1].map(w=>e.createBindGroup({layout:v,entries:[{binding:0,resource:{buffer:c}},{binding:1,resource:{buffer:d[1-w]}}]})),I[W]},rand:()=>n.edge,status:()=>`Bild ${A} · ${(a/1e6).toFixed(2)} Mio. Partikel`,zerstoeren(){for(const v of[c,h,k,...d])v.destroy()}}}const We=Object.freeze(Object.defineProperty({__proto__:null,erstellen:Fe,info:Pe,standard:Ue},Symbol.toStringTag,{value:"Module"})),_={"gaseous-giganticus":{name:"Gasriese: Gaseous Giganticus",versionen:{v1:ze}},"jasper-r":{name:"Gasriese: Partikel nach jasper-r",versionen:{v1:We}}},G=new URLSearchParams(location.search),ne=document.getElementById("bild"),C=fe(document.getElementById("editor")),R=t=>C.fehler(t);let B;try{B=await ie(ne,G.has("test"))}catch(t){throw R(t.message),t}B.device.lost.then(t=>R("Grafikgerät verloren: "+t.message));window.grab=B.grab;const te=se(ne);let M=null,K=null,Z=0;async function re(t,n){M?.instanz.zerstoeren(),M=null;const i=_[t].versionen[n],r={...i.standard};for(const a in r)G.has(a)&&(r[a]=typeof r[a]=="boolean"?G.get(a)!=="0":Number(G.get(a)));const e=await i.erstellen(B,r,R,G);K=ue(B,e.farbeWGSL,R),i.info.kamera&&Object.assign(te,i.info.kamera),M={m:i,instanz:e,werte:r},Z=0,C.auswahlZeigen(Object.entries(_).map(([a,s])=>[a,s.name,Object.keys(s.versionen)]),t,n,re),C.modulZeigen(i.info,e.regler,r,a=>e.geaendert?.(a))}const J=_[G.get("modul")]?G.get("modul"):"gaseous-giganticus";await re(J,G.get("version")||Object.keys(_[J].versionen).at(-1));let N=performance.now(),V=0,ee=0;function Q(){const[t,n]=B.groesse();if(M){const i=B.device.createCommandEncoder();M.instanz.schritt(i)&&Z++,K.zeichnen(i,te.zeilen(),t/n,M.instanz.rand(),M.instanz.gruppe1(K.layout1)),B.device.queue.submit([i.finish()]),V++;const r=performance.now();r-N>500&&(ee=Math.round(V*1e3/(r-N)),N=r,V=0),C.status(`${ee} fps · ${M.instanz.status()}`)}window.schritte_=Z,B.test?B.device.queue.onSubmittedWorkDone().then(()=>requestAnimationFrame(Q)):requestAnimationFrame(Q)}requestAnimationFrame(Q);</script>
+  <style rel="stylesheet" crossorigin>html,body{margin:0;height:100%;background:#000;color:#ddd;font:13px system-ui,sans-serif;overflow:hidden}#bild{display:block;width:100vw;height:100vh;touch-action:none}#editor{position:fixed;top:8px;left:8px;width:320px;max-height:calc(100vh - 32px);overflow:auto;background:#000000b8;padding:8px 10px;border-radius:6px;box-sizing:border-box}#editor h2{font-size:12px;margin:10px 0 4px;color:#aaa;font-weight:600;text-transform:uppercase;letter-spacing:.04em}#editor .status{font-weight:600;margin-bottom:6px}#editor .fehler{color:#f88;white-space:pre-wrap}#editor .quelle{color:#999;font-size:11px;margin:2px 0 6px}#editor label.regler{display:grid;grid-template-columns:130px 1fr 48px;gap:6px;align-items:center;margin:2px 0}#editor label.wahl{display:grid;grid-template-columns:130px 1fr;gap:6px;align-items:center;margin:2px 0}#editor label.haken{display:block;margin:4px 0}#editor input[type=range],#editor select{width:100%}#editor button{margin:4px 4px 4px 0}@media(max-width:600px){#editor{width:calc(100vw - 16px);max-height:45vh}}</style>
+</head>
+<body>
+<canvas id="bild"></canvas>
+<aside id="editor"></aside>
+</body>
+</html>
