@@ -28,8 +28,8 @@ async function laden(id, version) {
   if (m.info.kamera) Object.assign(kamera, m.info.kamera);
   aktiv = { m, instanz, werte };
   schritte = 0;
-  editor.auswahlZeigen(Object.entries(MODULE).map(([i, x]) => [i, x.name, Object.keys(x.versionen)]), id, version, laden);
-  editor.modulZeigen(m.info, instanz.regler, werte, (k) => instanz.geaendert?.(k));
+  editor.zeigen(Object.entries(MODULE).map(([i, x]) => [i, x.name, Object.keys(x.versionen)]), { modul: id, version },
+    m.info, instanz.regler, werte, m.standard, (k) => instanz.geaendert?.(k), laden);
 }
 const startId = MODULE[q.get('modul')] ? q.get('modul') : 'gaseous-giganticus';
 await laden(startId, q.get('version') || Object.keys(MODULE[startId].versionen).at(-1));

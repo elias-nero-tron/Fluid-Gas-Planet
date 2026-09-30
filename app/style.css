@@ -1,18 +1,226 @@
-/* Das einzige CSS der App. Module bringen kein eigenes CSS mit; der Editor zeichnet alle Regler gleich. */
-html, body { margin: 0; height: 100%; background: #000; color: #ddd; font: 13px system-ui, sans-serif; overflow: hidden; }
-#bild { display: block; width: 100vw; height: 100vh; touch-action: none; }
-#editor { position: fixed; top: 8px; left: 8px; width: 320px; max-height: calc(100vh - 32px); overflow: auto;
-  background: rgba(0, 0, 0, .72); padding: 8px 10px; border-radius: 6px; box-sizing: border-box; }
-#editor h2 { font-size: 12px; margin: 10px 0 4px; color: #aaa; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; }
-/* Statuszeile: feste Höhe, eine Zeile, Ziffern gleich breit → nichts springt, wenn sich fps ändern */
-#editor .status { font-weight: 600; margin-bottom: 6px; height: 1.4em; line-height: 1.4em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-variant-numeric: tabular-nums; }
-#editor .fehler { color: #f88; white-space: pre-wrap; }
-#editor .quelle { color: #999; font-size: 11px; margin: 2px 0 6px; }
-#editor label.regler { display: grid; grid-template-columns: 130px 1fr 52px; gap: 6px; align-items: center; margin: 2px 0; height: 22px; }
-#editor label.regler span, #editor label.wahl span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-#editor label.regler output { font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
-#editor label.wahl { display: grid; grid-template-columns: 130px 1fr; gap: 6px; align-items: center; margin: 2px 0; }
-#editor label.haken { display: block; margin: 4px 0; }
-#editor input[type=range], #editor select { width: 100%; }
-#editor button { margin: 4px 4px 4px 0; }
-@media (max-width: 600px) { #editor { width: calc(100vw - 16px); max-height: 45vh; } }
+/* Das einzige CSS der App. Übernommen 1:1 aus dem vom Urheber bestätigten Stand (src/shell.css, #34);
+   am Ende nur die Anpassungen für die App (Canvas-ID #bild, fps-Zeile). Module bringen kein eigenes CSS mit. */
+/* Gemeinsame Oberfläche aller Planeten-Seiten. Bewusst dunkel: der Planet leuchtet auf Weltraumschwarz. */
+/* Eine bewusst dunkle Oberfläche: der Planet leuchtet auf Weltraumschwarz.
+   Farben aus Jupiters Wolken: Ammoniak-Creme für Text, Gürtel-Ocker als Akzent. */
+:root {
+  color-scheme: dark;
+  --space: #07080b;
+  --panel: rgba(16, 17, 22, 0.86);
+  --line: #2a2a30;
+  --text: #ece4d4;
+  --muted: #9a9384;
+  --accent: #d7a15f;
+  --accent-dim: #6b5234;
+  --focus: #f1c98f;
+  --display: 'Barlow Condensed', 'Arial Narrow', 'Roboto Condensed', sans-serif;
+  --body: 'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --mono: 'IBM Plex Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
+}
+html, body { height: 100%; }
+body {
+  margin: 0;
+  background: var(--space);
+  color: var(--text);
+  font: 14px/1.45 var(--body);
+  overflow: hidden;
+}
+#app { position: relative; height: 100%; display: grid; grid-template-columns: 1fr 340px; }
+#stage { position: relative; min-width: 0; min-height: 0; }
+#view { display: block; width: 100%; height: 100%; touch-action: none; cursor: grab; }
+#view:active { cursor: grabbing; }
+#view.map { cursor: default; }
+
+.hud {
+  position: absolute; left: 16px; top: calc(12px + env(safe-area-inset-top, 0px)); right: 16px;
+  display: flex; flex-direction: column; gap: 2px; pointer-events: none;
+}
+.hud h1 {
+  margin: 0; font: 600 26px/1.05 var(--display); letter-spacing: 0.04em; text-transform: uppercase;
+  text-wrap: balance;
+}
+.hud .meta { font: 12px/1.4 var(--mono); color: var(--muted); font-variant-numeric: tabular-nums; }
+/* Steckbrief des Planeten oben links */
+.facts-name { font: 13px/1.4 var(--mono); color: var(--text); margin-top: 2px; }
+.facts-name span { color: var(--muted); }
+.facts {
+  display: grid; grid-template-columns: max-content max-content; gap: 1px 12px; margin: 4px 0 6px; padding: 7px 10px;
+  font: 11.5px/1.4 var(--mono); background: rgba(10, 12, 16, 0.55); border: 1px solid var(--line); border-radius: 6px;
+  width: max-content; max-width: 100%;
+}
+.facts dt { color: #8fa6c4; }
+.facts dd { margin: 0; color: var(--text); font-variant-numeric: tabular-nums; }
+@media (max-width: 760px) { .facts { display: none; } }
+  /* Feste Breite: wechselnde Ziffern verschieben nichts (HUD-Springen, v0.3-Rückmeldung). */
+#fps { color: var(--accent); display: inline-block; min-width: 26ch; white-space: nowrap; }
+/* ⓘ neben jedem Regler, Blase beim Drüberfahren, Erklärfenster unten links über dem Planeten */
+.row .info { display: inline-grid; place-items: center; width: 18px; height: 18px; padding: 0; border: 0; border-radius: 50%; background: none; color: #7f8aa0; cursor: pointer; justify-self: start; }
+.row .info svg { width: 16px; height: 16px; }
+.row .info:hover, .row .info:focus-visible { color: var(--accent); }
+.tip {
+  position: fixed; z-index: 20; max-width: 280px; padding: 7px 10px; pointer-events: none;
+  background: #0d0e12; border: 1px solid var(--line); border-radius: 6px;
+  color: var(--text); font-size: 12.5px; line-height: 1.4; box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+}
+.detail {
+  position: fixed; z-index: 15; left: 16px; bottom: 16px; width: min(420px, calc(100vw - 32px));
+  max-height: 45vh; overflow-y: auto; padding: 12px 14px; box-sizing: border-box;
+  background: rgba(13, 14, 18, 0.95); border: 1px solid var(--line); border-radius: 8px;
+  color: var(--muted); font-size: 13px; line-height: 1.5;
+}
+.detail h3 { margin: 0 24px 6px 0; font: 600 15px var(--display); letter-spacing: 0.06em; text-transform: uppercase; color: var(--text); }
+.detail .detail-close { position: absolute; top: 8px; right: 8px; padding: 2px 7px; }
+.detail .reset-hint { margin: 8px 0 0; font-size: 12px; }
+
+/* Ladebild: dahinter rechnet die Simulation im Schnelldurchlauf vor. */
+#loading {
+  position: absolute; inset: 0; display: grid; place-items: center;
+  background: radial-gradient(circle at 50% 55%, #14120f 0%, var(--space) 70%);
+  transition: opacity 0.8s ease; z-index: 2;
+}
+#loading.done { opacity: 0; pointer-events: none; }
+.load-box { width: min(320px, 80%); display: grid; gap: 10px; text-align: center; }
+#load-title { margin: 0; font: 600 18px var(--display); letter-spacing: 0.08em; text-transform: uppercase; color: var(--text); }
+.load-track { height: 3px; background: var(--line); border-radius: 2px; overflow: hidden; }
+#load-bar { display: block; height: 100%; width: 0%; background: var(--accent); transition: width 0.2s linear; }
+#load-note { margin: 0; min-height: 1.4em; font: 12px var(--mono); color: var(--muted); }
+@media (prefers-reduced-motion: reduce) { #loading { transition: none; } }
+#status {
+  position: absolute; inset: auto 16px 16px 16px; max-width: 520px; padding: 12px 14px;
+  background: #2a1512; border: 1px solid #7a3326; border-radius: 6px; color: #f6d9cf;
+}
+
+aside {
+  background: var(--panel); border-left: 1px solid var(--line);
+  overflow-y: auto; overscroll-behavior: contain;
+  padding-block: calc(12px + env(safe-area-inset-top, 0px)) calc(24px + env(safe-area-inset-bottom, 0px));
+  padding-inline: 16px;
+  backdrop-filter: blur(8px);
+}
+#panel-toggle { display: none; }
+.panel-head {
+  display: flex; justify-content: flex-end; align-items: center; gap: 8px;
+  position: sticky; top: calc(-12px - env(safe-area-inset-top, 0px)); z-index: 3;
+  margin: -12px -16px 8px; padding: 10px 16px; background: var(--panel); border-bottom: 1px solid var(--line);
+}
+#toolbar { display: flex; gap: 6px; flex: 1; flex-wrap: wrap; }
+#toolbar button { padding: 5px 8px; font-size: 12.5px; white-space: nowrap; }
+#lang { font: 600 12px var(--mono); letter-spacing: 0.08em; padding: 5px 9px; }
+.switch { font: 12.5px var(--body, inherit); color: var(--text); white-space: nowrap; padding: 5px 9px; border: 1px solid var(--line); border-radius: 5px; text-decoration: none; }
+.fx { display: block; margin-top: 6px; font: 11.5px/1.45 var(--mono); color: #d9c7a6; white-space: normal; }
+.note.formula { margin-top: 0; }
+details { border-top: 1px solid var(--line); padding-block: 8px 10px; }
+summary {
+  cursor: pointer; list-style: none; display: flex; justify-content: space-between; align-items: center;
+  font: 600 15px/1.2 var(--display); letter-spacing: 0.08em; text-transform: uppercase; color: var(--text);
+  padding-block: 4px;
+}
+summary::-webkit-details-marker { display: none; }
+summary::after { content: '+'; font-family: var(--mono); color: var(--muted); }
+details[open] > summary::after { content: '–'; }
+.note { margin: 2px 0 8px; font-size: 12px; color: var(--muted); }
+.row {
+  display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 2px 8px; padding-block: 5px;
+}
+.row[hidden] { display: none; }
+.row label { font-size: 13px; }
+.row output { font: 12px var(--mono); color: var(--accent); font-variant-numeric: tabular-nums; }
+.row input[type=range] { grid-column: 1 / -1; width: 100%; margin: 0; accent-color: var(--accent); height: 22px; }
+.row-select { grid-template-columns: minmax(0, max-content) auto minmax(0, 1.3fr); }
+select, button {
+  font: 13px var(--body); color: var(--text); background: #1b1c22; border: 1px solid var(--line);
+  border-radius: 5px; padding: 6px 8px; min-width: 0;
+}
+select { width: 100%; }
+.row-toggle label { display: flex; align-items: center; gap: 8px; cursor: pointer; }
+.row-toggle input { accent-color: var(--accent); width: 16px; height: 16px; margin: 0; }
+.row-buttons { display: flex; flex-wrap: wrap; gap: 8px; }
+.row-save { display: flex; gap: 8px; align-items: center; }
+.row-save input, .row-save select { flex: 1; min-width: 0; }
+input[type=text] {
+  font: 13px var(--body); color: var(--text); background: #1b1c22; border: 1px solid var(--line);
+  border-radius: 5px; padding: 6px 8px;
+}
+button:disabled { opacity: 0.45; cursor: default; }
+.reset-hint { color: var(--muted); }
+.row label { cursor: default; user-select: none; }
+.row-file input { grid-column: 1 / -1; width: 100%; font: 12px var(--body); color: var(--muted); }
+.row-file input::file-selector-button {
+  font: 13px var(--body); color: var(--text); background: #1b1c22; border: 1px solid var(--line);
+  border-radius: 5px; padding: 6px 8px; margin-right: 8px; cursor: pointer;
+}
+button { cursor: pointer; }
+button:hover { border-color: var(--accent-dim); }
+:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.credits { margin-top: 14px; font-size: 11.5px; color: var(--muted); }
+.credits a { color: var(--muted); }
+
+@media (max-width: 760px) {
+  #app { grid-template-columns: 1fr; }
+  aside {
+    position: absolute; left: 0; right: 0; bottom: 0; max-height: 58%;
+    border-left: 0; border-top: 1px solid var(--line); border-radius: 12px 12px 0 0;
+    transform: translateY(calc(100% - 48px - env(safe-area-inset-bottom, 0px)));
+    transition: transform 0.25s ease;
+    padding-block: 0 calc(24px + env(safe-area-inset-bottom, 0px));
+  }
+  aside.open { transform: none; }
+  .panel-head { top: 0; margin: 0 -16px 8px; padding: 0 16px 8px; flex-wrap: wrap; }
+  .detail { top: 16px; bottom: auto; max-height: 40vh; }
+  #panel-toggle {
+    display: flex; flex: 1; justify-content: space-between; align-items: center;
+    position: sticky; top: 0; z-index: 1; margin-bottom: 8px; padding: 14px 2px;
+    background: none; border: 0; border-radius: 0; color: var(--text);
+    font: 600 15px var(--display); letter-spacing: 0.08em; text-transform: uppercase;
+    background: var(--panel);
+  }
+  .hud h1 { font-size: 22px; }
+}
+@media (prefers-reduced-motion: reduce) { aside { transition: none; } }
+
+/* ---- gemeinsam für alle Planetentypen (Gasriese, Gesteinsplanet, später Mond, Asteroid) ---- */
+/* Planetentyp-Umschalter: dieselbe Kopfzeile auf jeder Seite */
+.seg { display: flex; flex: 1; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; min-width: 12em; }
+.seg a, .seg button { flex: 1; display: grid; place-items: center; border: 0; border-radius: 0; padding: 6px 6px; background: #16171d; color: var(--muted); font: 600 13.5px var(--display); letter-spacing: 0.06em; text-transform: uppercase; text-decoration: none; white-space: nowrap; }
+.seg a[aria-current="page"], .seg button[aria-pressed="true"] { background: var(--accent); color: #1a1208; }
+/* Zeitleiste der Simulation unten links über dem Bild; nur sichtbar, wenn eine Simulation läuft */
+#toolbar { position: absolute; left: 16px; bottom: calc(16px + env(safe-area-inset-bottom, 0px)); z-index: 4; display: flex; gap: 6px; flex-wrap: wrap; max-width: calc(100% - 32px); }
+#toolbar:empty { display: none; }
+#toolbar button { padding: 5px 9px; font-size: 12.5px; white-space: nowrap; background: rgba(22, 23, 29, 0.85); backdrop-filter: blur(6px); }
+.detail { bottom: 64px; }
+/* Regler, die im gewählten Modus nichts tun: ausgegraut, ganz unten */
+.row.off { opacity: 0.42; }
+.row.off input, .row.off select { pointer-events: none; }
+details.inactive > summary { color: var(--muted); }
+/* Gesteinsplaneten: Seed-Zeile, Fortschritt, Biombild */
+.seedrow { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 6px; align-items: center; padding-block: 5px; }
+.seedrow label { font: 12px var(--mono); color: var(--muted); }
+.seedrow input { width: 100%; box-sizing: border-box; font-family: var(--mono); color: var(--accent); }
+#genbar { position: absolute; left: 16px; bottom: calc(16px + env(safe-area-inset-bottom, 0px)); width: min(320px, calc(100% - 32px)); font: 12px var(--mono); color: var(--muted); pointer-events: none; text-shadow: 0 1px 3px #000; }
+#genbar .track { height: 3px; margin-top: 4px; background: var(--line); border-radius: 2px; overflow: hidden; }
+#genbar .fill { height: 100%; width: 0; background: var(--accent); }
+#lut { display: block; width: 100%; height: auto; aspect-ratio: 1; margin: 6px 0 4px; border: 1px solid var(--line); border-radius: 4px; }
+#view.drag { cursor: grabbing; }
+@media (max-width: 760px) { .panel-head .seg { order: 3; flex-basis: 100%; } .panel-head #lang { order: 2; } #toolbar { bottom: calc(60px + env(safe-area-inset-bottom, 0px)); } #genbar { bottom: calc(60px + env(safe-area-inset-bottom, 0px)); } }
+/* Körper-Umschalter: eigene Zeile unter dem Kopf, damit alle Typen Platz haben; ausgegraut = kommt später */
+.panel-head { flex-wrap: wrap; }
+.panel-head .seg { order: 3; flex-basis: 100%; }
+.seg a, .seg .soon { font-size: 11.5px; padding: 6px 3px; letter-spacing: 0.02em; }
+.seg .soon { flex: 1; display: grid; place-items: center; background: #101116; color: #4a4c55; font-family: var(--display); font-weight: 600; letter-spacing: 0.02em; text-transform: uppercase; white-space: nowrap; cursor: help; }
+.panel-head .seg { flex-wrap: wrap; min-width: 0; }
+.seg a, .seg .soon { flex: 1 1 auto; }
+/* Reglersuche */
+.panel-search { width: 100%; margin: 4px 0 10px; padding: 7px 10px; border: 1px solid var(--line); border-radius: 6px; background: #16171d; color: inherit; font: inherit; }
+.search-hide { display: none !important; }
+/* Steckbrief: kurz, aufklappbar */
+.facts-more { margin-left: 6px; padding: 1px 7px; border: 1px solid var(--line); border-radius: 5px; background: rgba(22,23,29,0.7); color: var(--muted); font: 11px var(--mono); cursor: pointer; pointer-events: auto; }
+.facts.short { padding: 4px 10px; }
+@media (max-width: 760px) { .facts.short { display: grid; } }
+
+/* ---- App (v0.06): Canvas heißt #bild; Statuszeile fest, damit nichts springt ---- */
+#bild { display: block; width: 100%; height: 100%; touch-action: none; cursor: grab; }
+#bild:active { cursor: grabbing; }
+#fps { min-width: 0; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+.hud .quelle { font: 11.5px/1.4 var(--mono); color: var(--muted); }
+#fehler { color: #f6a08f; font: 12px/1.4 var(--mono); white-space: pre-wrap; pointer-events: auto; }
+.row-select.wahl { grid-template-columns: 70px 0 1fr; }

@@ -1,15 +1,31 @@
 <!doctype html>
-<!-- Eine Seite, ein CSS, eine Grafikkarten-Verbindung, ein Editor. Verfahren kommen als Module (module/). -->
+<!-- Eine Seite, ein CSS, eine Grafikkarten-Verbindung, ein Editor. Verfahren kommen als Module (module/).
+     Aufbau der Seite (Bühne + Seitenleiste) wie im vom Urheber bestätigten Stand #34. -->
 <html lang="de">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Planeten-Editor</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="./style.css">
 </head>
 <body>
-<canvas id="bild"></canvas>
-<aside id="editor"></aside>
+<div id="app">
+  <div id="stage">
+    <canvas id="bild"></canvas>
+    <div class="hud">
+      <h1 id="titel">Planeten-Editor</h1>
+      <div class="meta" id="fps">…</div>
+      <div class="quelle" id="quelle"></div>
+      <div id="fehler"></div>
+    </div>
+  </div>
+  <aside id="editor">
+    <div class="panel-head"><button type="button" id="panel-toggle" aria-expanded="false">Regler <span>▴</span></button></div>
+  </aside>
+</div>
 <script type="module" src="./start.js"></script>
 </body>
 </html>
